@@ -7,7 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +31,7 @@ jobs:
       - name: Build app with PyInstaller
         run: >
           pyinstaller --onefile --windowed --name MarkItDown
+          --target-arch ${{ matrix.arch }}
           --icon mac-build/AppIcon.icns
           --add-data "static:static"
           --collect-all markitdown
@@ -39,9 +47,9 @@ jobs:
           main.py
 
       - name: Zip .app bundle
-        run: ditto -c -k --sequesterRsrc --keepParent dist/MarkItDown.app MarkItDown-macOS.zip
+        run: ditto -c -k --sequesterRsrc --keepParent dist/MarkItDown.app MarkItDown-macOS-${{ matrix.arch }}.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MarkItDown-macOS
-          path: MarkItDown-macOS.zip
+          name: MarkItDown-macOS-${{ matrix.arch }}
+          path: MarkItDown-macOS-${{ matrix.arch }}.zip
