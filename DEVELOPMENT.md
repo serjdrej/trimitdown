@@ -19,30 +19,61 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 - `static/` — HTML/CSS/JS фронтенда (drag&drop конвертация, вкладка «Архив», бейдж режима NAS/локально).
 - `mac-build/AppIcon.iconset/` — набор PNG для иконки (тот же дизайн «M↓», что и PWA-иконка на iPhone).
 - `icon.ico` — та же иконка, но для Windows-сборки.
+- `main.spec` — PyInstaller-спека для macOS-сборки (`--onedir`, а не `--onefile` — см. «Известная
+  проблема» ниже; здесь же собраны `--collect-all` для тяжёлых зависимостей и ATS-исключение
+  в `Info.plist`); CI и ручная пересборка используют её.
 - `.github/workflows/build-macos.yml` — CI-сборка `.app` для arm64 и x86_64 на macOS-раннерах GitHub.
 - `requirements.txt` — общие зависимости (markitdown с ограниченным набором extras: docx, pdf,
   pptx, xlsx, xls, outlook — без audio-transcription/az-*, они тяжёлые и не нужны офлайн).
 
-## Известная проблема (открой это первым)
+## Известная проблема — ПОЧИНЕНО (см. `main.spec`)
 
-На собранном через GitHub Actions `.app` (macos-14 arm64 runner) окно приложения открывается
-**пустым**. На Windows exe всё работает (NAS-режим и локальный офлайн-режим оба проверены).
+На собранном через GitHub Actions `.app` (macos-14 arm64 runner) окно приложения открывалось
+**пустым** в офлайн-режиме (без NAS). На Windows exe всё работало.
 
-Вероятные причины, по убыванию вероятности:
+Нашлись и подтверждены на реальной сборке (`pyinstaller main.spec`, macOS, Python 3.12) **две**
+независимые причины:
 
-1. **App Transport Security (ATS) блокирует `http://127.0.0.1:<port>`** — WKWebView на macOS по
-   умолчанию требует HTTPS; для NAS-режима это не проблема (там HTTPS), но для локального
-   фолбэка сервер поднят на голом HTTP. Если ATS блокирует, страница будет пустой без явной
-   ошибки в UI. Фикс — добавить в Info.plist собранного `.app` (через PyInstaller `--osx-bundle-identifier`
-   и кастомный `Info.plist`, либо через `NSAppTransportSecurity` / `NSAllowsLocalNetworking`)
-   разрешение на loopback-соединения.
-2. **NAS не был доступен в момент теста** (другая сеть/Wi-Fi) → ушли в локальный офлайн-режим →
-   упёрлись в проблему №1.
-3. Что-то не собралось внутри `--collect-all` для magika/markitdown на macOS (модель magika для
-   определения типов файлов, ML-веса) — тогда упал бы сам сервер при старте, а не отрисовка окна,
-   но стоит исключить.
-4. macOS Local Network Privacy (разрешение на доступ к локальной сети) могло молча блокировать
-   запрос к NAS без явного системного диалога, если оно не задекларировано.
+1. **`--onefile` пересобирает временную папку на каждом запуске и не укладывается в таймаут.**
+   Это была основная и воспроизведённая причина. `main.py` поднимает локальный сервер в фоновом
+   потоке и ждёт открытия порта максимум 15 секунд (`wait_port`). В `--onefile`-сборке PyInstaller
+   на macOS распаковывает весь embedded-архив (markitdown, magika с ONNX-моделью, lxml, pdfminer
+   и т.д.) заново во временную директорию **при каждом запуске** — на этой машине импорт занимал
+   больше 15 секунд, `wait_port` возвращал `False`, и `main()` падал с
+   `RuntimeError: Локальный сервер не запустился` ещё до создания окна (воспроизведено:
+   `./dist/MarkItDown.app/Contents/MacOS/MarkItDown`, полный traceback в консоли). Сам PyInstaller
+   помечает `--onefile` + `--windowed` для macOS `.app` как deprecated именно по этой причине
+   ("clashes with macOS's security... will become an error in v7.0").
+   Фикс: `main.spec` собирает `.app` в режиме `--onedir` (`EXE(..., exclude_binaries=True)` →
+   `COLLECT(...)` → `BUNDLE(...)`) — файлы раскладываются один раз при сборке, запуск не требует
+   повторной распаковки. Проверено: тот же тест (NAS принудительно недоступен) — порт поднимается
+   за ~8 секунд вместо падения по таймауту, `curl` до `/` отдаёт HTTP 200 с ожидаемым HTML.
+
+2. **App Transport Security (ATS) блокирует `http://127.0.0.1:<port>` в WKWebView по умолчанию**
+   — никакого автоматического исключения для loopback-адресов нет (частое заблуждение: ATS
+   применяется и к `127.0.0.1`/`localhost`, не только к внешним доменам; подтверждено
+   документацией Apple). Если бы проблема №1 была исправлена без этого фикса, WKWebView всё равно
+   тихо не отрисовал бы страницу локального сервера — без ошибки в UI, просто пустое окно.
+   NAS-режим (HTTPS) эту проблему не задевал.
+   Фикс: `main.spec` → `BUNDLE(..., info_plist={...})` прописывает
+   `NSAppTransportSecurity.NSAllowsLocalNetworking = True` в `Info.plist` собранного `.app`
+   (проверено через `plutil -p dist/MarkItDown.app/Contents/Info.plist` — ключ на месте), не
+   ослабляя ATS для внешних соединений.
+
+Ещё один нюанс, который может всплыть отдельно (не тот же баг, но рядом): NAS отдаёт
+самоподписанный HTTPS-сертификат. `NSAppTransportSecurity` не умеет «доверять» конкретному
+самоподписанному сертификату через plist — WKWebView проверяет его через системный keychain,
+как Safari. Если на Windows-машине сертификат NAS уже был добавлён в доверенные (вручную,
+через сертификат-менеджер), то на новом Mac для NAS-режима его тоже нужно будет один раз
+добавить в Keychain Access (например, "Всегда доверять" для сертификата `192.168.1.100`),
+иначе NAS-режим может показывать пустое/ошибочное окно даже после этого фикса.
+
+Что осталось не проверено вживую: собственно отрисовку окна WKWebView в успешном случае
+(в среде, где это чинилось, не было прав на screen recording для скриншота). Косвенно
+подтверждено много — процесс не падает, порт поднимается, `curl` до `127.0.0.1:<port>/` отдаёт
+корректный `index.html`, `Info.plist` содержит нужный ATS-ключ — но финальную визуальную
+проверку (реально видно UI, а не просто «не упало») стоит сделать одним запуском собранного
+`.app` глазами при следующей итерации.
 
 ## Как быстро итерировать (без пересборки .app каждый раз)
 
@@ -65,14 +96,13 @@ python main.py
 ```bash
 pip install pyinstaller
 iconutil -c icns mac-build/AppIcon.iconset -o mac-build/AppIcon.icns
-pyinstaller --onefile --windowed --name MarkItDown \
-  --icon mac-build/AppIcon.icns \
-  --add-data "static:static" \
-  --collect-all markitdown --collect-all magika --collect-all mammoth \
-  --collect-all pdfminer --collect-all pptx --collect-all openpyxl \
-  --collect-all xlrd --collect-all olefile --collect-all bs4 --collect-all lxml \
-  main.py
+pyinstaller main.spec
 ```
+
+Все флаги (`--onedir --windowed`, иконка, `--collect-all` для тяжёлых зависимостей, ATS-исключение
+в `Info.plist`) теперь живут в `main.spec` — не нужно повторять их вручную и синхронизировать с CI.
+Для сборки под конкретную архитектуру на Apple Silicon: `PYI_TARGET_ARCH=x86_64 pyinstaller main.spec`
+(или `arm64`); без переменной PyInstaller соберёт под архитектуру текущей машины.
 
 Первый запуск собранного `.app` требует правого клика → «Открыть» (приложение не подписано
 сертификатом Apple Developer, обычный двойной клик заблокирует Gatekeeper).

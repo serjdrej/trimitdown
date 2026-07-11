@@ -29,22 +29,9 @@ jobs:
         run: iconutil -c icns mac-build/AppIcon.iconset -o mac-build/AppIcon.icns
 
       - name: Build app with PyInstaller
-        run: >
-          pyinstaller --onefile --windowed --name MarkItDown
-          --target-arch ${{ matrix.arch }}
-          --icon mac-build/AppIcon.icns
-          --add-data "static:static"
-          --collect-all markitdown
-          --collect-all magika
-          --collect-all mammoth
-          --collect-all pdfminer
-          --collect-all pptx
-          --collect-all openpyxl
-          --collect-all xlrd
-          --collect-all olefile
-          --collect-all bs4
-          --collect-all lxml
-          main.py
+        env:
+          PYI_TARGET_ARCH: ${{ matrix.arch }}
+        run: pyinstaller main.spec
 
       - name: Zip .app bundle
         run: ditto -c -k --sequesterRsrc --keepParent dist/MarkItDown.app MarkItDown-macOS-${{ matrix.arch }}.zip

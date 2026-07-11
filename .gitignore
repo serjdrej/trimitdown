@@ -3,7 +3,6 @@ build/
 dist/
 archive/
 *.pem
-*.spec
 __pycache__/
 *.pyc
 run_stdout.log
