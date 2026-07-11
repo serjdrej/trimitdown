@@ -2,10 +2,14 @@
 
 # MarkItDown — file-to-Markdown converter for iPhone, Windows, and Mac
 
-**MarkItDown** turns any file — PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls), an
-Outlook `.msg` message — into clean, readable Markdown with none of the formatting mess. It
-works as an iPhone app (installed straight from Safari, no App Store), as a portable Windows
-program, and as a Mac app — with one shared archive of converted files across every device.
+*A mobile app, Windows/Mac programs, and a Docker server, built on top of the open-source
+[MarkItDown](https://github.com/microsoft/markitdown) library by Microsoft — an open-source
+file-to-Markdown conversion engine.*
+
+Any file — PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls), an Outlook `.msg` message —
+turns into clean, readable Markdown with none of the formatting mess. It works as an iPhone app
+(installed straight from Safari, no App Store), as a portable Windows program, and as a Mac app
+— with one shared archive of converted files across every device.
 
 ## Why you'd want this
 
@@ -80,6 +84,16 @@ certificate once (otherwise Safari shows an untrusted-connection warning) — fu
   on every push to `main`.
 - **`DEVELOPMENT.md`** — desktop app internals for development: how to iterate without
   rebuilding the `.app` on every change, and the full history of bugs we hit and fixed.
+
+## License and credits
+
+All the actual file-conversion logic is [MarkItDown](https://github.com/microsoft/markitdown) by
+Microsoft (MIT licensed). The compiled binaries (Windows exe, macOS `.app`) bundle that package
+and its dependencies in full — the complete license text is in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+This repository's own code (the wrapper, desktop apps, Docker service) is
+[MIT licensed](LICENSE).
 
 ## Limitations
 
