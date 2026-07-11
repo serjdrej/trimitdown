@@ -11,7 +11,7 @@ from markitdown import MarkItDown
 
 md = MarkItDown()
 
-MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
 
 
 def safe_stem(name: str) -> str:
@@ -60,7 +60,7 @@ async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="Файл слишком большой (максимум 100 МБ) / File too large (100 MB max)",
+            detail="Файл слишком большой (максимум 200 МБ) / File too large (200 MB max)",
         )
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
