@@ -40,35 +40,11 @@ error shown in the UI at all):
 - **Windows**: download `/cert`, `certutil -user -addstore "Root" cert.pem`.
 - **macOS**: download `/cert`, open it in Keychain Access → "Always Trust".
 
-## PWA on iPhone/iPad — install without the App Store
+## PWA on iPhone/iPad
 
-The same Docker service serves a progressive web app (PWA): a full mobile app for converting
-files to Markdown on iOS that installs to the Home Screen straight from Safari — no App Store,
-no Apple Developer account, no review process.
-
-What that gets you in practice:
-
-- **A screen that looks native.** Once installed, it opens in full-screen standalone mode — no
-  Safari address bar, its own "M↓" icon on the Home Screen, and a status-bar color matching the
-  app's theme. Indistinguishable from an App Store app at a glance.
-- **Your own server, not someone else's cloud.** Files go to a server you run yourself (home
-  NAS, VPS, whatever) — no third-party SaaS, no per-conversion fees, your data never leaves
-  your own infrastructure.
-- **The same conversion engine as the desktop apps.**
-  [MarkItDown](https://github.com/microsoft/markitdown) turns docx, pdf, pptx, xlsx, xls,
-  Outlook `.msg` files and more into clean, readable markdown right on your phone — receive or
-  photograph a file, share it into the app, get markdown back.
-- **A searchable archive shared across every device.** Every conversion is saved on the server
-  and visible from any device that connects to it — iPhone, iPad, Mac, a Windows laptop.
-- **Offline UI caching.** A service worker caches the HTML/CSS/JS shell, so the app opens
-  instantly even on a flaky connection (actual conversion still needs the server reachable —
-  only the interface is cached, not the backend).
-- **Interface in Russian and English** — detected automatically from the device's system
-  language, no manual switch needed.
-
-One limitation: before the first install you need to approve the server's self-signed HTTPS
-certificate once (see the section above) — without that, Safari shows an untrusted-connection
-warning. It's a one-time per-device setup, not something you repeat on every launch.
+For the full pitch on the iOS PWA (what it gets you, what it looks like) see the
+[root README](../README.en.md#the-iphoneipad-app--no-app-store-required). This file only covers
+the technical side: certificate trust (above) and the API (below).
 
 ## API
 
