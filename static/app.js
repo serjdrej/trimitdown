@@ -9,6 +9,7 @@ const STRINGS = {
     downloadBtn: "Скачать .md",
     copyBtn: "Копировать",
     copiedBtn: "Скопировано",
+    copyFailed: "Не вышло",
     searchPlaceholder: "Поиск по названию…",
     certHint: "Установить сертификат (для iOS, один раз)",
     converting: name => `Конвертирую ${name}…`,
@@ -17,6 +18,7 @@ const STRINGS = {
     genericError: "Ошибка конвертации",
     notFound: "Ничего не найдено",
     deleteConfirm: name => `Удалить ${name}?`,
+    deleteFailed: "Не удалось удалить",
     sizeUnit: "КБ",
     modeLocal: "локально",
     modeServer: "сервер",
@@ -28,6 +30,7 @@ const STRINGS = {
     downloadBtn: "Download .md",
     copyBtn: "Copy",
     copiedBtn: "Copied",
+    copyFailed: "Failed",
     searchPlaceholder: "Search by name…",
     certHint: "Install certificate (for iOS, one-time)",
     converting: name => `Converting ${name}…`,
@@ -36,6 +39,7 @@ const STRINGS = {
     genericError: "Conversion failed",
     notFound: "Nothing found",
     deleteConfirm: name => `Delete ${name}?`,
+    deleteFailed: "Failed to delete",
     sizeUnit: "KB",
     modeLocal: "local",
     modeServer: "server",
@@ -114,8 +118,12 @@ downloadBtn.addEventListener("click", () => {
   if (lastFilename) triggerDownload(lastFilename);
 });
 copyBtn.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(resultText.value);
-  copyBtn.textContent = t.copiedBtn;
+  try {
+    await navigator.clipboard.writeText(resultText.value);
+    copyBtn.textContent = t.copiedBtn;
+  } catch (e) {
+    copyBtn.textContent = t.copyFailed;
+  }
   setTimeout(() => (copyBtn.textContent = t.copyBtn), 1200);
 });
 
@@ -151,7 +159,12 @@ async function loadArchive() {
     });
     li.querySelector('[data-act="del"]').addEventListener("click", async () => {
       if (!confirm(t.deleteConfirm(item.filename))) return;
-      await fetch(`/api/archive/${encodeURIComponent(item.filename)}`, { method: "DELETE" });
+      try {
+        await fetch(`/api/archive/${encodeURIComponent(item.filename)}`, { method: "DELETE" });
+      } catch (e) {
+        alert(t.deleteFailed);
+        return;
+      }
       loadArchive();
     });
     archiveList.appendChild(li);

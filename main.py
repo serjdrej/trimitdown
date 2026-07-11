@@ -1,4 +1,7 @@
+import platform
 import socket
+import subprocess
+import sys
 import threading
 import time
 
@@ -43,6 +46,17 @@ def start_local_server(port: int):
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
+def show_fatal_error(message: str) -> None:
+    # Built --noconsole, so an uncaught exception here is otherwise completely
+    # invisible — the process just exits with nothing on screen at all.
+    if platform.system() == "Windows":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, message, "MarkItDown", 0x10)
+    elif platform.system() == "Darwin":
+        safe_message = message.replace('"', '\\"')
+        subprocess.run(["osascript", "-e", f'display alert "MarkItDown" message "{safe_message}"'])
+
+
 def main():
     ensure_config_exists()
     server_url = get_server_url()
@@ -54,7 +68,11 @@ def main():
         thread = threading.Thread(target=start_local_server, args=(port,), daemon=True)
         thread.start()
         if not wait_port(port):
-            raise RuntimeError("Локальный сервер не запустился")
+            show_fatal_error(
+                "Не удалось запустить локальный сервер. Попробуйте перезапустить приложение.\n\n"
+                "Local server failed to start. Try restarting the app."
+            )
+            sys.exit(1)
         target = f"http://127.0.0.1:{port}"
 
     webview.settings['ALLOW_DOWNLOADS'] = True

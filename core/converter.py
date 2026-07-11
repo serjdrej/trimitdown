@@ -1,3 +1,5 @@
+import asyncio
+import os
 import re
 import tempfile
 from datetime import datetime
@@ -9,6 +11,8 @@ from markitdown import MarkItDown
 
 md = MarkItDown()
 
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
 
 def safe_stem(name: str) -> str:
     stem = Path(name).stem
@@ -16,16 +20,29 @@ def safe_stem(name: str) -> str:
     return stem or "file"
 
 
-def unique_target(archive_dir: Path, stem: str) -> Path:
-    target = archive_dir / f"{stem}.md"
-    if not target.exists():
-        return target
+def _candidate_names(stem: str):
+    yield f"{stem}.md"
     i = 2
     while True:
-        candidate = archive_dir / f"{stem} ({i}).md"
-        if not candidate.exists():
-            return candidate
+        yield f"{stem} ({i}).md"
         i += 1
+
+
+def save_unique(archive_dir: Path, stem: str, text: str) -> str:
+    # Atomic create-exclusive instead of exists()-then-write(): two concurrent
+    # conversions with the same filename (realistic here — several devices share
+    # one archive) could otherwise both pass the exists() check for "file.md" and
+    # the second write would silently clobber the first instead of falling back
+    # to "file (2).md".
+    for name in _candidate_names(stem):
+        path = archive_dir / name
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        return name
 
 
 def safe_path(archive_dir: Path, filename: str) -> Path:
@@ -40,21 +57,27 @@ def safe_path(archive_dir: Path, filename: str) -> Path:
 async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
     suffix = Path(file.filename).suffix
     data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Файл слишком большой (максимум 100 МБ) / File too large (100 MB max)",
+        )
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
         tmp_path = tmp.name
     try:
-        result = md.convert(tmp_path)
+        # md.convert() can take several seconds on large PDFs/OCR — offload to a
+        # thread so it doesn't block the event loop for every other client. This
+        # server is meant to be hit by multiple devices at once; without this, one
+        # slow conversion would freeze even a simple archive listing for everyone.
+        result = await asyncio.to_thread(md.convert, tmp_path)
     except Exception as e:
         Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Не удалось сконвертировать файл: {e}")
     Path(tmp_path).unlink(missing_ok=True)
 
-    text = result.text_content
-    target = unique_target(archive_dir, safe_stem(file.filename))
-    target.write_text(text, encoding="utf-8")
-
-    return JSONResponse({"filename": target.name, "content": text})
+    filename = save_unique(archive_dir, safe_stem(file.filename), result.text_content)
+    return JSONResponse({"filename": filename, "content": result.text_content})
 
 
 def list_archive(archive_dir: Path, q: str = "") -> list[dict]:
