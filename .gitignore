@@ -9,3 +9,5 @@ run_stdout.log
 run_stderr.log
 .DS_Store
 mac-build/AppIcon.icns
+mac-artifacts/
+nas-artifact/

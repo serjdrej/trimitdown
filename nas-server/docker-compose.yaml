@@ -1,0 +1,11 @@
+services:
+  markitdown-web:
+    build: .
+    image: markitdown-web:latest
+    container_name: markitdown-web
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./archive:/app/archive
+      - ./certs:/certs:ro
