@@ -16,14 +16,14 @@
 <header>
   <h1>MarkItDown</h1>
   <nav>
-    <button class="tab active" data-tab="convert">Конвертировать</button>
-    <button class="tab" data-tab="archive">Архив</button>
+    <button class="tab active" data-tab="convert" data-i18n="tabConvert">Конвертировать</button>
+    <button class="tab" data-tab="archive" data-i18n="tabArchive">Архив</button>
   </nav>
 </header>
 <main>
   <section id="convert" class="view active">
     <label id="dropzone" for="file-input">
-      <span id="dz-text">Нажми или перетащи файл сюда</span>
+      <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
       <input id="file-input" type="file" hidden>
     </label>
     <div id="status"></div>
@@ -31,17 +31,17 @@
       <div class="result-toolbar">
         <span id="result-name"></span>
         <div class="btns">
-          <button id="download-btn">Скачать .md</button>
-          <button id="copy-btn">Копировать</button>
+          <button id="download-btn" data-i18n="downloadBtn">Скачать .md</button>
+          <button id="copy-btn" data-i18n="copyBtn">Копировать</button>
         </div>
       </div>
       <textarea id="result-text" readonly></textarea>
     </div>
   </section>
   <section id="archive" class="view">
-    <input id="search" type="search" placeholder="Поиск по названию…">
+    <input id="search" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск по названию…">
     <ul id="archive-list"></ul>
-    <p class="hint"><a href="/cert">Установить сертификат (для iOS, один раз)</a></p>
+    <p class="hint"><a href="/cert" data-i18n="certHint">Установить сертификат (для iOS, один раз)</a></p>
   </section>
 </main>
 <script src="/static/app.js"></script>

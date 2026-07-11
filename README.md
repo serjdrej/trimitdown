@@ -1,3 +1,5 @@
+*Читать на: русском (этот файл) · [English](README.en.md)*
+
 # MarkItDown — личный тулкит для конвертации файлов в Markdown
 
 Обвязка вокруг [MarkItDown](https://github.com/microsoft/markitdown) (любой файл — pdf, docx,
