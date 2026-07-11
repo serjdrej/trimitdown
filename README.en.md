@@ -72,11 +72,15 @@ certificate once (otherwise Safari shows an untrusted-connection warning) — fu
 
 ## Repository layout
 
+- **`core/converter.py`** — shared, platform-agnostic conversion/archive logic (safe_stem,
+  MarkItDown conversion, listing/deleting files). Both `nas-server/app.py` and `server_app.py`
+  build on top of it.
 - **`nas-server/`** — the Docker service (`Dockerfile`, `docker-compose.yaml`, `app.py`,
   `static/` — the same HTML/CSS/JS you see on iPhone as a PWA). See
   [`nas-server/README.en.md`](nas-server/README.en.md).
 - **`main.py`** — desktop app entry point: server-reachability check, local server, pywebview window.
-- **`server_app.py`** — the FastAPI app used in the desktop apps' local (offline) mode.
+- **`server_app.py`** — a thin wrapper around `core/converter.py` for the desktop apps' local
+  (offline) mode (archive/static paths are platform-specific; the actual logic is shared).
 - **`static/`** — desktop app frontend (same UI, plus a server/local mode badge).
 - **`main.spec`** — PyInstaller spec for macOS.
 - **`mac-build/AppIcon.iconset/`**, **`icon.ico`** — the "M↓" icon for every platform.

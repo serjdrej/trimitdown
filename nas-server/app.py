@@ -1,19 +1,15 @@
-import os
-import re
-import tempfile
 from pathlib import Path
-from datetime import datetime
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from markitdown import MarkItDown
+
+from core.converter import convert_and_save, delete_file, list_archive, safe_path
 
 ARCHIVE_DIR = Path("/app/archive")
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
-md = MarkItDown()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -40,67 +36,14 @@ def get_cert():
     return FileResponse(cert_path, media_type="application/x-x509-ca-cert", filename="markitdown-nas.cer")
 
 
-def safe_stem(name: str) -> str:
-    stem = Path(name).stem
-    stem = re.sub(r"[^\w\-. ]", "_", stem, flags=re.UNICODE).strip()
-    return stem or "file"
-
-
-def unique_target(stem: str) -> Path:
-    target = ARCHIVE_DIR / f"{stem}.md"
-    if not target.exists():
-        return target
-    i = 2
-    while True:
-        candidate = ARCHIVE_DIR / f"{stem} ({i}).md"
-        if not candidate.exists():
-            return candidate
-        i += 1
-
-
-def safe_path(filename: str) -> Path:
-    path = (ARCHIVE_DIR / filename).resolve()
-    if ARCHIVE_DIR.resolve() not in path.parents:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Not found")
-    return path
-
-
 @app.post("/api/convert")
 async def convert(file: UploadFile = File(...)):
-    suffix = Path(file.filename).suffix
-    data = await file.read()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(data)
-        tmp_path = tmp.name
-    try:
-        result = md.convert(tmp_path)
-    except Exception as e:
-        os.unlink(tmp_path)
-        raise HTTPException(status_code=422, detail=f"Не удалось сконвертировать файл: {e}")
-    os.unlink(tmp_path)
-
-    text = result.text_content
-    target = unique_target(safe_stem(file.filename))
-    target.write_text(text, encoding="utf-8")
-
-    return JSONResponse({"filename": target.name, "content": text})
+    return await convert_and_save(ARCHIVE_DIR, file)
 
 
 @app.get("/api/archive")
-def list_archive(q: str = ""):
-    items = []
-    for p in sorted(ARCHIVE_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
-        if q and q.lower() not in p.name.lower():
-            continue
-        st = p.stat()
-        items.append({
-            "filename": p.name,
-            "size": st.st_size,
-            "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
-        })
-    return items
+def archive(q: str = ""):
+    return list_archive(ARCHIVE_DIR, q)
 
 
 @app.get("/api/archive/{filename}")
@@ -111,10 +54,10 @@ def download(filename: str, raw: int = 0):
     # Regular browsers get text/markdown back — octet-stream has no type info, and iOS Safari
     # falls back to sniffing the raw bytes for a preview, sometimes misdetecting them as HTML.
     media_type = "application/octet-stream" if raw else "text/markdown"
-    return FileResponse(safe_path(filename), filename=filename, media_type=media_type)
+    return FileResponse(safe_path(ARCHIVE_DIR, filename), filename=filename, media_type=media_type)
 
 
 @app.delete("/api/archive/{filename}")
 def delete(filename: str):
-    safe_path(filename).unlink()
+    delete_file(ARCHIVE_DIR, filename)
     return {"ok": True}

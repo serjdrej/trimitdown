@@ -1,6 +1,8 @@
 services:
   markitdown-web:
-    build: .
+    build:
+      context: ..
+      dockerfile: nas-server/Dockerfile
     image: markitdown-web:latest
     container_name: markitdown-web
     restart: unless-stopped

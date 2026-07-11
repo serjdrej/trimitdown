@@ -138,13 +138,14 @@ async function loadArchive() {
     const date = new Date(item.modified).toLocaleString(DATE_LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     li.innerHTML = `
       <div class="item-info">
-        <div class="item-name">${item.filename}</div>
+        <div class="item-name"></div>
         <div class="item-meta">${size} · ${date}</div>
       </div>
       <div class="item-btns">
         <button class="icon-btn" data-act="dl">⬇</button>
         <button class="icon-btn" data-act="del">✕</button>
       </div>`;
+    li.querySelector(".item-name").textContent = item.filename;
     li.querySelector('[data-act="dl"]').addEventListener("click", () => {
       triggerDownload(item.filename);
     });

@@ -7,8 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir "markitdown[all]" fastapi uvicorn python-multipart pillow
 
 WORKDIR /app
-COPY app.py generate_icons.py ./
-COPY static static
+COPY nas-server/app.py nas-server/generate_icons.py ./
+COPY nas-server/static static
+COPY core core
 
 RUN python generate_icons.py
 RUN mkdir -p /app/archive
