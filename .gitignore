@@ -12,3 +12,4 @@ run_stderr.log
 mac-build/AppIcon.icns
 mac-artifacts/
 nas-artifact/
+.pytest_cache/
