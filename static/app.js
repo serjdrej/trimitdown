@@ -48,8 +48,21 @@ async function convertFile(file) {
   }
 }
 
+function triggerDownload(filename) {
+  // A real click on an <a download> element makes pywebview's WKWebView backend
+  // treat this as a download (shouldPerformDownload()) regardless of the
+  // response's MIME type; window.location.href / fetch+blob navigations don't
+  // reliably trigger it and just render the file in-window instead.
+  const a = document.createElement("a");
+  a.href = `/api/archive/${encodeURIComponent(filename)}`;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 downloadBtn.addEventListener("click", () => {
-  if (lastFilename) window.location.href = `/api/archive/${encodeURIComponent(lastFilename)}`;
+  if (lastFilename) triggerDownload(lastFilename);
 });
 copyBtn.addEventListener("click", async () => {
   await navigator.clipboard.writeText(resultText.value);
@@ -84,7 +97,7 @@ async function loadArchive() {
         <button class="icon-btn" data-act="del">✕</button>
       </div>`;
     li.querySelector('[data-act="dl"]').addEventListener("click", () => {
-      window.location.href = `/api/archive/${encodeURIComponent(item.filename)}`;
+      triggerDownload(item.filename);
     });
     li.querySelector('[data-act="del"]').addEventListener("click", async () => {
       if (!confirm(`Удалить ${item.filename}?`)) return;

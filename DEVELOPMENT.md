@@ -117,5 +117,29 @@ x86_64) и кладёт `.zip` с `.app` в Artifacts запуска. `macos-13`
 
 - Скачивание файлов из архива по умолчанию заблокировано pywebview
   (`webview.settings['ALLOW_DOWNLOADS']`, default `False`) — уже включено в `main.py`.
-  На Windows это открывает диалог «Сохранить как», на macOS (см. `platforms/cocoa.py`)
-  сохраняет сразу в `~/Downloads` без диалога — это ожидаемо, не баг.
+  На macOS (`platforms/cocoa.py`) это открывает нативный `NSSavePanel` с директорией по
+  умолчанию `~/Downloads`, а не сохраняет тихо без диалога.
+
+- **Кнопка «Скачать» открывала предпросмотр .md-файла внутри окна вместо сохранения на
+  диск — ПОЧИНЕНО.** Разобрался в исходниках pywebview (`webview/platforms/cocoa.py`,
+  `webView_decidePolicyForNavigationResponse_decisionHandler_`): при обычной навигации
+  (`window.location.href = ...`) решение «показать страницу» или «скачать» принимается
+  по `navigationResponse.canShowMIMEType()` — и WebKit **игнорирует** `Content-Disposition`,
+  если МОЖЕТ отрисовать MIME-тип как страницу. Сервер отдавал архивные файлы с
+  `media_type="text/markdown"`, а `text/*` WebKit всегда умеет показать как текст — поэтому
+  открывался просмотр. Диалог сохранения включается только если WebKit *не может* показать
+  тип содержимого; на практике оказалось надёжнее не полагаться только на MIME-тип, а бить
+  через другой путь в том же файле — `webView_decidePolicyForNavigationAction_decisionHandler_`
+  проверяет `action.shouldPerformDownload()` (срабатывает при реальном клике по `<a download>`)
+  и до какого-либо анализа MIME-типа сразу форсирует `WKNavigationActionPolicyDownload`.
+  Исправлено в двух местах:
+  - `server_app.py`: `/api/archive/{filename}` отдаёт `media_type="application/octet-stream"`
+    вместо `text/markdown` (тоже помогает, но само по себе оказалось недостаточно надёжным).
+  - `static/app.js`: кнопки скачивания вместо `window.location.href = ...` создают
+    настоящий `<a href=... download=...>` и кликают по нему (`triggerDownload()`).
+  Проверено на пересобранном `.app` в локальном (офлайн) режиме — работает.
+  **Важно:** это фикс только для desktop-приложения (`main.spec`-сборки). Тот же
+  `server_app.py`/`static/` крутится и на NAS в Docker (см. шапку файла) — это отдельный
+  деплой, код туда этим репозиторием не доставляется. Пока NAS не обновлён вручную,
+  скачивание в NAS-режиме (когда WKWebView грузит страницу прямо с NAS) будет
+  показывать тот же старый баг с превью вместо сохранения.

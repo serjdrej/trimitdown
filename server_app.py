@@ -113,7 +113,11 @@ def list_archive(q: str = ""):
 
 @app.get("/api/archive/{filename}")
 def download(filename: str):
-    return FileResponse(safe_path(filename), filename=filename, media_type="text/markdown")
+    # application/octet-stream, not text/markdown: pywebview's cocoa backend only shows
+    # the native save dialog when WKWebView can't render the response's MIME type inline
+    # (canShowMIMEType()) — it ignores Content-Disposition. text/markdown is renderable as
+    # plain text, so the file opened in-window instead of downloading.
+    return FileResponse(safe_path(filename), filename=filename, media_type="application/octet-stream")
 
 
 @app.delete("/api/archive/{filename}")
