@@ -26,7 +26,7 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> None:
-    CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def get_server_url() -> str | None:
@@ -35,4 +35,11 @@ def get_server_url() -> str | None:
 
 def ensure_config_exists() -> None:
     if not CONFIG_PATH.exists():
-        save_config({"server_url": None})
+        save_config({
+            "_comment": (
+                "Адрес твоего сервера (nas-server), например https://192.168.1.100:8002 — "
+                "обязательно https, без слэша на конце. Оставь server_url как null, "
+                "чтобы приложение всегда работало офлайн."
+            ),
+            "server_url": None,
+        })
