@@ -36,10 +36,15 @@ def get_server_url() -> str | None:
 def ensure_config_exists() -> None:
     if not CONFIG_PATH.exists():
         save_config({
-            "_comment": (
+            "_comment_ru": (
                 "Адрес твоего сервера (nas-server), например https://192.168.1.100:8002 — "
                 "обязательно https, без слэша на конце. Оставь server_url как null, "
                 "чтобы приложение всегда работало офлайн."
+            ),
+            "_comment_en": (
+                "Your server's address (nas-server), e.g. https://192.168.1.100:8002 — "
+                "https is required, no trailing slash. Leave server_url as null to always "
+                "run offline."
             ),
             "server_url": None,
         })
