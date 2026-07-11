@@ -6,15 +6,16 @@ import requests
 import urllib3
 import webview
 
+from config_store import ensure_config_exists, get_server_url
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-NAS_URL = "https://192.168.1.100:8002"
-NAS_CHECK_TIMEOUT = 1.5
+SERVER_CHECK_TIMEOUT = 1.5
 
 
-def nas_reachable() -> bool:
+def server_reachable(url: str) -> bool:
     try:
-        r = requests.get(NAS_URL + "/", timeout=NAS_CHECK_TIMEOUT, verify=False)
+        r = requests.get(url + "/", timeout=SERVER_CHECK_TIMEOUT, verify=False)
         return r.status_code == 200
     except Exception:
         return False
@@ -43,8 +44,11 @@ def start_local_server(port: int):
 
 
 def main():
-    if nas_reachable():
-        target = NAS_URL
+    ensure_config_exists()
+    server_url = get_server_url()
+
+    if server_url and server_reachable(server_url):
+        target = server_url
     else:
         port = free_port()
         thread = threading.Thread(target=start_local_server, args=(port,), daemon=True)

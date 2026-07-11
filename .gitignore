@@ -2,6 +2,7 @@ venv/
 build/
 dist/
 archive/
+config.json
 *.pem
 __pycache__/
 *.pyc

@@ -5,19 +5,10 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from config_store import APP_DIR
 from core.converter import convert_and_save, delete_file, list_archive, safe_path
 
-if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys._MEIPASS)
-    exe_path = Path(sys.executable).resolve()
-    if sys.platform == "darwin" and ".app/Contents/MacOS" in str(exe_path):
-        APP_DIR = exe_path.parents[3]  # folder containing the .app bundle
-    else:
-        APP_DIR = exe_path.parent
-else:
-    BASE_DIR = Path(__file__).parent
-    APP_DIR = BASE_DIR
-
+BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 ARCHIVE_DIR = APP_DIR / "archive"
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 

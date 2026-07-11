@@ -99,6 +99,20 @@ and its dependencies in full — the complete license text is in
 This repository's own code (the wrapper, desktop apps, Docker service) is
 [MIT licensed](LICENSE).
 
+## Pointing the Windows/macOS apps at your own server
+
+By default the app runs fully offline — no setup needed. To connect it to your own Docker
+server (see `nas-server/`) and get a shared archive across devices: launch the app once (a
+`config.json` appears next to the exe/`.app`), close it, and fill in your server's address:
+
+```json
+{ "server_url": "https://YOUR_IP_OR_DOMAIN:8002" }
+```
+
+On the next launch the app tries that address — if it's reachable, it opens in server mode with
+the shared archive; if not (server off, not on the network, etc.), it silently falls back to
+offline mode, no need to undo anything.
+
 ## Limitations
 
 - The server's self-signed HTTPS certificate needs a one-time manual trust on every device
@@ -106,4 +120,3 @@ This repository's own code (the wrapper, desktop apps, Docker service) is
   `CurrentUser\Root`; macOS: Keychain Access → "Always Trust").
 - The apps aren't signed with a developer certificate (Apple or Microsoft) — first launch
   needs a one-time override (macOS: right-click → Open; Windows: SmartScreen, if it appears).
-- The server's IP is hardcoded in `main.py` (`NAS_URL`) — update it there if the server moves.
