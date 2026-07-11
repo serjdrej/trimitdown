@@ -26,7 +26,7 @@ program, and as a Mac app — with one shared archive of converted files across 
 | Windows | repo root | `MarkItDown-windows-x64.exe` from [Releases](../../releases) — portable, no install needed |
 | macOS (Intel and Apple Silicon) | repo root | `.zip` from [Releases](../../releases), pick the archive matching your chip |
 
-## The iPhone/iPad app — no App Store required
+## The iPhone and iPad app
 
 The Docker server (see below) serves a progressive web app (PWA): a full mobile app for
 converting files to Markdown on iOS that installs to the Home Screen straight from Safari — no

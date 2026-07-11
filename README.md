@@ -27,7 +27,7 @@
 | Windows | корень репозитория | `MarkItDown-windows-x64.exe` из [Releases](../../releases) — portable, установка не нужна |
 | macOS (Intel и Apple Silicon) | корень репозитория | `.zip` из [Releases](../../releases), архитектуру выбрать под свой чип |
 
-## Приложение для iPhone и iPad — без App Store
+## Приложение для iPhone и iPad
 
 Docker-сервер (см. ниже) отдаёт progressive web app (PWA): полноценное мобильное приложение для
 конвертации файлов в Markdown на iOS, которое устанавливается на экран «Домой» прямо из Safari —
