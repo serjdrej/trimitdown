@@ -54,14 +54,14 @@ def safe_path(archive_dir: Path, filename: str) -> Path:
     return path
 
 
-async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
-    suffix = Path(file.filename).suffix
+async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
             detail="Файл слишком большой (максимум 200 МБ) / File too large (200 MB max)",
         )
+    suffix = Path(file.filename).suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
         tmp_path = tmp.name
@@ -77,7 +77,11 @@ async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
     Path(tmp_path).unlink(missing_ok=True)
 
     filename = save_unique(archive_dir, safe_stem(file.filename), result.text_content)
-    return JSONResponse({"filename": filename, "content": result.text_content})
+    return {"filename": filename, "content": result.text_content}
+
+
+async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
+    return JSONResponse(await _convert_one(archive_dir, file))
 
 
 def list_archive(archive_dir: Path, q: str = "") -> list[dict]:

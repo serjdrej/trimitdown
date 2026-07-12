@@ -152,3 +152,37 @@ class TestConvertAndSave:
         with pytest.raises(HTTPException) as exc:
             asyncio.run(convert_and_save(tmp_path, upload))
         assert exc.value.status_code == 413
+
+
+class TestConvertOne:
+    def test_returns_plain_dict(self, tmp_path, monkeypatch):
+        class FakeResult:
+            text_content = "# Hello\n"
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        upload = make_upload("notes.docx", b"fake docx bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data == {"filename": "notes.md", "content": "# Hello\n"}
+        assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
+
+    def test_oversized_upload_raises_413(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 10)
+        upload = make_upload("big.txt", b"this is way more than 10 bytes")
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(converter._convert_one(tmp_path, upload))
+        assert exc.value.status_code == 413
+
+    def test_conversion_failure_raises_422(self, tmp_path, monkeypatch):
+        def boom(path):
+            raise ValueError("unsupported format")
+
+        monkeypatch.setattr(converter.md, "convert", boom)
+        upload = make_upload("broken.xyz", b"garbage")
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(converter._convert_one(tmp_path, upload))
+        assert exc.value.status_code == 422
+        assert not list(tmp_path.glob("*.md"))
