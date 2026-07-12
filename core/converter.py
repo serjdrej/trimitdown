@@ -129,10 +129,20 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
     except Exception as e:
         Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Не удалось сконвертировать файл: {e}")
+
+    # Page/slide counting needs the temp file to still exist on disk, so this runs
+    # before the cleanup unlink below (unlike the try/except above, which unlinks
+    # early only on the failure path).
+    before, unit, units = await asyncio.to_thread(_estimate_before_tokens, suffix.lower(), tmp_path)
     Path(tmp_path).unlink(missing_ok=True)
 
     filename = save_unique(archive_dir, safe_stem(file.filename), result.text_content)
-    return {"filename": filename, "content": result.text_content}
+    after = count_tokens(result.text_content)
+    return {
+        "filename": filename,
+        "content": result.text_content,
+        "tokens": {"after": after, "before": before, "unit": unit, "units": units},
+    }
 
 
 async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:

@@ -165,8 +165,30 @@ class TestConvertOne:
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
-        assert data == {"filename": "notes.md", "content": "# Hello\n"}
+        assert data["filename"] == "notes.md"
+        assert data["content"] == "# Hello\n"
+        assert data["tokens"] == {
+            "after": converter.count_tokens("# Hello\n"),
+            "before": None,
+            "unit": None,
+            "units": None,
+        }
         assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
+
+    def test_pdf_gets_before_estimate(self, tmp_path, monkeypatch):
+        class FakeResult:
+            text_content = "# Scanned doc\n"
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 4)
+        upload = make_upload("scan.pdf", b"fake pdf bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["tokens"]["unit"] == "page"
+        assert data["tokens"]["units"] == 4
+        assert data["tokens"]["before"] == 4 * converter.TOKENS_PER_UNIT_ESTIMATE
+        assert data["tokens"]["after"] == converter.count_tokens("# Scanned doc\n")
 
     def test_oversized_upload_raises_413(self, tmp_path, monkeypatch):
         monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 10)
