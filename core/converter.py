@@ -1,7 +1,9 @@
 import asyncio
+import io
 import os
 import re
 import tempfile
+import zipfile
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +55,16 @@ def safe_path(archive_dir: Path, filename: str) -> Path:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Not found")
     return path
+
+
+def zip_archive_files(archive_dir: Path, filenames: list[str]) -> io.BytesIO:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in filenames:
+            path = safe_path(archive_dir, name)
+            zf.write(path, arcname=name)
+    buffer.seek(0)
+    return buffer
 
 
 async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:

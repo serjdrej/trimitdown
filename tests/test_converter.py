@@ -2,6 +2,7 @@ import asyncio
 import io
 import sys
 import threading
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -232,3 +233,28 @@ class TestConvertBatch:
             return [event async for event in converter.convert_batch(tmp_path, [])]
 
         assert asyncio.run(run()) == []
+
+
+class TestZipArchiveFiles:
+    def test_zip_contains_requested_files(self, tmp_path):
+        (tmp_path / "a.md").write_text("content A", encoding="utf-8")
+        (tmp_path / "b.md").write_text("content B", encoding="utf-8")
+
+        buffer = converter.zip_archive_files(tmp_path, ["a.md", "b.md"])
+
+        with zipfile.ZipFile(buffer) as zf:
+            assert set(zf.namelist()) == {"a.md", "b.md"}
+            assert zf.read("a.md").decode("utf-8") == "content A"
+            assert zf.read("b.md").decode("utf-8") == "content B"
+
+    def test_path_traversal_name_raises_400(self, tmp_path):
+        (tmp_path / "a.md").write_text("x", encoding="utf-8")
+
+        with pytest.raises(HTTPException) as exc:
+            converter.zip_archive_files(tmp_path, ["a.md", "../outside.md"])
+        assert exc.value.status_code == 400
+
+    def test_missing_name_raises_404(self, tmp_path):
+        with pytest.raises(HTTPException) as exc:
+            converter.zip_archive_files(tmp_path, ["missing.md"])
+        assert exc.value.status_code == 404
