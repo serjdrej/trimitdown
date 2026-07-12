@@ -4,4 +4,5 @@ python-multipart
 markitdown[docx,pdf,pptx,xlsx,xls,outlook]
 pywebview
 requests
+tiktoken
 pyinstaller
