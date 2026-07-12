@@ -189,6 +189,20 @@ class TestConvertOne:
         assert not list(tmp_path.glob("*.md"))
 
 
+class TestCountTokens:
+    def test_empty_string_is_zero_tokens(self):
+        assert converter.count_tokens("") == 0
+
+    def test_longer_text_has_more_tokens(self):
+        short = converter.count_tokens("hello")
+        longer = converter.count_tokens("hello world, this is a much longer piece of text")
+        assert longer > short
+
+    def test_deterministic(self):
+        text = "The quick brown fox jumps over the lazy dog."
+        assert converter.count_tokens(text) == converter.count_tokens(text)
+
+
 class TestConvertBatch:
     def test_all_files_succeed(self, tmp_path, monkeypatch):
         class FakeResult:

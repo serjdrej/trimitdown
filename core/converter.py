@@ -8,13 +8,33 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
 
+import tiktoken
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from markitdown import MarkItDown
+from pdfminer.pdfpage import PDFPage
+from pptx import Presentation
 
 md = MarkItDown()
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
+
+os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(Path(__file__).parent / "tiktoken_cache"))
+TOKENS_PER_UNIT_ESTIMATE = 1500  # conservative low end of the documented 1500-3000 tokens/page
+                                  # vision-estimate range (Anthropic docs) — used for the honest
+                                  # PDF/PPTX before/after comparison only.
+_encoding = None
+
+
+def _get_encoding():
+    global _encoding
+    if _encoding is None:
+        _encoding = tiktoken.get_encoding("cl100k_base")
+    return _encoding
+
+
+def count_tokens(text: str) -> int:
+    return len(_get_encoding().encode(text))
 
 
 def safe_stem(name: str) -> str:
