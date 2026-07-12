@@ -37,6 +37,28 @@ def count_tokens(text: str) -> int:
     return len(_get_encoding().encode(text))
 
 
+def _count_pdf_pages(path: Path) -> int:
+    with open(path, "rb") as f:
+        return len(list(PDFPage.get_pages(f)))
+
+
+def _count_pptx_slides(path: Path) -> int:
+    return len(Presentation(path).slides)
+
+
+def _estimate_before_tokens(suffix: str, tmp_path: str) -> tuple[int | None, str | None, int | None]:
+    try:
+        if suffix == ".pdf":
+            units = _count_pdf_pages(Path(tmp_path))
+            return units * TOKENS_PER_UNIT_ESTIMATE, "page", units
+        if suffix == ".pptx":
+            units = _count_pptx_slides(Path(tmp_path))
+            return units * TOKENS_PER_UNIT_ESTIMATE, "slide", units
+    except Exception:
+        pass
+    return None, None, None
+
+
 def safe_stem(name: str) -> str:
     stem = Path(name).stem
     stem = re.sub(r"[^\w\-. ]", "_", stem, flags=re.UNICODE).strip()

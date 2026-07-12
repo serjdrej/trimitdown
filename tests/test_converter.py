@@ -203,6 +203,38 @@ class TestCountTokens:
         assert converter.count_tokens(text) == converter.count_tokens(text)
 
 
+class TestEstimateBeforeTokens:
+    def test_pdf_uses_real_page_count(self, monkeypatch):
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 3)
+
+        before, unit, units = converter._estimate_before_tokens(".pdf", "dummy.pdf")
+
+        assert unit == "page"
+        assert units == 3
+        assert before == 3 * converter.TOKENS_PER_UNIT_ESTIMATE
+
+    def test_pptx_uses_real_slide_count(self, monkeypatch):
+        monkeypatch.setattr(converter, "_count_pptx_slides", lambda path: 5)
+
+        before, unit, units = converter._estimate_before_tokens(".pptx", "dummy.pptx")
+
+        assert unit == "slide"
+        assert units == 5
+        assert before == 5 * converter.TOKENS_PER_UNIT_ESTIMATE
+
+    def test_other_formats_get_no_before_estimate(self):
+        for suffix in [".docx", ".xlsx", ".xls", ".msg", ".txt"]:
+            assert converter._estimate_before_tokens(suffix, "dummy") == (None, None, None)
+
+    def test_page_count_failure_falls_back_to_none(self, monkeypatch):
+        def boom(path):
+            raise ValueError("corrupt pdf")
+
+        monkeypatch.setattr(converter, "_count_pdf_pages", boom)
+
+        assert converter._estimate_before_tokens(".pdf", "dummy.pdf") == (None, None, None)
+
+
 class TestConvertBatch:
     def test_all_files_succeed(self, tmp_path, monkeypatch):
         class FakeResult:
