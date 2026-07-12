@@ -91,7 +91,7 @@ function handleFiles(fileList) {
   else convertBatch(files);
 }
 
-fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+fileInput.addEventListener("change", () => { handleFiles(fileInput.files); fileInput.value = ""; });
 ["dragover", "dragleave", "drop"].forEach(ev =>
   dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.toggle("drag", ev === "dragover"); })
 );
