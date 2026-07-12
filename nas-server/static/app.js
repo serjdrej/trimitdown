@@ -13,6 +13,9 @@ const STRINGS = {
     searchPlaceholder: "Поиск по названию…",
     certHint: "Установить сертификат (для iOS, один раз)",
     privacyHint: "Приватность и хранение данных",
+    tokenSavings: pct => `Экономия ~${pct}%`,
+    tokenDetail: (before, after, units, unit) => `оценка: ~${units} ${unit === "page" ? "стр." : "слайд."} как картинка ≈ ${before} ток. → результат ${after} ток.`,
+    tokenAfterOnly: after => `~${after} токенов в результате`,
     converting: name => `Конвертирую ${name}…`,
     done: "Готово, сохранено в архив.",
     error: msg => `Ошибка: ${msg}`,
@@ -41,6 +44,9 @@ const STRINGS = {
     searchPlaceholder: "Search by name…",
     certHint: "Install certificate (for iOS, one-time)",
     privacyHint: "Privacy and data storage",
+    tokenSavings: pct => `~${pct}% fewer tokens`,
+    tokenDetail: (before, after, units, unit) => `estimate: ~${units} ${unit === "page" ? "pages" : "slides"} as an image ≈ ${before} tokens → result ${after} tokens`,
+    tokenAfterOnly: after => `~${after} tokens in the result`,
     converting: name => `Converting ${name}…`,
     done: "Done, saved to archive.",
     error: msg => `Error: ${msg}`,
@@ -82,6 +88,9 @@ const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
 const resultPreview = document.getElementById("result-preview");
 const resultName = document.getElementById("result-name");
+const tokenInfoEl = document.getElementById("token-info");
+const tokenSavingsEl = document.getElementById("token-savings");
+const tokenDetailEl = document.getElementById("token-detail");
 const downloadBtn = document.getElementById("download-btn");
 const copyBtn = document.getElementById("copy-btn");
 const previewToggleBtn = document.getElementById("preview-toggle-btn");
@@ -107,6 +116,18 @@ function showSource() {
   sourceToggleBtn.classList.add("active");
 }
 
+function renderTokenInfo(tokens) {
+  tokenInfoEl.hidden = false;
+  if (tokens.before != null) {
+    const pct = Math.round((1 - tokens.after / tokens.before) * 100);
+    tokenSavingsEl.textContent = t.tokenSavings(pct);
+    tokenDetailEl.textContent = t.tokenDetail(tokens.before, tokens.after, tokens.units, tokens.unit);
+  } else {
+    tokenSavingsEl.textContent = "";
+    tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
+  }
+}
+
 previewToggleBtn.addEventListener("click", showPreview);
 sourceToggleBtn.addEventListener("click", showSource);
 
@@ -127,6 +148,7 @@ async function convertFile(file) {
   statusEl.textContent = t.converting(file.name);
   resultEl.hidden = true;
   batchResultEl.hidden = true;
+  tokenInfoEl.hidden = true;
   const form = new FormData();
   form.append("file", file);
   try {
@@ -138,6 +160,7 @@ async function convertFile(file) {
     resultText.value = data.content;
     resultPreview.innerHTML = DOMPurify.sanitize(marked.parse(data.content));
     showPreview();
+    renderTokenInfo(data.tokens);
     resultEl.hidden = false;
     statusEl.textContent = t.done;
   } catch (e) {
@@ -153,6 +176,7 @@ async function convertBatch(files) {
   statusEl.textContent = "";
   resultEl.hidden = true;
   batchResultEl.hidden = false;
+  tokenInfoEl.hidden = true;
   batchListEl.innerHTML = "";
   batchSummaryEl.textContent = "";
   downloadZipBtn.hidden = true;
