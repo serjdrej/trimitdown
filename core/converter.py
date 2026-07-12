@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import tempfile
+from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
 
@@ -82,6 +83,15 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
 
 async def convert_and_save(archive_dir: Path, file: UploadFile) -> JSONResponse:
     return JSONResponse(await _convert_one(archive_dir, file))
+
+
+async def convert_batch(archive_dir: Path, files: list[UploadFile]) -> AsyncIterator[dict]:
+    for file in files:
+        try:
+            data = await _convert_one(archive_dir, file)
+            yield {"filename": file.filename, "status": "ok", "saved_as": data["filename"]}
+        except HTTPException as e:
+            yield {"filename": file.filename, "status": "error", "detail": e.detail}
 
 
 def list_archive(archive_dir: Path, q: str = "") -> list[dict]:

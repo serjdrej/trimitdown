@@ -186,3 +186,49 @@ class TestConvertOne:
             asyncio.run(converter._convert_one(tmp_path, upload))
         assert exc.value.status_code == 422
         assert not list(tmp_path.glob("*.md"))
+
+
+class TestConvertBatch:
+    def test_all_files_succeed(self, tmp_path, monkeypatch):
+        class FakeResult:
+            text_content = "converted"
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        files = [make_upload("a.txt", b"one"), make_upload("b.txt", b"two")]
+
+        async def run():
+            return [event async for event in converter.convert_batch(tmp_path, files)]
+
+        events = asyncio.run(run())
+
+        assert [e["status"] for e in events] == ["ok", "ok"]
+        assert {e["filename"] for e in events} == {"a.txt", "b.txt"}
+        assert (tmp_path / "a.md").read_text(encoding="utf-8") == "converted"
+        assert (tmp_path / "b.md").read_text(encoding="utf-8") == "converted"
+
+    def test_partial_failure_is_best_effort(self, tmp_path, monkeypatch):
+        files = [make_upload("good.txt", b"ok"), make_upload("bad.txt", b"broken")]
+
+        async def fake_convert_one(archive_dir, file):
+            if file.filename == "bad.txt":
+                raise HTTPException(status_code=422, detail="Не удалось сконвертировать файл: boom")
+            return {"filename": "good.md", "content": "ok"}
+
+        monkeypatch.setattr(converter, "_convert_one", fake_convert_one)
+
+        async def run():
+            return [event async for event in converter.convert_batch(tmp_path, files)]
+
+        events = asyncio.run(run())
+
+        by_name = {e["filename"]: e for e in events}
+        assert by_name["good.txt"]["status"] == "ok"
+        assert by_name["good.txt"]["saved_as"] == "good.md"
+        assert by_name["bad.txt"]["status"] == "error"
+        assert "boom" in by_name["bad.txt"]["detail"]
+
+    def test_empty_batch_yields_nothing(self, tmp_path):
+        async def run():
+            return [event async for event in converter.convert_batch(tmp_path, [])]
+
+        assert asyncio.run(run()) == []
