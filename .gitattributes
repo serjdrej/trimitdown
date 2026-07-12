@@ -1,0 +1,5 @@
+# The vendored tiktoken BPE cache file must be treated as binary. Its filename is a sha1 hash
+# that tiktoken looks up directly, and its contents are checked against a hardcoded sha256 hash
+# at load time (see tiktoken/load.py). Line-ending normalization (LF -> CRLF on Windows checkout)
+# would silently corrupt it and break that integrity check.
+core/tiktoken_cache/* binary
