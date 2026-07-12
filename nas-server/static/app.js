@@ -129,14 +129,14 @@ async function convertBatch(files) {
   batchSummaryEl.textContent = "";
   downloadZipBtn.hidden = true;
 
-  const itemsByName = new Map();
+  const rows = [];
   for (const file of files) {
     const li = document.createElement("li");
     li.innerHTML = `<div class="batch-item-name"></div><div class="batch-item-status"></div>`;
     li.querySelector(".batch-item-name").textContent = file.name;
     li.querySelector(".batch-item-status").textContent = t.batchPending;
     batchListEl.appendChild(li);
-    itemsByName.set(file.name, li);
+    rows.push(li);
   }
 
   const form = new FormData();
@@ -144,8 +144,12 @@ async function convertBatch(files) {
 
   const successful = [];
   let failedCount = 0;
+  let eventIndex = 0;
   try {
     const res = await fetch("/api/convert-batch", { method: "POST", body: form });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -158,7 +162,7 @@ async function convertBatch(files) {
       for (const part of parts) {
         if (!part.startsWith("data: ")) continue;
         const event = JSON.parse(part.slice(6));
-        const li = itemsByName.get(event.filename);
+        const li = rows[eventIndex++];
         if (!li) continue;
         const statusSpan = li.querySelector(".batch-item-status");
         if (event.status === "ok") {
