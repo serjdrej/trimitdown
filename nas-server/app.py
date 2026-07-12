@@ -1,10 +1,11 @@
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.converter import convert_and_save, delete_file, list_archive, safe_path
+from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
 
 ARCHIVE_DIR = Path("/app/archive")
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -61,3 +62,25 @@ def download(filename: str, raw: int = 0):
 def delete(filename: str):
     delete_file(ARCHIVE_DIR, filename)
     return {"ok": True}
+
+
+@app.post("/api/convert-batch")
+async def convert_batch_endpoint(files: list[UploadFile] = File(...)):
+    if len(files) > 10:
+        raise HTTPException(400, detail="Максимум 10 файлов за раз / Maximum 10 files at a time")
+
+    async def event_stream():
+        async for event in convert_batch(ARCHIVE_DIR, files):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.get("/api/archive-zip")
+def download_zip(names: str):
+    buffer = zip_archive_files(ARCHIVE_DIR, names.split(","))
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="markitdown-batch.zip"'},
+    )
