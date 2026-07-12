@@ -19,6 +19,8 @@ const STRINGS = {
     notFound: "Ничего не найдено",
     deleteConfirm: name => `Удалить ${name}?`,
     deleteFailed: "Не удалось удалить",
+    previewBtn: "Просмотр",
+    sourceBtn: "Исходник",
     batchPending: "Ожидание…",
     batchOk: "Готово",
     batchError: "Ошибка",
@@ -44,6 +46,8 @@ const STRINGS = {
     notFound: "Nothing found",
     deleteConfirm: name => `Delete ${name}?`,
     deleteFailed: "Failed to delete",
+    previewBtn: "Preview",
+    sourceBtn: "Source",
     batchPending: "Waiting…",
     batchOk: "Done",
     batchError: "Error",
@@ -74,15 +78,35 @@ const fileInput = document.getElementById("file-input");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
+const resultPreview = document.getElementById("result-preview");
 const resultName = document.getElementById("result-name");
 const downloadBtn = document.getElementById("download-btn");
 const copyBtn = document.getElementById("copy-btn");
+const previewToggleBtn = document.getElementById("preview-toggle-btn");
+const sourceToggleBtn = document.getElementById("source-toggle-btn");
 const batchResultEl = document.getElementById("batch-result");
 const batchListEl = document.getElementById("batch-list");
 const batchSummaryEl = document.getElementById("batch-summary");
 const downloadZipBtn = document.getElementById("download-zip-btn");
 const BATCH_LIMIT = 10;
 let lastFilename = null;
+
+function showPreview() {
+  resultPreview.hidden = false;
+  resultText.hidden = true;
+  previewToggleBtn.classList.add("active");
+  sourceToggleBtn.classList.remove("active");
+}
+
+function showSource() {
+  resultPreview.hidden = true;
+  resultText.hidden = false;
+  previewToggleBtn.classList.remove("active");
+  sourceToggleBtn.classList.add("active");
+}
+
+previewToggleBtn.addEventListener("click", showPreview);
+sourceToggleBtn.addEventListener("click", showSource);
 
 function handleFiles(fileList) {
   const files = Array.from(fileList);
@@ -110,6 +134,8 @@ async function convertFile(file) {
     lastFilename = data.filename;
     resultName.textContent = data.filename;
     resultText.value = data.content;
+    resultPreview.innerHTML = DOMPurify.sanitize(marked.parse(data.content));
+    showPreview();
     resultEl.hidden = false;
     statusEl.textContent = t.done;
   } catch (e) {

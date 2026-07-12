@@ -30,12 +30,17 @@
     <div id="result" hidden>
       <div class="result-toolbar">
         <span id="result-name"></span>
+        <div class="view-toggle">
+          <button id="preview-toggle-btn" class="toggle-btn active" data-i18n="previewBtn">Просмотр</button>
+          <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
+        </div>
         <div class="btns">
           <button id="download-btn" data-i18n="downloadBtn">Скачать .md</button>
           <button id="copy-btn" data-i18n="copyBtn">Копировать</button>
         </div>
       </div>
-      <textarea id="result-text" readonly></textarea>
+      <div id="result-preview" class="markdown-body"></div>
+      <textarea id="result-text" readonly hidden></textarea>
     </div>
     <div id="batch-result" hidden>
       <ul id="batch-list"></ul>
@@ -49,6 +54,8 @@
     <p class="hint"><a href="/cert" data-i18n="certHint">Установить сертификат (для iOS, один раз)</a></p>
   </section>
 </main>
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/purify.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>
