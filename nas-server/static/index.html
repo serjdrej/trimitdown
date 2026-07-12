@@ -24,7 +24,7 @@
   <section id="convert" class="view active">
     <label id="dropzone" for="file-input">
       <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
-      <input id="file-input" type="file" hidden>
+      <input id="file-input" type="file" hidden multiple>
     </label>
     <div id="status"></div>
     <div id="result" hidden>
@@ -36,6 +36,11 @@
         </div>
       </div>
       <textarea id="result-text" readonly></textarea>
+    </div>
+    <div id="batch-result" hidden>
+      <ul id="batch-list"></ul>
+      <div id="batch-summary"></div>
+      <button id="download-zip-btn" hidden data-i18n="downloadZip">Скачать всё ZIP</button>
     </div>
   </section>
   <section id="archive" class="view">

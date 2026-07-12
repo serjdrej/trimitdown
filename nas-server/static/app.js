@@ -19,6 +19,12 @@ const STRINGS = {
     notFound: "Ничего не найдено",
     deleteConfirm: name => `Удалить ${name}?`,
     deleteFailed: "Не удалось удалить",
+    batchPending: "Ожидание…",
+    batchOk: "Готово",
+    batchError: "Ошибка",
+    batchLimitExceeded: n => `Максимум ${n} файлов за раз`,
+    batchDone: (ok, failed) => failed > 0 ? `Готово: ${ok} успешно, ${failed} с ошибкой` : `Готово: ${ok} файлов сконвертировано`,
+    downloadZip: "Скачать всё ZIP",
     sizeUnit: "КБ",
   },
   en: {
@@ -38,6 +44,12 @@ const STRINGS = {
     notFound: "Nothing found",
     deleteConfirm: name => `Delete ${name}?`,
     deleteFailed: "Failed to delete",
+    batchPending: "Waiting…",
+    batchOk: "Done",
+    batchError: "Error",
+    batchLimitExceeded: n => `Maximum ${n} files at a time`,
+    batchDone: (ok, failed) => failed > 0 ? `Done: ${ok} succeeded, ${failed} failed` : `Done: ${ok} files converted`,
+    downloadZip: "Download all as ZIP",
     sizeUnit: "KB",
   },
 };
@@ -65,17 +77,30 @@ const resultText = document.getElementById("result-text");
 const resultName = document.getElementById("result-name");
 const downloadBtn = document.getElementById("download-btn");
 const copyBtn = document.getElementById("copy-btn");
+const batchResultEl = document.getElementById("batch-result");
+const batchListEl = document.getElementById("batch-list");
+const batchSummaryEl = document.getElementById("batch-summary");
+const downloadZipBtn = document.getElementById("download-zip-btn");
+const BATCH_LIMIT = 10;
 let lastFilename = null;
 
-fileInput.addEventListener("change", () => { if (fileInput.files[0]) convertFile(fileInput.files[0]); });
+function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  if (files.length === 0) return;
+  if (files.length === 1) convertFile(files[0]);
+  else convertBatch(files);
+}
+
+fileInput.addEventListener("change", () => handleFiles(fileInput.files));
 ["dragover", "dragleave", "drop"].forEach(ev =>
   dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.toggle("drag", ev === "dragover"); })
 );
-dropzone.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) convertFile(f); });
+dropzone.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 
 async function convertFile(file) {
   statusEl.textContent = t.converting(file.name);
   resultEl.hidden = true;
+  batchResultEl.hidden = true;
   const form = new FormData();
   form.append("file", file);
   try {
@@ -89,6 +114,75 @@ async function convertFile(file) {
     statusEl.textContent = t.done;
   } catch (e) {
     statusEl.textContent = t.error(e.message);
+  }
+}
+
+async function convertBatch(files) {
+  if (files.length > BATCH_LIMIT) {
+    statusEl.textContent = t.batchLimitExceeded(BATCH_LIMIT);
+    return;
+  }
+  statusEl.textContent = "";
+  resultEl.hidden = true;
+  batchResultEl.hidden = false;
+  batchListEl.innerHTML = "";
+  batchSummaryEl.textContent = "";
+  downloadZipBtn.hidden = true;
+
+  const itemsByName = new Map();
+  for (const file of files) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="batch-item-name"></div><div class="batch-item-status"></div>`;
+    li.querySelector(".batch-item-name").textContent = file.name;
+    li.querySelector(".batch-item-status").textContent = t.batchPending;
+    batchListEl.appendChild(li);
+    itemsByName.set(file.name, li);
+  }
+
+  const form = new FormData();
+  for (const file of files) form.append("files", file);
+
+  const successful = [];
+  let failedCount = 0;
+  try {
+    const res = await fetch("/api/convert-batch", { method: "POST", body: form });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith("data: ")) continue;
+        const event = JSON.parse(part.slice(6));
+        const li = itemsByName.get(event.filename);
+        if (!li) continue;
+        const statusSpan = li.querySelector(".batch-item-status");
+        if (event.status === "ok") {
+          statusSpan.textContent = t.batchOk;
+          statusSpan.className = "batch-item-status status-ok";
+          successful.push(event.saved_as);
+        } else {
+          statusSpan.textContent = event.detail || t.batchError;
+          statusSpan.className = "batch-item-status status-error";
+          failedCount++;
+        }
+      }
+    }
+  } catch (e) {
+    batchSummaryEl.textContent = t.error(e.message);
+    return;
+  }
+
+  batchSummaryEl.textContent = t.batchDone(successful.length, failedCount);
+  if (successful.length > 0) {
+    downloadZipBtn.hidden = false;
+    downloadZipBtn.onclick = () => {
+      window.location.href = `/api/archive-zip?names=${encodeURIComponent(successful.join(","))}`;
+    };
   }
 }
 
