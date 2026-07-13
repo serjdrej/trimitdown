@@ -3,13 +3,13 @@ import os
 
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('static', 'static')]
+datas = [('static', 'static'), ('core/tiktoken_cache', 'core/tiktoken_cache')]
 binaries = []
 hiddenimports = []
 
 for pkg in (
     'markitdown', 'magika', 'mammoth', 'pdfminer', 'pptx',
-    'openpyxl', 'xlrd', 'olefile', 'bs4', 'lxml',
+    'openpyxl', 'xlrd', 'olefile', 'bs4', 'lxml', 'tiktoken',
 ):
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
