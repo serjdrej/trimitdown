@@ -3,29 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>MarkItDown</title>
-<meta name="theme-color" content="#0b0b0d">
+<title>TrimItDown</title>
+<meta name="theme-color" content="#1B1A17">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="MarkItDown">
+<meta name="apple-mobile-web-app-title" content="TrimItDown">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
-  <h1>MarkItDown</h1>
-  <nav>
-    <button class="tab active" data-tab="convert" data-i18n="tabConvert">Конвертировать</button>
-    <button class="tab" data-tab="archive" data-i18n="tabArchive">Архив</button>
-  </nav>
+  <div class="wordmark"><span class="wm-bold">trimit</span><span class="wm-light">down</span></div>
 </header>
 <main>
   <section id="convert" class="view active">
-    <label id="dropzone" for="file-input">
-      <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
-      <input id="file-input" type="file" hidden multiple>
-    </label>
     <div id="status"></div>
     <div id="result" hidden>
       <div class="result-toolbar">
@@ -51,6 +43,10 @@
       <div id="batch-summary"></div>
       <button id="download-zip-btn" hidden data-i18n="downloadZip">Скачать всё ZIP</button>
     </div>
+    <label id="dropzone" for="file-input">
+      <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
+      <input id="file-input" type="file" hidden multiple>
+    </label>
   </section>
   <section id="archive" class="view">
     <input id="search" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск по названию…">
@@ -58,7 +54,20 @@
     <p class="hint"><a href="/cert" data-i18n="certHint">Установить сертификат (для iOS, один раз)</a></p>
     <p class="hint"><a href="/static/privacy.html" data-i18n="privacyHint">Приватность и хранение данных</a></p>
   </section>
+  <section id="settings" class="view">
+  </section>
 </main>
+<nav class="bottom-nav">
+  <button class="tab active" data-tab="convert" data-i18n-aria="tabConvert">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+  </button>
+  <button class="tab" data-tab="archive" data-i18n-aria="tabArchive">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+  </button>
+  <button class="tab" data-tab="settings" data-i18n-aria="tabSettings">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+</nav>
 <script src="/static/vendor/marked.min.js"></script>
 <script src="/static/vendor/purify.min.js"></script>
 <script src="/static/app.js"></script>

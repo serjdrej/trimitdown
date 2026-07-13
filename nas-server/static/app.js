@@ -13,6 +13,8 @@ const STRINGS = {
     searchPlaceholder: "Поиск по названию…",
     certHint: "Установить сертификат (для iOS, один раз)",
     privacyHint: "Приватность и хранение данных",
+    modeLabel: "Режим",
+    tabSettings: "Настройки",
     tokenSavings: pct => `Экономия ~${pct}%`,
     tokenDetail: (before, after, units, unit) => `оценка: ~${units} ${unit === "page" ? "стр." : "слайд."} как картинка ≈ ${before} ток. → результат ${after} ток.`,
     tokenAfterOnly: after => `~${after} токенов в результате`,
@@ -44,6 +46,8 @@ const STRINGS = {
     searchPlaceholder: "Search by name…",
     certHint: "Install certificate (for iOS, one-time)",
     privacyHint: "Privacy and data storage",
+    modeLabel: "Mode",
+    tabSettings: "Settings",
     tokenSavings: pct => `~${pct}% fewer tokens`,
     tokenDetail: (before, after, units, unit) => `estimate: ~${units} ${unit === "page" ? "pages" : "slides"} as an image ≈ ${before} tokens → result ${after} tokens`,
     tokenAfterOnly: after => `~${after} tokens in the result`,
@@ -70,6 +74,7 @@ const t = STRINGS[LANG];
 document.documentElement.lang = LANG;
 document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t[el.dataset.i18n]; });
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t[el.dataset.i18nPlaceholder]; });
+document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t[el.dataset.i18nAria]); });
 
 const tabs = document.querySelectorAll(".tab");
 const views = document.querySelectorAll(".view");
