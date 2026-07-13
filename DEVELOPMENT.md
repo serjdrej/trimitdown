@@ -33,6 +33,14 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 - `requirements.txt` — общие зависимости (markitdown с ограниченным набором extras: docx, pdf,
   pptx, xlsx, xls, outlook — без audio-transcription/az-*, они тяжёлые и не нужны офлайн).
 
+**Фаза 1 плана развития функционала (2026-07-12/13)** — батч-конвертация + ZIP
+(`convert_batch()`/`zip_archive_files()` в `core/converter.py`, роуты `/api/convert-batch` и
+`/api/archive-zip`), live-preview (вендоренные `marked.js`+`DOMPurify` в `static/vendor/`),
+страница приватности (`static/privacy.html`), счётчик токенов (`count_tokens()`, вендоренный
+словарь `tiktoken` в `core/tiktoken_cache/` — оба build-таргета, `nas-server/Dockerfile` и
+`main.spec`, теперь явно тащат `tiktoken` и эту директорию). Детали — в
+`docs/superpowers/specs/2026-07-12-*.md` и `docs/superpowers/plans/2026-07-12-*.md`.
+
 ## Известная проблема — ПОЧИНЕНО (см. `main.spec`)
 
 На собранном через GitHub Actions `.app` (macos-14 arm64 runner) окно приложения открывалось
