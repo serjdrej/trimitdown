@@ -13,3 +13,4 @@ mac-build/AppIcon.icns
 mac-artifacts/
 nas-artifact/
 .pytest_cache/
+.superpowers/
