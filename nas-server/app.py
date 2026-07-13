@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -79,8 +80,9 @@ async def convert_batch_endpoint(files: list[UploadFile] = File(...)):
 @app.get("/api/archive-zip")
 def download_zip(names: str):
     buffer = zip_archive_files(ARCHIVE_DIR, names.split(","))
+    filename = f"trim_{datetime.now():%Y%m%d_%H%M%S}.zip"
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="markitdown-batch.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
