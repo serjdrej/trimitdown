@@ -92,6 +92,14 @@ button:hover { border-color: var(--accent); }
 .token-bar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
 
 .settings-row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-md); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+#settings.view.active { gap: var(--space-md); }
+.settings-group { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+#server-url-group[hidden] { display: none; }
+.settings-label { font-size: 13px; color: var(--muted); }
+#server-url-input { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.settings-theme { display: flex; align-items: center; gap: var(--space-sm); }
+.settings-theme select { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
 
 .bottom-nav { position: fixed; z-index: 10; bottom: 0; left: 0; right: 0; box-sizing: content-box; display: flex; justify-content: space-around; align-items: center; height: 64px; padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--border); }
 .bottom-nav .tab { background: none; border: none; color: var(--muted); padding: 8px; cursor: pointer; display: flex; }

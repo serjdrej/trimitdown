@@ -57,13 +57,35 @@
     <input id="search" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Поиск по названию…">
     <ul id="archive-list"></ul>
     <p class="hint"><a href="/cert" data-i18n="certHint">Установить сертификат (для iOS, один раз)</a></p>
-    <p class="hint"><a href="/static/privacy.html" data-i18n="privacyHint">Приватность и хранение данных</a></p>
   </section>
   <section id="settings" class="view">
     <div class="settings-row">
       <span data-i18n="modeLabel">Режим</span>
       <span id="mode-badge" class="badge"></span>
     </div>
+    <div class="settings-group" id="server-url-group" hidden>
+      <label class="settings-label" for="server-url-input" data-i18n="serverUrlLabel">Адрес сервера</label>
+      <input id="server-url-input" type="text" placeholder="https://192.168.1.10:8002">
+      <div class="settings-actions">
+        <button id="save-server-btn" data-i18n="saveBtn">Сохранить</button>
+        <button id="test-server-btn" data-i18n="testConnectionBtn">Проверить соединение</button>
+        <button id="reset-server-btn" data-i18n="resetLocalBtn">Сбросить на локальный режим</button>
+      </div>
+      <p id="server-status-msg" class="hint"></p>
+    </div>
+    <div class="settings-row">
+      <span data-i18n="themeLabel">Тема</span>
+      <div class="settings-theme">
+        <select disabled>
+          <option data-i18n="themeSystem">Системная</option>
+          <option data-i18n="themeLight">Светлая</option>
+          <option data-i18n="themeDark">Тёмная</option>
+        </select>
+        <span class="badge" data-i18n="comingSoon">скоро</span>
+      </div>
+    </div>
+    <p class="hint"><a href="/static/privacy.html" data-i18n="privacyHint">Приватность и хранение данных</a></p>
+    <p class="hint" id="app-version"></p>
   </section>
 </main>
 <nav class="bottom-nav">

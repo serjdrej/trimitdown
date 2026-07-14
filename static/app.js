@@ -37,6 +37,21 @@ const STRINGS = {
     sizeUnit: "КБ",
     modeLocal: "локально",
     modeServer: "сервер",
+    serverUrlLabel: "Адрес сервера",
+    saveBtn: "Сохранить",
+    testConnectionBtn: "Проверить соединение",
+    resetLocalBtn: "Сбросить на локальный режим",
+    themeLabel: "Тема",
+    themeSystem: "Системная",
+    themeLight: "Светлая",
+    themeDark: "Тёмная",
+    comingSoon: "скоро",
+    invalidUrlMsg: "Неверный формат: нужен https://, без слэша в конце",
+    restartMsg: "Изменения вступят в силу после перезапуска приложения",
+    testingMsg: "Проверяю…",
+    reachableMsg: "Сервер доступен",
+    unreachableMsg: "Сервер недоступен",
+    versionLabel: v => `Версия ${v}`,
   },
   en: {
     tabConvert: "Convert",
@@ -73,6 +88,21 @@ const STRINGS = {
     sizeUnit: "KB",
     modeLocal: "local",
     modeServer: "server",
+    serverUrlLabel: "Server address",
+    saveBtn: "Save",
+    testConnectionBtn: "Test connection",
+    resetLocalBtn: "Reset to local mode",
+    themeLabel: "Theme",
+    themeSystem: "System",
+    themeLight: "Light",
+    themeDark: "Dark",
+    comingSoon: "soon",
+    invalidUrlMsg: "Invalid format: needs https://, no trailing slash",
+    restartMsg: "Changes take effect after restarting the app",
+    testingMsg: "Checking…",
+    reachableMsg: "Server is reachable",
+    unreachableMsg: "Server is unreachable",
+    versionLabel: v => `Version ${v}`,
   },
 };
 const t = STRINGS[LANG];
@@ -83,9 +113,54 @@ document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placehol
 document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t[el.dataset.i18nAria]); });
 
 const modeBadge = document.getElementById("mode-badge");
+const appVersionEl = document.getElementById("app-version");
 fetch("/api/mode").then(r => r.json()).then(d => {
   modeBadge.textContent = d.mode === "local" ? t.modeLocal : t.modeServer;
+  appVersionEl.textContent = t.versionLabel(d.version);
 }).catch(() => { modeBadge.textContent = t.modeServer; });
+
+function isValidServerUrl(url) {
+  return /^https:\/\/.+[^/]$/.test(url);
+}
+
+const serverUrlGroup = document.getElementById("server-url-group");
+if (window.pywebview && window.pywebview.api) {
+  serverUrlGroup.hidden = false;
+  const serverUrlInput = document.getElementById("server-url-input");
+  const serverStatusMsg = document.getElementById("server-status-msg");
+  const saveServerBtn = document.getElementById("save-server-btn");
+  const testServerBtn = document.getElementById("test-server-btn");
+  const resetServerBtn = document.getElementById("reset-server-btn");
+
+  window.pywebview.api.get_server_url().then(url => { serverUrlInput.value = url || ""; });
+
+  saveServerBtn.addEventListener("click", async () => {
+    const url = serverUrlInput.value.trim();
+    if (url && !isValidServerUrl(url)) {
+      serverStatusMsg.textContent = t.invalidUrlMsg;
+      return;
+    }
+    await window.pywebview.api.save_server_url(url);
+    serverStatusMsg.textContent = t.restartMsg;
+  });
+
+  testServerBtn.addEventListener("click", async () => {
+    const url = serverUrlInput.value.trim();
+    if (!isValidServerUrl(url)) {
+      serverStatusMsg.textContent = t.invalidUrlMsg;
+      return;
+    }
+    serverStatusMsg.textContent = t.testingMsg;
+    const ok = await window.pywebview.api.check_reachable(url);
+    serverStatusMsg.textContent = ok ? t.reachableMsg : t.unreachableMsg;
+  });
+
+  resetServerBtn.addEventListener("click", async () => {
+    serverUrlInput.value = "";
+    await window.pywebview.api.save_server_url("");
+    serverStatusMsg.textContent = t.restartMsg;
+  });
+}
 
 const tabs = document.querySelectorAll(".tab");
 const views = document.querySelectorAll(".view");
