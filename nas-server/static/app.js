@@ -15,9 +15,10 @@ const STRINGS = {
     privacyHint: "Приватность и хранение данных",
     modeLabel: "Режим",
     tabSettings: "Настройки",
-    tokenSavings: pct => `Экономия ~${pct}%`,
+    tokenSavings: pct => pct >= 0 ? `−${pct}%` : `+${Math.abs(pct)}%`,
     tokenDetail: (before, after, units, unit) => `оценка: ~${units} ${unit === "page" ? "стр." : "слайд."} как картинка ≈ ${before} ток. → результат ${after} ток.`,
     tokenAfterOnly: after => `~${after} токенов в результате`,
+    tokenBeforeAfter: (before, after) => `${before} → ${after} токенов`,
     converting: name => `Конвертирую ${name}…`,
     done: "Готово, сохранено в архив.",
     error: msg => `Ошибка: ${msg}`,
@@ -26,7 +27,7 @@ const STRINGS = {
     deleteConfirm: name => `Удалить ${name}?`,
     deleteFailed: "Не удалось удалить",
     previewBtn: "Просмотр",
-    sourceBtn: "Исходник",
+    sourceBtn: "RAW",
     batchPending: "Ожидание…",
     batchOk: "Готово",
     batchError: "Ошибка",
@@ -48,9 +49,10 @@ const STRINGS = {
     privacyHint: "Privacy and data storage",
     modeLabel: "Mode",
     tabSettings: "Settings",
-    tokenSavings: pct => `~${pct}% fewer tokens`,
+    tokenSavings: pct => pct >= 0 ? `−${pct}%` : `+${Math.abs(pct)}%`,
     tokenDetail: (before, after, units, unit) => `estimate: ~${units} ${unit === "page" ? "pages" : "slides"} as an image ≈ ${before} tokens → result ${after} tokens`,
     tokenAfterOnly: after => `~${after} tokens in the result`,
+    tokenBeforeAfter: (before, after) => `${before} → ${after} tokens`,
     converting: name => `Converting ${name}…`,
     done: "Done, saved to archive.",
     error: msg => `Error: ${msg}`,
@@ -59,7 +61,7 @@ const STRINGS = {
     deleteConfirm: name => `Delete ${name}?`,
     deleteFailed: "Failed to delete",
     previewBtn: "Preview",
-    sourceBtn: "Source",
+    sourceBtn: "RAW",
     batchPending: "Waiting…",
     batchOk: "Done",
     batchError: "Error",
@@ -96,6 +98,7 @@ const resultName = document.getElementById("result-name");
 const tokenInfoEl = document.getElementById("token-info");
 const tokenSavingsEl = document.getElementById("token-savings");
 const tokenDetailEl = document.getElementById("token-detail");
+const tokenBarFillEl = document.getElementById("token-bar-fill");
 const downloadBtn = document.getElementById("download-btn");
 const copyBtn = document.getElementById("copy-btn");
 const previewToggleBtn = document.getElementById("preview-toggle-btn");
@@ -126,10 +129,12 @@ function renderTokenInfo(tokens) {
   if (tokens.before != null) {
     const pct = Math.round((1 - tokens.after / tokens.before) * 100);
     tokenSavingsEl.textContent = t.tokenSavings(pct);
-    tokenDetailEl.textContent = t.tokenDetail(tokens.before, tokens.after, tokens.units, tokens.unit);
+    tokenDetailEl.textContent = t.tokenBeforeAfter(tokens.before, tokens.after);
+    tokenBarFillEl.style.width = Math.max(0, Math.min(100, pct)) + "%";
   } else {
     tokenSavingsEl.textContent = "";
     tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
+    tokenBarFillEl.style.width = "0%";
   }
 }
 
@@ -139,6 +144,7 @@ sourceToggleBtn.addEventListener("click", showSource);
 function handleFiles(fileList) {
   const files = Array.from(fileList);
   if (files.length === 0) return;
+  dropzone.classList.add("compact");
   if (files.length === 1) convertFile(files[0]);
   else convertBatch(files);
 }
@@ -271,14 +277,15 @@ function triggerDownload(filename) {
 downloadBtn.addEventListener("click", () => {
   if (lastFilename) triggerDownload(lastFilename);
 });
+const copyBtnLabel = copyBtn.querySelector("span");
 copyBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(resultText.value);
-    copyBtn.textContent = t.copiedBtn;
+    copyBtnLabel.textContent = t.copiedBtn;
   } catch (e) {
-    copyBtn.textContent = t.copyFailed;
+    copyBtnLabel.textContent = t.copyFailed;
   }
-  setTimeout(() => (copyBtn.textContent = t.copyBtn), 1200);
+  setTimeout(() => (copyBtnLabel.textContent = t.copyBtn), 1200);
 });
 
 const searchInput = document.getElementById("search");
@@ -299,19 +306,21 @@ async function loadArchive() {
     const size = (item.size / 1024).toFixed(1) + " " + t.sizeUnit;
     const date = new Date(item.modified).toLocaleString(DATE_LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     li.innerHTML = `
-      <div class="item-info">
-        <div class="item-name"></div>
-        <div class="item-meta">${size} · ${date}</div>
-      </div>
-      <div class="item-btns">
-        <button class="icon-btn" data-act="dl">⬇</button>
-        <button class="icon-btn" data-act="del">✕</button>
-      </div>`;
+      <button class="item-row" type="button">
+        <div class="item-info">
+          <div class="item-name"></div>
+          <div class="item-meta">${size} · ${date}</div>
+        </div>
+        <div class="item-btns">
+          <span class="icon-btn" data-act="del">✕</span>
+        </div>
+      </button>`;
     li.querySelector(".item-name").textContent = item.filename;
-    li.querySelector('[data-act="dl"]').addEventListener("click", () => {
+    li.querySelector(".item-row").addEventListener("click", () => {
       triggerDownload(item.filename);
     });
-    li.querySelector('[data-act="del"]').addEventListener("click", async () => {
+    li.querySelector('[data-act="del"]').addEventListener("click", async (e) => {
+      e.stopPropagation();
       if (!confirm(t.deleteConfirm(item.filename))) return;
       try {
         await fetch(`/api/archive/${encodeURIComponent(item.filename)}`, { method: "DELETE" });
