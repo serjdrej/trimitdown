@@ -41,7 +41,7 @@ def get_cert():
     cert_path = Path("/certs/cert.pem")
     if not cert_path.exists():
         raise HTTPException(404, "cert not found")
-    return FileResponse(cert_path, media_type="application/x-x509-ca-cert", filename="markitdown-nas.cer")
+    return FileResponse(cert_path, media_type="application/x-x509-ca-cert", filename="trimitdown.cer")
 
 
 @app.post("/api/convert")

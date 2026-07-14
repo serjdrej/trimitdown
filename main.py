@@ -38,10 +38,10 @@ def show_fatal_error(message: str) -> None:
     # invisible — the process just exits with nothing on screen at all.
     if platform.system() == "Windows":
         import ctypes
-        ctypes.windll.user32.MessageBoxW(0, message, "MarkItDown", 0x10)
+        ctypes.windll.user32.MessageBoxW(0, message, "TrimItDown", 0x10)
     elif platform.system() == "Darwin":
         safe_message = message.replace('"', '\\"')
-        subprocess.run(["osascript", "-e", f'display alert "MarkItDown" message "{safe_message}"'])
+        subprocess.run(["osascript", "-e", f'display alert "TrimItDown" message "{safe_message}"'])
 
 
 def main():
@@ -63,7 +63,7 @@ def main():
         target = f"http://127.0.0.1:{port}"
 
     webview.settings['ALLOW_DOWNLOADS'] = True
-    webview.create_window("MarkItDown", target, width=440, height=820, resizable=True, min_size=(360, 600), js_api=Api())
+    webview.create_window("TrimItDown", target, width=440, height=820, resizable=True, min_size=(360, 600), js_api=Api())
     webview.start()
 
 

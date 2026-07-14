@@ -34,9 +34,9 @@ jobs:
         run: pyinstaller main.spec
 
       - name: Zip .app bundle
-        run: ditto -c -k --sequesterRsrc --keepParent dist/MarkItDown.app MarkItDown-macOS-${{ matrix.arch }}.zip
+        run: ditto -c -k --sequesterRsrc --keepParent dist/TrimItDown.app TrimItDown-macOS-${{ matrix.arch }}.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MarkItDown-macOS-${{ matrix.arch }}
-          path: MarkItDown-macOS-${{ matrix.arch }}.zip
+          name: TrimItDown-macOS-${{ matrix.arch }}
+          path: TrimItDown-macOS-${{ matrix.arch }}.zip

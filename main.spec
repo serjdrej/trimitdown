@@ -35,7 +35,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='MarkItDown',
+    name='TrimItDown',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -62,14 +62,14 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='MarkItDown',
+    name='TrimItDown',
 )
 
 app = BUNDLE(
     coll,
-    name='MarkItDown.app',
+    name='TrimItDown.app',
     icon='mac-build/AppIcon.icns',
-    bundle_identifier='dev.serjdrej.markitdown',
+    bundle_identifier='dev.serjdrej.trimitdown',
     info_plist={
         'NSHighResolutionCapable': True,
         'LSMinimumSystemVersion': '11.0',

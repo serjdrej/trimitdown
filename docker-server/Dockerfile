@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir "markitdown[all]" fastapi uvicorn python-multipart pillow tiktoken
 
 WORKDIR /app
-COPY nas-server/app.py nas-server/generate_icons.py ./
-COPY nas-server/static static
+COPY docker-server/app.py docker-server/generate_icons.py ./
+COPY docker-server/static static
 COPY core core
 
 RUN python generate_icons.py

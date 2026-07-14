@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "nas-server"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "docker-server"))
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,9 +15,9 @@ from core import converter
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(converter, "md", converter.md)  # no-op, keeps import order explicit
-    import app as nas_app
-    monkeypatch.setattr(nas_app, "ARCHIVE_DIR", tmp_path)
-    return TestClient(nas_app.app)
+    import app as docker_app
+    monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
+    return TestClient(docker_app.app)
 
 
 def test_convert_batch_streams_one_event_per_file(client, monkeypatch):

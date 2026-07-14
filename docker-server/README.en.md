@@ -1,6 +1,6 @@
 *Read in: [русский](README.md) · English (this file)*
 
-# MarkItDown Docker service
+# TrimItDown Docker service
 
 FastAPI + [MarkItDown](https://github.com/microsoft/markitdown) on Docker: convert files to
 Markdown, a searchable archive with delete support, HTTPS with a self-signed certificate. The
@@ -8,8 +8,7 @@ same service also serves a PWA — on iPhone it opens like a regular site and in
 Home Screen as a full app (offline UI caching via a service worker, its own icon).
 
 Runs on any machine with Docker — a home NAS, a VPS, your own server. The folder is called
-`nas-server/` for historical reasons (it originally ran on a NAS), but nothing in the code is
-NAS-specific.
+`docker-server/` because it works for any Docker-capable server, not just a NAS.
 
 ## Deploy
 
@@ -19,7 +18,7 @@ mkdir -p certs archive
 cd certs
 openssl req -x509 -nodes -newkey rsa:2048 \
   -keyout key.pem -out cert.pem -days 3650 \
-  -subj "/CN=markitdown-nas" \
+  -subj "/CN=trimitdown" \
   -addext "subjectAltName=IP:YOUR_SERVER_IP"
 cd ..
 sudo docker-compose up -d --build

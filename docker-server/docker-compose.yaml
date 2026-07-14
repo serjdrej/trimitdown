@@ -1,10 +1,10 @@
 services:
-  markitdown-web:
+  trimitdown-web:
     build:
       context: ..
-      dockerfile: nas-server/Dockerfile
-    image: markitdown-web:latest
-    container_name: markitdown-web
+      dockerfile: docker-server/Dockerfile
+    image: trimitdown-web:latest
+    container_name: trimitdown-web
     restart: unless-stopped
     ports:
       - "8002:8000"

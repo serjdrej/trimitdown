@@ -1,4 +1,4 @@
-# MarkItDown Desktop — контекст для разработки
+# TrimItDown Desktop — контекст для разработки
 
 Portable-приложение (Windows exe уже готов и работает) для конвертации файлов в Markdown
 через [MarkItDown](https://github.com/microsoft/markitdown). При запуске:
@@ -17,13 +17,13 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 
 - `core/converter.py` — общая логика (safe_stem, конвертация через MarkItDown, список/удаление
   файлов в архиве), без привязки к платформе — принимает `archive_dir` параметром вместо
-  módульного глобала. И `server_app.py`, и `nas-server/app.py` — тонкие обвязки над ней
+  módульного глобала. И `server_app.py`, и `docker-server/app.py` — тонкие обвязки над ней
   (различаются только путями к архиву/статике и специфичными для площадки роутами: `/cert` и
-  `?raw=` у NAS, `/api/mode` у десктопа).
-- `main.py` — точка входа: проверка NAS, поднятие локального сервера, создание окна pywebview.
+  `?raw=` у docker-сервера, `/api/mode` у десктопа).
+- `main.py` — точка входа: проверка сервера, поднятие локального сервера, создание окна pywebview.
 - `server_app.py` — FastAPI-роуты для локального (офлайн) режима десктоп-приложений, вся логика
   — в `core/converter.py`.
-- `static/` — HTML/CSS/JS фронтенда (drag&drop конвертация, вкладка «Архив», бейдж режима NAS/локально).
+- `static/` — HTML/CSS/JS фронтенда (drag&drop конвертация, вкладка «Архив», бейдж режима сервер/локально).
 - `mac-build/AppIcon.iconset/` — набор PNG для иконки (тот же дизайн «M↓», что и PWA-иконка на iPhone).
 - `icon.ico` — та же иконка, но для Windows-сборки.
 - `main.spec` — PyInstaller-спека для macOS-сборки (`--onedir`, а не `--onefile` — см. «Известная
@@ -37,14 +37,14 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 (`convert_batch()`/`zip_archive_files()` в `core/converter.py`, роуты `/api/convert-batch` и
 `/api/archive-zip`), live-preview (вендоренные `marked.js`+`DOMPurify` в `static/vendor/`),
 страница приватности (`static/privacy.html`), счётчик токенов (`count_tokens()`, вендоренный
-словарь `tiktoken` в `core/tiktoken_cache/` — оба build-таргета, `nas-server/Dockerfile` и
+словарь `tiktoken` в `core/tiktoken_cache/` — оба build-таргета, `docker-server/Dockerfile` и
 `main.spec`, теперь явно тащат `tiktoken` и эту директорию). Детали — в
 `docs/superpowers/specs/2026-07-12-*.md` и `docs/superpowers/plans/2026-07-12-*.md`.
 
 ## Известная проблема — ПОЧИНЕНО (см. `main.spec`)
 
 На собранном через GitHub Actions `.app` (macos-14 arm64 runner) окно приложения открывалось
-**пустым** в офлайн-режиме (без NAS). На Windows exe всё работало.
+**пустым** в офлайн-режиме (без сервера). На Windows exe всё работало.
 
 Нашлись и подтверждены на реальной сборке (`pyinstaller main.spec`, macOS, Python 3.12) **две**
 независимые причины:
@@ -56,12 +56,12 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
    и т.д.) заново во временную директорию **при каждом запуске** — на этой машине импорт занимал
    больше 15 секунд, `wait_port` возвращал `False`, и `main()` падал с
    `RuntimeError: Локальный сервер не запустился` ещё до создания окна (воспроизведено:
-   `./dist/MarkItDown.app/Contents/MacOS/MarkItDown`, полный traceback в консоли). Сам PyInstaller
+   `./dist/TrimItDown.app/Contents/MacOS/TrimItDown`, полный traceback в консоли). Сам PyInstaller
    помечает `--onefile` + `--windowed` для macOS `.app` как deprecated именно по этой причине
    ("clashes with macOS's security... will become an error in v7.0").
    Фикс: `main.spec` собирает `.app` в режиме `--onedir` (`EXE(..., exclude_binaries=True)` →
    `COLLECT(...)` → `BUNDLE(...)`) — файлы раскладываются один раз при сборке, запуск не требует
-   повторной распаковки. Проверено: тот же тест (NAS принудительно недоступен) — порт поднимается
+   повторной распаковки. Проверено: тот же тест (сервер принудительно недоступен) — порт поднимается
    за ~8 секунд вместо падения по таймауту, `curl` до `/` отдаёт HTTP 200 с ожидаемым HTML.
 
 2. **App Transport Security (ATS) блокирует `http://127.0.0.1:<port>` в WKWebView по умолчанию**
@@ -69,19 +69,19 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
    применяется и к `127.0.0.1`/`localhost`, не только к внешним доменам; подтверждено
    документацией Apple). Если бы проблема №1 была исправлена без этого фикса, WKWebView всё равно
    тихо не отрисовал бы страницу локального сервера — без ошибки в UI, просто пустое окно.
-   NAS-режим (HTTPS) эту проблему не задевал.
+   Серверный режим (HTTPS) эту проблему не задевал.
    Фикс: `main.spec` → `BUNDLE(..., info_plist={...})` прописывает
    `NSAppTransportSecurity.NSAllowsLocalNetworking = True` в `Info.plist` собранного `.app`
-   (проверено через `plutil -p dist/MarkItDown.app/Contents/Info.plist` — ключ на месте), не
+   (проверено через `plutil -p dist/TrimItDown.app/Contents/Info.plist` — ключ на месте), не
    ослабляя ATS для внешних соединений.
 
-Ещё один нюанс, который может всплыть отдельно (не тот же баг, но рядом): NAS отдаёт
+Ещё один нюанс, который может всплыть отдельно (не тот же баг, но рядом): сервер отдаёт
 самоподписанный HTTPS-сертификат. `NSAppTransportSecurity` не умеет «доверять» конкретному
 самоподписанному сертификату через plist — WKWebView проверяет его через системный keychain,
-как Safari. Если на Windows-машине сертификат NAS уже был добавлён в доверенные (вручную,
-через сертификат-менеджер), то на новом Mac для NAS-режима его тоже нужно будет один раз
+как Safari. Если на Windows-машине сертификат сервера уже был добавлен в доверенные (вручную,
+через сертификат-менеджер), то на новом Mac для серверного режима его тоже нужно будет один раз
 добавить в Keychain Access (например, "Всегда доверять" для сертификата `192.168.1.100`),
-иначе NAS-режим может показывать пустое/ошибочное окно даже после этого фикса.
+иначе серверный режим может показывать пустое/ошибочное окно даже после этого фикса.
 
 Что осталось не проверено вживую: собственно отрисовку окна WKWebView в успешном случае
 (в среде, где это чинилось, не было прав на screen recording для скриншота). Косвенно
@@ -93,8 +93,8 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 ## Как быстро итерировать (без пересборки .app каждый раз)
 
 ```bash
-git clone https://github.com/serjdrej/markitdown-desktop.git
-cd markitdown-desktop
+git clone https://github.com/serjdrej/trimitdown.git
+cd trimitdown
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -109,7 +109,7 @@ python main.py
 
 ## Тесты
 
-`core/converter.py` (общая логика для NAS и десктоп-версий) покрыта юнит-тестами на pytest —
+`core/converter.py` (общая логика для docker-сервера и десктоп-версий) покрыта юнит-тестами на pytest —
 единственная часть кода, где это оправдано: чистые функции, без UI/платформенной специфики.
 
 ```bash
@@ -168,14 +168,14 @@ x86_64) и кладёт `.zip` с `.app` в Artifacts запуска. `macos-13`
     настоящий `<a href=... download=...>` и кликают по нему (`triggerDownload()`).
   Проверено на пересобранном `.app` в локальном (офлайн) режиме — работает.
   **Важно:** это фикс только для desktop-приложения (`main.spec`-сборки). Тот же
-  `server_app.py`/`static/` крутится и на NAS в Docker (см. `nas-server/` в корне репозитория) —
+  `server_app.py`/`static/` крутится и на docker-сервере (см. `docker-server/` в корне репозитория) —
   это отдельный деплой, код туда этим репозиторием напрямую не доставляется, нужно вручную
-  синхронизировать и передеплоить. Ниже — как это довели до конца на NAS-стороне.
+  синхронизировать и передеплоить. Ниже — как это довели до конца на стороне docker-сервера.
 
-## Продолжение: тот же баг на NAS-стороне, но наоборот (iOS Safari)
+## Продолжение: тот же баг на стороне docker-сервера, но наоборот (iOS Safari)
 
-Когда `application/octet-stream` + `<a download>` из фикса выше применили и к `nas-server/`
-(его код грузят напрямую в NAS-режиме и desktop-приложения, и PWA на iPhone — один и тот же
+Когда `application/octet-stream` + `<a download>` из фикса выше применили и к `docker-server/`
+(его код грузят напрямую в серверном режиме и desktop-приложения, и PWA на iPhone — один и тот же
 эндпоинт `/api/archive/{filename}` на два разных типа клиентов), выяснилось: то, что чинит
 WKWebView/WebView2 **внутри pywebview**, ломает настоящий Safari на iOS.
 
@@ -196,5 +196,5 @@ pywebview автоматически инжектит в каждую стран
   и обычную навигацию через `window.location.href` — то есть то же поведение, что работало и до
   всех этих фиксов.
 
-Код — в `nas-server/app.py` (параметр `raw`) и `nas-server/static/app.js` (функция
+Код — в `docker-server/app.py` (параметр `raw`) и `docker-server/static/app.js` (функция
 `triggerDownload`). Проверено на всех трёх платформах вживую.

@@ -1,6 +1,6 @@
 *Read in: [русский](README.md) · English (this file)*
 
-# MarkItDown — file-to-Markdown converter for iPhone, Windows, and Mac
+# TrimItDown — file-to-Markdown converter for iPhone, Windows, and Mac
 
 *A mobile app, Windows/Mac programs, and a Docker server, built on top of the open-source
 [MarkItDown](https://github.com/microsoft/markitdown) library by Microsoft — an open-source
@@ -26,8 +26,8 @@ turns into clean, readable Markdown with none of the formatting mess. It works a
 
 | Platform | Folder | How to get it |
 |---|---|---|
-| iPhone / iPad (PWA) + Docker server | [`nas-server/`](nas-server/) | Installs straight from Safari, no App Store — details below |
-| Windows | repo root | `MarkItDown-windows-x64.exe` from [Releases](../../releases) — portable, no install needed |
+| iPhone / iPad (PWA) + Docker server | [`docker-server/`](docker-server/) | Installs straight from Safari, no App Store — details below |
+| Windows | repo root | `TrimItDown-windows-x64.exe` from [Releases](../../releases) — portable, no install needed |
 | macOS (Intel and Apple Silicon) | repo root | `.zip` from [Releases](../../releases), pick the archive matching your chip |
 
 ## The iPhone and iPad app
@@ -57,7 +57,7 @@ What that gets you in practice:
 
 One one-time setup step: before the first install you need to approve your server's HTTPS
 certificate once (otherwise Safari shows an untrusted-connection warning) — full instructions in
-[`nas-server/README.en.md`](nas-server/README.en.md).
+[`docker-server/README.en.md`](docker-server/README.en.md).
 
 ## How it works
 
@@ -73,11 +73,11 @@ certificate once (otherwise Safari shows an untrusted-connection warning) — fu
 ## Repository layout
 
 - **`core/converter.py`** — shared, platform-agnostic conversion/archive logic (safe_stem,
-  MarkItDown conversion, listing/deleting files). Both `nas-server/app.py` and `server_app.py`
+  MarkItDown conversion, listing/deleting files). Both `docker-server/app.py` and `server_app.py`
   build on top of it.
-- **`nas-server/`** — the Docker service (`Dockerfile`, `docker-compose.yaml`, `app.py`,
+- **`docker-server/`** — the Docker service (`Dockerfile`, `docker-compose.yaml`, `app.py`,
   `static/` — the same HTML/CSS/JS you see on iPhone as a PWA). See
-  [`nas-server/README.en.md`](nas-server/README.en.md).
+  [`docker-server/README.en.md`](docker-server/README.en.md).
 - **`main.py`** — desktop app entry point: server-reachability check, local server, pywebview window.
 - **`server_app.py`** — a thin wrapper around `core/converter.py` for the desktop apps' local
   (offline) mode (archive/static paths are platform-specific; the actual logic is shared).
@@ -102,7 +102,7 @@ This repository's own code (the wrapper, desktop apps, Docker service) is
 ## Pointing the Windows/macOS apps at your own server
 
 By default the app runs fully offline — no setup needed. To connect it to your own Docker
-server (see `nas-server/`) and get a shared archive across devices: launch the app once (a
+server (see `docker-server/`) and get a shared archive across devices: launch the app once (a
 `config.json` appears next to the exe/`.app`), close it, and fill in your server's address:
 
 ```json
