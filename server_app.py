@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from config_store import APP_DIR
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
+from core.version import VERSION
 
 BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 ARCHIVE_DIR = APP_DIR / "archive"
@@ -35,7 +36,7 @@ def sw():
 
 @app.get("/api/mode")
 def mode():
-    return {"mode": "local"}
+    return {"mode": "local", "version": VERSION}
 
 
 @app.post("/api/convert")

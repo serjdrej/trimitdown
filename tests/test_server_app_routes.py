@@ -53,3 +53,12 @@ def test_archive_zip_downloads_requested_files(client, tmp_path):
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
+
+
+def test_mode_endpoint_returns_local_mode_and_version(client):
+    from core.version import VERSION
+
+    response = client.get("/api/mode")
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "local", "version": VERSION}
