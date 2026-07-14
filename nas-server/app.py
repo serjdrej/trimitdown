@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
+from core.version import VERSION
 
 ARCHIVE_DIR = Path("/app/archive")
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,6 +29,11 @@ def manifest():
 @app.get("/sw.js")
 def sw():
     return FileResponse("static/sw.js", media_type="application/javascript")
+
+
+@app.get("/api/mode")
+def mode():
+    return {"mode": "server", "version": VERSION}
 
 
 @app.get("/cert")
