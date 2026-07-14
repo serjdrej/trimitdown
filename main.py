@@ -5,23 +5,10 @@ import sys
 import threading
 import time
 
-import requests
-import urllib3
 import webview
 
 from config_store import ensure_config_exists, get_server_url
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-SERVER_CHECK_TIMEOUT = 1.5
-
-
-def server_reachable(url: str) -> bool:
-    try:
-        r = requests.get(url + "/", timeout=SERVER_CHECK_TIMEOUT, verify=False)
-        return r.status_code == 200
-    except Exception:
-        return False
+from desktop_api import Api, server_reachable
 
 
 def free_port() -> int:
@@ -76,7 +63,7 @@ def main():
         target = f"http://127.0.0.1:{port}"
 
     webview.settings['ALLOW_DOWNLOADS'] = True
-    webview.create_window("MarkItDown", target, width=440, height=820, resizable=True, min_size=(360, 600))
+    webview.create_window("MarkItDown", target, width=440, height=820, resizable=True, min_size=(360, 600), js_api=Api())
     webview.start()
 
 
