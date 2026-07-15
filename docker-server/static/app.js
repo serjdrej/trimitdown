@@ -26,6 +26,7 @@ const STRINGS = {
     deleteFailed: "Не удалось удалить",
     previewBtn: "Просмотр",
     sourceBtn: "RAW",
+    justNow: "готово • только что",
     batchPending: "Ожидание…",
     batchOk: "Готово",
     batchError: "Ошибка",
@@ -77,6 +78,7 @@ const STRINGS = {
     deleteFailed: "Failed to delete",
     previewBtn: "Preview",
     sourceBtn: "RAW",
+    justNow: "done • just now",
     batchPending: "Waiting…",
     batchOk: "Done",
     batchError: "Error",
@@ -232,6 +234,8 @@ const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
 const resultPreview = document.getElementById("result-preview");
 const resultName = document.getElementById("result-name");
+const resultStatus = document.getElementById("result-status");
+const resultBadge = document.getElementById("result-badge");
 const tokenInfoEl = document.getElementById("token-info");
 const tokenSavingsEl = document.getElementById("token-savings");
 const tokenDetailEl = document.getElementById("token-detail");
@@ -246,6 +250,25 @@ const batchSummaryEl = document.getElementById("batch-summary");
 const downloadZipBtn = document.getElementById("download-zip-btn");
 const BATCH_LIMIT = 10;
 let lastFilename = null;
+
+const FILE_BADGE_MAP = {
+  pdf:  { color: "#C0392B", label: "PDF" },
+  docx: { color: "#2B6CB0", label: "DOC" },
+  doc:  { color: "#2B6CB0", label: "DOC" },
+  pptx: { color: "#D97706", label: "PPT" },
+  ppt:  { color: "#D97706", label: "PPT" },
+  xlsx: { color: "#2F855A", label: "XLS" },
+  xls:  { color: "#2F855A", label: "XLS" },
+  epub: { color: "#6B46C1", label: "PUB" },
+  html: { color: "#DD6B20", label: "HTM" },
+  htm:  { color: "#DD6B20", label: "HTM" },
+};
+function fileBadge(filename) {
+  const dot = filename.lastIndexOf(".");
+  const ext = dot >= 0 ? filename.slice(dot + 1).toLowerCase() : "";
+  if (FILE_BADGE_MAP[ext]) return FILE_BADGE_MAP[ext];
+  return { color: "var(--muted)", label: ext ? ext.slice(0, 3).toUpperCase() : "DOC" };
+}
 
 function showPreview() {
   resultPreview.hidden = false;
@@ -305,6 +328,10 @@ async function convertFile(file) {
     const data = await res.json();
     lastFilename = data.filename;
     resultName.textContent = data.filename;
+    resultStatus.textContent = t.justNow;
+    const badge = fileBadge(file.name);
+    resultBadge.style.background = badge.color;
+    resultBadge.textContent = badge.label;
     resultText.value = data.content;
     resultPreview.innerHTML = DOMPurify.sanitize(marked.parse(data.content));
     showPreview();

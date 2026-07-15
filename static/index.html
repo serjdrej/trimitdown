@@ -24,27 +24,31 @@
   <section id="convert" class="view active">
     <div id="status"></div>
     <div id="result" hidden>
-      <div class="result-toolbar">
-        <span id="result-name"></span>
-        <div class="view-toggle">
-          <button id="preview-toggle-btn" class="toggle-btn active" data-i18n="previewBtn">Просмотр</button>
-          <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
-        </div>
-      </div>
       <div class="result-card">
+        <div class="result-head">
+          <div id="result-badge" class="file-badge"></div>
+          <div class="result-head-text">
+            <span id="result-name"></span>
+            <span id="result-status" class="result-status"></span>
+          </div>
+          <div class="view-toggle">
+            <button id="preview-toggle-btn" class="toggle-btn active" data-i18n="previewBtn">Просмотр</button>
+            <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
+          </div>
+        </div>
         <div id="result-preview" class="markdown-body"></div>
         <textarea id="result-text" class="markdown-body" readonly hidden></textarea>
+        <div id="token-info" class="token-info" hidden>
+          <div class="token-info-row">
+            <span id="token-detail" class="token-detail"></span>
+            <span id="token-savings" class="token-savings"></span>
+          </div>
+          <div class="token-bar"><div id="token-bar-fill" class="token-bar-fill"></div></div>
+        </div>
         <div class="result-card-actions">
-          <button id="download-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span data-i18n="downloadBtn">Скачать .md</span></button>
           <button id="copy-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span data-i18n="copyBtn">Копировать</span></button>
+          <button id="download-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span data-i18n="downloadBtn">Скачать .md</span></button>
         </div>
-      </div>
-      <div id="token-info" class="token-info" hidden>
-        <div class="token-info-row">
-          <span id="token-detail" class="token-detail"></span>
-          <span id="token-savings" class="token-savings"></span>
-        </div>
-        <div class="token-bar"><div id="token-bar-fill" class="token-bar-fill"></div></div>
       </div>
     </div>
     <div id="batch-result" hidden>
