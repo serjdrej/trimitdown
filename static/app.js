@@ -39,11 +39,13 @@ const STRINGS = {
     saveBtn: "Сохранить",
     testConnectionBtn: "Проверить соединение",
     resetLocalBtn: "Сбросить на локальный режим",
-    themeLabel: "Тема",
-    themeSystem: "Системная",
-    themeLight: "Светлая",
-    themeDark: "Тёмная",
-    comingSoon: "скоро",
+    colorThemeLabel: "Цветовая тема",
+    themeClay: "Глина",
+    themeOcean: "Океан",
+    appearanceLabel: "Оформление",
+    appSystem: "Системное",
+    appLight: "Светлое",
+    appDark: "Тёмное",
     invalidUrlMsg: "Неверный формат: нужен https://, без слэша в конце",
     restartMsg: "Изменения вступят в силу после перезапуска приложения",
     testingMsg: "Проверяю…",
@@ -88,11 +90,13 @@ const STRINGS = {
     saveBtn: "Save",
     testConnectionBtn: "Test connection",
     resetLocalBtn: "Reset to local mode",
-    themeLabel: "Theme",
-    themeSystem: "System",
-    themeLight: "Light",
-    themeDark: "Dark",
-    comingSoon: "soon",
+    colorThemeLabel: "Color theme",
+    themeClay: "Clay",
+    themeOcean: "Ocean",
+    appearanceLabel: "Appearance",
+    appSystem: "System",
+    appLight: "Light",
+    appDark: "Dark",
     invalidUrlMsg: "Invalid format: needs https://, no trailing slash",
     restartMsg: "Changes take effect after restarting the app",
     testingMsg: "Checking…",
@@ -102,6 +106,31 @@ const STRINGS = {
   },
 };
 const t = STRINGS[LANG];
+
+const THEME_KEY = "trimitdown-theme";
+function loadThemePref() {
+  try { const p = JSON.parse(localStorage.getItem(THEME_KEY));
+        if (p && p.colorTheme && p.mode) return p; } catch (e) {}
+  return { colorTheme: "clay", mode: "auto" };
+}
+function saveThemePref(pref) { localStorage.setItem(THEME_KEY, JSON.stringify(pref)); }
+const darkMQ = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme() {
+  const pref = loadThemePref();
+  const dark = pref.mode === "auto" ? darkMQ.matches : pref.mode === "dark";
+  document.documentElement.dataset.theme = pref.colorTheme;
+  document.documentElement.dataset.mode  = dark ? "dark" : "light";
+  setThemeColorMeta();
+}
+function setThemeColorMeta() {
+  const bg = getComputedStyle(document.body).backgroundColor;
+  let m = document.querySelector('meta[name="theme-color"]');
+  if (!m) { m = document.createElement("meta"); m.name = "theme-color"; document.head.appendChild(m); }
+  m.setAttribute("content", bg);
+}
+// re-run on system change only while in auto:
+darkMQ.addEventListener("change", () => { if (loadThemePref().mode === "auto") applyTheme(); });
+applyTheme();
 
 document.documentElement.lang = LANG;
 document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t[el.dataset.i18n]; });
@@ -157,6 +186,24 @@ if (window.pywebview && window.pywebview.api) {
     serverStatusMsg.textContent = t.restartMsg;
   });
 }
+
+const colorThemeSelect = document.getElementById("color-theme-select");
+const appearanceSelect = document.getElementById("appearance-select");
+const initialThemePref = loadThemePref();
+colorThemeSelect.value = initialThemePref.colorTheme;
+appearanceSelect.value = initialThemePref.mode;
+colorThemeSelect.addEventListener("change", () => {
+  const pref = loadThemePref();
+  pref.colorTheme = colorThemeSelect.value;
+  saveThemePref(pref);
+  applyTheme();
+});
+appearanceSelect.addEventListener("change", () => {
+  const pref = loadThemePref();
+  pref.mode = appearanceSelect.value;
+  saveThemePref(pref);
+  applyTheme();
+});
 
 const tabs = document.querySelectorAll(".tab");
 const views = document.querySelectorAll(".view");

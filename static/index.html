@@ -73,15 +73,19 @@
       <p id="server-status-msg" class="hint"></p>
     </div>
     <div class="settings-row">
-      <span data-i18n="themeLabel">Тема</span>
-      <div class="settings-theme">
-        <select disabled>
-          <option data-i18n="themeSystem">Системная</option>
-          <option data-i18n="themeLight">Светлая</option>
-          <option data-i18n="themeDark">Тёмная</option>
-        </select>
-        <span class="badge" data-i18n="comingSoon">скоро</span>
-      </div>
+      <span data-i18n="colorThemeLabel">Цветовая тема</span>
+      <select id="color-theme-select">
+        <option value="clay" data-i18n="themeClay">Глина</option>
+        <option value="ocean" data-i18n="themeOcean">Океан</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <span data-i18n="appearanceLabel">Оформление</span>
+      <select id="appearance-select">
+        <option value="auto" data-i18n="appSystem">Системное</option>
+        <option value="light" data-i18n="appLight">Светлое</option>
+        <option value="dark" data-i18n="appDark">Тёмное</option>
+      </select>
     </div>
     <p class="hint"><a href="/static/privacy.html" data-i18n="privacyHint">Приватность и хранение данных</a></p>
     <p class="hint" id="app-version"></p>

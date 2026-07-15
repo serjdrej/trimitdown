@@ -1,11 +1,23 @@
 :root {
-  --bg:#1B1A17; --surface:#262420; --border:#34312A;
-  --text:#F5F3EE; --muted:#8A7D73; --accent:#E27D4F; --on-accent:#FFF8F5; --radius:18px;
+  --radius:18px;
   --space-sm:8px; --space-md:16px; --space-lg:24px;
 }
-@media (prefers-color-scheme: light) {
-  :root { --bg:#FAF9F5; --surface:#FFFFFF; --border:#EBE7DE; --text:#1A1915; --muted:#736C60; --accent:#D2683F; --on-accent:#FFFFFF; }
-}
+:root[data-theme="clay"]                    { --bg:#FAF9F5; --surface:#FFFFFF; --border:#EBE7DE;
+                                              --text:#1A1915; --muted:#736C60; --accent:#D2683F;
+                                              --on-accent:#FFFFFF; --nav-glass:rgba(255,255,255,.72);
+                                              --nav-glass-border:rgba(0,0,0,.06); --success:#2E9E5B; }
+:root[data-theme="clay"][data-mode="dark"]  { --bg:#1B1A17; --surface:#262420; --border:#34312A;
+                                              --text:#F5F3EE; --muted:#8A7D73; --accent:#D2683F;
+                                              --on-accent:#FFF8F5; --nav-glass:rgba(38,36,32,.68);
+                                              --nav-glass-border:rgba(255,255,255,.08); --success:#34C759; }
+:root[data-theme="ocean"]                   { --bg:#F2F2F7; --surface:#FFFFFF; --border:#E5E5EA;
+                                              --text:#111111; --muted:#6D6D72; --accent:#007AFF;
+                                              --on-accent:#FFFFFF; --nav-glass:rgba(255,255,255,.80);
+                                              --nav-glass-border:rgba(0,0,0,.06); --success:#2E9E5B; }
+:root[data-theme="ocean"][data-mode="dark"] { --bg:#111315; --surface:#1B1D21; --border:#31353C;
+                                              --text:#F5F5F7; --muted:#99A1AE; --accent:#0A84FF;
+                                              --on-accent:#FFFFFF; --nav-glass:rgba(28,31,37,.66);
+                                              --nav-glass-border:rgba(255,255,255,.08); --success:#34C759; }
 @font-face {
   font-family: 'Bricolage';
   src: url('/static/vendor/bricolage-latin.woff2') format('woff2');
@@ -98,8 +110,7 @@ button:hover { border-color: var(--accent); }
 .settings-label { font-size: 13px; color: var(--muted); }
 #server-url-input { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
-.settings-theme { display: flex; align-items: center; gap: var(--space-sm); }
-.settings-theme select { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
+.settings-row select { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
 
 .bottom-nav { position: fixed; z-index: 10; bottom: 0; left: 0; right: 0; box-sizing: content-box; display: flex; justify-content: space-around; align-items: center; height: 64px; padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--border); }
 .bottom-nav .tab { background: none; border: none; color: var(--muted); padding: 8px; cursor: pointer; display: flex; }
