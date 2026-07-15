@@ -225,6 +225,7 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("file-input");
 const statusEl = document.getElementById("status");
+const progressEl = document.getElementById("convert-progress");
 const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
 const resultPreview = document.getElementById("result-preview");
@@ -312,6 +313,7 @@ dropzone.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 
 async function convertFile(file) {
   statusEl.textContent = t.converting(file.name);
+  progressEl.hidden = false;
   resultEl.hidden = true;
   batchResultEl.hidden = true;
   tokenInfoEl.hidden = true;
@@ -335,6 +337,8 @@ async function convertFile(file) {
     statusEl.textContent = t.done;
   } catch (e) {
     statusEl.textContent = t.error(e.message);
+  } finally {
+    progressEl.hidden = true;
   }
 }
 

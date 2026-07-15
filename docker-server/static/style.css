@@ -52,6 +52,10 @@ main { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-dire
 #dropzone.compact .dz-icon { display: none; }
 #dropzone.compact { margin: var(--space-md) 0 0; }
 #status { flex-shrink: 0; margin-top: var(--space-md); color: var(--muted); font-size: 14px; min-height: 20px; }
+.progress { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.progress-bar { height: 100%; width: 40%; border-radius: 999px; background: var(--accent); animation: progress-sweep 1.1s ease-in-out infinite; }
+@keyframes progress-sweep { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .progress-bar { animation: none; width: 100%; opacity: .6; } }
 #result[hidden] { display: none; }
 #result { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-top: var(--space-sm); }
 .result-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md); border-bottom: 1px solid var(--border); }
