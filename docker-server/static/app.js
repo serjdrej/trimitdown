@@ -13,7 +13,6 @@ const STRINGS = {
     searchPlaceholder: "Поиск по названию…",
     certHint: "Установить сертификат (для iOS, один раз)",
     privacyHint: "Приватность и хранение данных",
-    modeLabel: "Режим",
     tabSettings: "Настройки",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} токенов в результате`,
@@ -65,7 +64,6 @@ const STRINGS = {
     searchPlaceholder: "Search by name…",
     certHint: "Install certificate (for iOS, one-time)",
     privacyHint: "Privacy and data storage",
-    modeLabel: "Mode",
     tabSettings: "Settings",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} tokens in the result`,
@@ -139,12 +137,19 @@ document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t[el.d
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t[el.dataset.i18nPlaceholder]; });
 document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t[el.dataset.i18nAria]); });
 
-const modeBadge = document.getElementById("mode-badge");
+const statusPill = document.getElementById("status-pill");
+const statusPillLabel = statusPill.querySelector(".status-label");
 const appVersionEl = document.getElementById("app-version");
+function setStatusPill(mode) {
+  const local = mode === "local";
+  statusPill.classList.toggle("mode-local", local);
+  statusPill.classList.toggle("mode-server", !local);
+  statusPillLabel.textContent = local ? t.modeLocal : t.modeServer;
+}
 fetch("/api/mode").then(r => r.json()).then(d => {
-  modeBadge.textContent = d.mode === "local" ? t.modeLocal : t.modeServer;
+  setStatusPill(d.mode);
   appVersionEl.textContent = t.versionLabel(d.version);
-}).catch(() => { modeBadge.textContent = t.modeServer; });
+}).catch(() => { setStatusPill("server"); });
 
 const certHintEl = document.getElementById("cert-hint");
 if (window.pywebview) certHintEl.hidden = true;
