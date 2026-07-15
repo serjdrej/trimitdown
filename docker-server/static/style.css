@@ -13,19 +13,19 @@
   font-display: swap;
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; height: 100dvh; }
+html, body { height: 100vh; }
 body {
   margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg); color: var(--text);
   padding-top: env(safe-area-inset-top);
-  height: 100%; height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden; display: flex; flex-direction: column;
 }
 header { flex-shrink: 0; padding: var(--space-md) var(--space-md) var(--space-sm); }
 .wordmark { font-family: 'Bricolage', ui-sans-serif, sans-serif; font-size: 22px; letter-spacing: -0.03em; }
 .wm-bold { font-weight: 800; }
 .wm-light { font-weight: 300; color: var(--accent); }
 .badge { font-size: 11px; font-weight: 500; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
-main { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: var(--space-md); max-width: 640px; margin: 0 auto; width: 100%; }
+main { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: var(--space-md); padding-bottom: calc(64px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; width: 100%; }
 .view { display: none; }
 .view.active { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #archive.view.active, #settings.view.active { overflow-y: auto; }
@@ -101,7 +101,7 @@ button:hover { border-color: var(--accent); }
 .settings-theme { display: flex; align-items: center; gap: var(--space-sm); }
 .settings-theme select { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
 
-.bottom-nav { flex-shrink: 0; box-sizing: content-box; display: flex; justify-content: space-around; align-items: center; height: 64px; padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--border); }
+.bottom-nav { position: fixed; z-index: 10; bottom: 0; left: 0; right: 0; box-sizing: content-box; display: flex; justify-content: space-around; align-items: center; height: 64px; padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--border); }
 .bottom-nav .tab { background: none; border: none; color: var(--muted); padding: 8px; cursor: pointer; display: flex; }
 .bottom-nav .tab.active { color: var(--accent); }
 .bottom-nav .tab svg { width: 24px; height: 24px; }
