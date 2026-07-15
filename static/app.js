@@ -3,7 +3,7 @@ const DATE_LOCALE = LANG === "ru" ? "ru-RU" : "en-US";
 
 const STRINGS = {
   ru: {
-    tabConvert: "Конвертировать",
+    tabConvert: "Конвертация",
     tabArchive: "Архив",
     dropzoneHint: "Нажми или перетащи файл сюда",
     downloadBtn: "Скачать .md",
