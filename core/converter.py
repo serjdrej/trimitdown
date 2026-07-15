@@ -20,9 +20,11 @@ md = MarkItDown()
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
 
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(Path(__file__).parent / "tiktoken_cache"))
-TOKENS_PER_UNIT_ESTIMATE = 1500  # conservative low end of the documented 1500-3000 tokens/page
-                                  # vision-estimate range (Anthropic docs) — used for the honest
-                                  # PDF/PPTX before/after comparison only.
+TOKENS_PER_UNIT_ESTIMATE = 2250  # midpoint of the documented 1500-3000 tokens/page vision-estimate
+                                  # range (Anthropic docs) — used for the PDF/PPTX before/after
+                                  # comparison only. The frontend never renders a negative saving:
+                                  # if a dense page's extracted text still exceeds this estimate,
+                                  # it shows the raw result-token count with no percentage.
 _encoding = None
 
 
