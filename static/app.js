@@ -13,8 +13,8 @@ const STRINGS = {
     searchPlaceholder: "Поиск по названию…",
     privacyHint: "Приватность и хранение данных",
     tabSettings: "Настройки",
-    tokenSavings: pct => `−${pct}%`,
-    tokenAfterOnly: after => `~${after} токенов в результате`,
+    tokensAfterLabel: "Токенов после сжатия",
+    tokensAfterSub: "в результате",
     converting: name => `Конвертирую ${name}…`,
     done: "Готово, сохранено в архив.",
     error: msg => `Ошибка: ${msg}`,
@@ -64,8 +64,8 @@ const STRINGS = {
     searchPlaceholder: "Search by name…",
     privacyHint: "Privacy and data storage",
     tabSettings: "Settings",
-    tokenSavings: pct => `−${pct}%`,
-    tokenAfterOnly: after => `~${after} tokens in the result`,
+    tokensAfterLabel: "Tokens after compression",
+    tokensAfterSub: "in the result",
     converting: name => `Converting ${name}…`,
     done: "Done, saved to archive.",
     error: msg => `Error: ${msg}`,
@@ -236,7 +236,7 @@ const resultBadge = document.getElementById("result-badge");
 const tokenInfoEl = document.getElementById("token-info");
 const tokenSavingsEl = document.getElementById("token-savings");
 const tokenDetailEl = document.getElementById("token-detail");
-const tokenBarFillEl = document.getElementById("token-bar-fill");
+const tokenRingEl = document.getElementById("token-ring");
 const downloadBtn = document.getElementById("download-btn");
 const copyBtn = document.getElementById("copy-btn");
 const previewToggleBtn = document.getElementById("preview-toggle-btn");
@@ -284,13 +284,14 @@ function showSource() {
 function renderTokenInfo(tokens) {
   tokenInfoEl.hidden = false;
   const pct = tokens.before != null ? Math.round((1 - tokens.after / tokens.before) * 100) : 0;
-  tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
+  tokenDetailEl.textContent = tokens.after.toLocaleString(DATE_LOCALE);
   if (pct > 0) {
-    tokenSavingsEl.textContent = t.tokenSavings(pct);
-    tokenBarFillEl.style.width = Math.min(100, pct) + "%";
+    const capped = Math.min(100, pct);
+    tokenSavingsEl.textContent = capped + "%";
+    tokenRingEl.style.setProperty("--pct", capped + "%");
+    tokenRingEl.hidden = false;
   } else {
-    tokenSavingsEl.textContent = "";
-    tokenBarFillEl.style.width = "0%";
+    tokenRingEl.hidden = true;
   }
 }
 

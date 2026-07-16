@@ -61,14 +61,19 @@
             <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
           </div>
         </div>
-        <div id="result-preview" class="markdown-body"></div>
-        <textarea id="result-text" class="markdown-body" readonly hidden></textarea>
+        <div class="result-body">
+          <div id="result-preview" class="markdown-body"></div>
+          <textarea id="result-text" class="markdown-body" readonly hidden></textarea>
+        </div>
         <div id="token-info" class="token-info" hidden>
-          <div class="token-info-row">
-            <span id="token-detail" class="token-detail"></span>
-            <span id="token-savings" class="token-savings"></span>
+          <div class="token-row">
+            <div class="token-stat">
+              <span class="token-lbl" data-i18n="tokensAfterLabel">Токенов после сжатия</span>
+              <span id="token-detail" class="token-val"></span>
+              <span class="token-sub" data-i18n="tokensAfterSub">в результате</span>
+            </div>
+            <div id="token-ring" class="token-ring" hidden><i id="token-savings"></i></div>
           </div>
-          <div class="token-bar"><div id="token-bar-fill" class="token-bar-fill"></div></div>
         </div>
         <div class="result-card-actions">
           <button id="copy-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span data-i18n="copyBtn">Копировать</span></button>
