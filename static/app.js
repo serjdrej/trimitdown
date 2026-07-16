@@ -15,7 +15,6 @@ const STRINGS = {
     tabSettings: "Настройки",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} токенов в результате`,
-    tokenBeforeAfter: (before, after) => `${before} → ${after} токенов`,
     converting: name => `Конвертирую ${name}…`,
     done: "Готово, сохранено в архив.",
     error: msg => `Ошибка: ${msg}`,
@@ -67,7 +66,6 @@ const STRINGS = {
     tabSettings: "Settings",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} tokens in the result`,
-    tokenBeforeAfter: (before, after) => `${before} → ${after} tokens`,
     converting: name => `Converting ${name}…`,
     done: "Done, saved to archive.",
     error: msg => `Error: ${msg}`,
@@ -285,13 +283,12 @@ function showSource() {
 function renderTokenInfo(tokens) {
   tokenInfoEl.hidden = false;
   const pct = tokens.before != null ? Math.round((1 - tokens.after / tokens.before) * 100) : 0;
+  tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
   if (pct > 0) {
     tokenSavingsEl.textContent = t.tokenSavings(pct);
-    tokenDetailEl.textContent = t.tokenBeforeAfter(tokens.before, tokens.after);
     tokenBarFillEl.style.width = Math.min(100, pct) + "%";
   } else {
     tokenSavingsEl.textContent = "";
-    tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
     tokenBarFillEl.style.width = "0%";
   }
 }
