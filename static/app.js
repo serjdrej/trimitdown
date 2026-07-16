@@ -225,6 +225,7 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("file-input");
 const statusEl = document.getElementById("status");
+function setStatus(txt) { statusEl.textContent = txt; statusEl.hidden = !txt; }
 const progressEl = document.getElementById("convert-progress");
 const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
@@ -311,7 +312,7 @@ fileInput.addEventListener("change", () => { handleFiles(fileInput.files); fileI
 dropzone.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 
 async function convertFile(file) {
-  statusEl.textContent = t.converting(file.name);
+  setStatus(t.converting(file.name));
   progressEl.hidden = false;
   resultEl.hidden = true;
   batchResultEl.hidden = true;
@@ -333,9 +334,9 @@ async function convertFile(file) {
     showPreview();
     renderTokenInfo(data.tokens);
     resultEl.hidden = false;
-    statusEl.textContent = t.done;
+    setStatus("");
   } catch (e) {
-    statusEl.textContent = t.error(e.message);
+    setStatus(t.error(e.message));
   } finally {
     progressEl.hidden = true;
   }
@@ -343,10 +344,10 @@ async function convertFile(file) {
 
 async function convertBatch(files) {
   if (files.length > BATCH_LIMIT) {
-    statusEl.textContent = t.batchLimitExceeded(BATCH_LIMIT);
+    setStatus(t.batchLimitExceeded(BATCH_LIMIT));
     return;
   }
-  statusEl.textContent = "";
+  setStatus("");
   resultEl.hidden = true;
   batchResultEl.hidden = false;
   tokenInfoEl.hidden = true;
