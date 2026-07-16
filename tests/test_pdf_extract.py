@@ -1,7 +1,13 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pdfplumber
 import pytest
 
 import pdf_fixtures
+from core.pdf_extract import pdf_to_markdown
 
 
 def _write(tmp_path, name, data: bytes):
@@ -24,3 +30,16 @@ class TestFixtures:
         path = _write(tmp_path, "gapped", pdf_fixtures.gapped_words())
         with pdfplumber.open(path) as pdf:
             assert pdf.pages[0].extract_text() == "differentstationary"
+
+
+class TestText:
+    def test_gapped_words_are_separated(self, tmp_path):
+        path = _write(tmp_path, "gapped", pdf_fixtures.gapped_words())
+        assert pdf_to_markdown(path) == "different stationary"
+
+    def test_prose_only_pdf_has_no_table_markup(self, tmp_path):
+        # markitdown emitted 104 fake "| --- |" rows for a page like this.
+        path = _write(tmp_path, "prose", pdf_fixtures.prose_only())
+        result = pdf_to_markdown(path)
+        assert "Just a paragraph, no ruling lines anywhere." in result
+        assert "| --- |" not in result
