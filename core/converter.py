@@ -15,6 +15,8 @@ from markitdown import MarkItDown
 from pdfminer.pdfpage import PDFPage
 from pptx import Presentation
 
+from core.pdf_extract import pdf_to_markdown
+
 md = MarkItDown()
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
@@ -123,11 +125,19 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
         tmp.write(data)
         tmp_path = tmp.name
     try:
-        # md.convert() can take several seconds on large PDFs/OCR — offload to a
-        # thread so it doesn't block the event loop for every other client. This
-        # server is meant to be hit by multiple devices at once; without this, one
-        # slow conversion would freeze even a simple archive listing for everyone.
-        result = await asyncio.to_thread(md.convert, tmp_path)
+        # Conversion can take several seconds on large files — offload to a thread
+        # so it doesn't block the event loop for every other client. This server is
+        # meant to be hit by multiple devices at once; without this, one slow
+        # conversion would freeze even a simple archive listing for everyone.
+        #
+        # PDFs take our own extractor: markitdown's PDF converter glues words
+        # together, invents tables out of prose, and drops real ones. No fallback
+        # to markitdown here — both sit on pdfminer, so a file that breaks one
+        # breaks the other.
+        if suffix.lower() == ".pdf":
+            text = await asyncio.to_thread(pdf_to_markdown, tmp_path)
+        else:
+            text = (await asyncio.to_thread(md.convert, tmp_path)).text_content
     except Exception as e:
         Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Не удалось сконвертировать файл: {e}")
@@ -138,11 +148,11 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
     before, unit, units = await asyncio.to_thread(_estimate_before_tokens, suffix.lower(), tmp_path)
     Path(tmp_path).unlink(missing_ok=True)
 
-    filename = save_unique(archive_dir, safe_stem(file.filename), result.text_content)
-    after = count_tokens(result.text_content)
+    filename = save_unique(archive_dir, safe_stem(file.filename), text)
+    after = count_tokens(text)
     return {
         "filename": filename,
-        "content": result.text_content,
+        "content": text,
         "tokens": {"after": after, "before": before, "unit": unit, "units": units},
     }
 

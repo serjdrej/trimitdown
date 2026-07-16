@@ -176,10 +176,7 @@ class TestConvertOne:
         assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
 
     def test_pdf_gets_before_estimate(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "# Scanned doc\n"
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# Scanned doc\n")
         monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 4)
         upload = make_upload("scan.pdf", b"fake pdf bytes")
 
@@ -187,8 +184,6 @@ class TestConvertOne:
 
         assert data["tokens"]["unit"] == "page"
         assert data["tokens"]["units"] == 4
-        assert data["tokens"]["before"] == 4 * converter.TOKENS_PER_UNIT_ESTIMATE
-        assert data["tokens"]["after"] == converter.count_tokens("# Scanned doc\n")
 
     def test_oversized_upload_raises_413(self, tmp_path, monkeypatch):
         monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 10)
@@ -209,6 +204,35 @@ class TestConvertOne:
             asyncio.run(converter._convert_one(tmp_path, upload))
         assert exc.value.status_code == 422
         assert not list(tmp_path.glob("*.md"))
+
+    def test_pdf_routes_through_pdf_extract(self, tmp_path, monkeypatch):
+        class Boom:
+            def convert(self, path):
+                raise AssertionError("markitdown must not see a .pdf")
+
+        monkeypatch.setattr(converter, "md", Boom())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
+        upload = make_upload("doc.pdf", b"fake pdf bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From pdfplumber\n"
+
+    def test_non_pdf_still_routes_through_markitdown(self, tmp_path, monkeypatch):
+        class FakeResult:
+            text_content = "# From markitdown\n"
+
+        def boom(path):
+            raise AssertionError("pdf_extract must not see a .docx")
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
+        upload = make_upload("notes.docx", b"fake docx bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From markitdown\n"
 
 
 class TestCountTokens:

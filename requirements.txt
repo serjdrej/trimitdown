@@ -2,6 +2,7 @@ fastapi
 uvicorn
 python-multipart
 markitdown[docx,pdf,pptx,xlsx,xls,outlook]
+pdfplumber
 pywebview
 requests
 tiktoken
