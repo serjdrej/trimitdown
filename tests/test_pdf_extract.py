@@ -43,3 +43,42 @@ class TestText:
         result = pdf_to_markdown(path)
         assert "Just a paragraph, no ruling lines anywhere." in result
         assert "| --- |" not in result
+
+
+class TestTables:
+    def test_ruled_grid_renders_as_a_markdown_table(self, tmp_path):
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        result = pdf_to_markdown(path)
+        assert "| Header A | Header B |" in result
+        assert "| --- | --- |" in result
+        assert "| a1 | b1 |" in result
+        assert "| a2 | b2 |" in result
+
+    def test_prose_precedes_the_table_and_is_not_piped(self, tmp_path):
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        result = pdf_to_markdown(path)
+        prose, table = "Intro prose above the table.", "| Header A | Header B |"
+        assert result.index(prose) < result.index(table)
+        assert prose in result.splitlines()  # its own line, no pipes wrapped round it
+
+    def test_grid_is_blank_line_separated_from_prose(self, tmp_path):
+        # Without a blank line before it, markdown will not parse the table.
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        result = pdf_to_markdown(path)
+        assert "Intro prose above the table.\n\n| Header A | Header B |" in result
+
+    def test_single_row_table_renders_as_a_plain_line(self, tmp_path):
+        path = _write(tmp_path, "kv", pdf_fixtures.kv_table())
+        result = pdf_to_markdown(path)
+        assert result == "Frame type: Aluminium"
+        assert "| --- |" not in result
+
+    def test_pipe_in_a_cell_is_escaped(self, tmp_path):
+        path = _write(tmp_path, "pipe", pdf_fixtures.pipe_cell())
+        result = pdf_to_markdown(path)
+        assert r"| a\|b | plain |" in result
+
+    def test_blank_spacer_row_is_dropped(self, tmp_path):
+        path = _write(tmp_path, "blank", pdf_fixtures.blank_row_table())
+        result = pdf_to_markdown(path)
+        assert result == "| Head | Other |\n| --- | --- |\n| a1 | b1 |"

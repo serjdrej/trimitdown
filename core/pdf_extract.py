@@ -19,9 +19,72 @@ TABLE_SETTINGS = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
 TEXT_SETTINGS = {"x_tolerance": X_TOLERANCE}
 
 
+def _cell_text(value: str | None) -> str:
+    return (value or "").replace("\n", " ").replace("|", "\\|").strip()
+
+
+def _render_table(table) -> tuple[str | None, bool]:
+    """Render one detected grid. Returns (markdown, is_grid).
+
+    Single-row tables come back with is_grid=False: they render as a plain line
+    and flow into the surrounding prose, because as markdown they would be a
+    header row with no body.
+    """
+    # find_tables() does not propagate text settings to extract(); without
+    # TEXT_SETTINGS here, cell text silently falls back to the 3pt default and
+    # re-glues words inside cells.
+    rows = [[_cell_text(cell) for cell in row] for row in table.extract(**TEXT_SETTINGS)]
+    rows = [row for row in rows if any(row)]
+    if not rows:
+        return None, False
+    if len(rows) == 1:
+        return " ".join(cell for cell in rows[0] if cell), False
+    header, body = rows[0], rows[1:]
+    lines = [
+        "| " + " | ".join(header) + " |",
+        "| " + " | ".join("---" for _ in header) + " |",
+    ]
+    lines += ["| " + " | ".join(row) + " |" for row in body]
+    return "\n".join(lines), True
+
+
 def _render_page(page) -> str:
-    lines = page.extract_text_lines(x_tolerance=X_TOLERANCE)
-    return "\n".join(line["text"] for line in lines if line["text"].strip())
+    tables = page.find_tables(TABLE_SETTINGS)
+    boxes = [table.bbox for table in tables]
+
+    def outside_tables(obj) -> bool:
+        # Centre, not full containment: an object straddling a ruling line still
+        # resolves to exactly one side.
+        cx = (obj["x0"] + obj["x1"]) / 2
+        cy = (obj["top"] + obj["bottom"]) / 2
+        return not any(
+            x0 <= cx <= x1 and top <= cy <= bottom for x0, top, x1, bottom in boxes
+        )
+
+    blocks: list[tuple[float, bool, str]] = []
+    for table in tables:
+        markdown, is_grid = _render_table(table)
+        if markdown:
+            blocks.append((table.bbox[1], is_grid, markdown))
+    for line in page.filter(outside_tables).extract_text_lines(x_tolerance=X_TOLERANCE):
+        if line["text"].strip():
+            blocks.append((line["top"], False, line["text"]))
+    blocks.sort(key=lambda block: block[0])
+
+    parts: list[str] = []
+    buffer: list[str] = []
+    for _, is_grid, text in blocks:
+        if is_grid:
+            # A grid needs a blank line either side or markdown won't parse it.
+            if buffer:
+                parts.append("\n".join(buffer))
+                buffer = []
+            parts.append(text)
+        else:
+            buffer.append(text)
+    if buffer:
+        parts.append("\n".join(buffer))
+    return "\n\n".join(parts)
 
 
 def pdf_to_markdown(path: str | Path) -> str:
