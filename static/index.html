@@ -4,12 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TrimItDown</title>
-<meta name="theme-color" content="#1B1A17">
+<meta name="theme-color" content="#FAF9F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TrimItDown">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
+<script>
+// No-FOUC bootstrap: set the theme attributes before the stylesheet applies, so the
+// palette (all colors live under :root[data-theme=…]) is resolved on first paint.
+// app.js re-applies this idempotently and attaches the system-change listener.
+(function () {
+  try {
+    var p = JSON.parse(localStorage.getItem("trimitdown-theme")) || {};
+    var colorTheme = p.colorTheme || "clay";
+    var mode = p.mode || "auto";
+    var dark = mode === "auto"
+      ? matchMedia("(prefers-color-scheme: dark)").matches
+      : mode === "dark";
+    var d = document.documentElement;
+    d.dataset.theme = colorTheme;
+    d.dataset.mode = dark ? "dark" : "light";
+  } catch (e) {
+    var el = document.documentElement;
+    el.dataset.theme = "clay";
+    el.dataset.mode = "light";
+  }
+})();
+</script>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
