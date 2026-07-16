@@ -20,7 +20,10 @@ master_path = next((p for p in CANDIDATES if os.path.isfile(p)), CANDIDATES[0])
 PWA_ICONS = [("static/apple-touch-icon.png", 180), ("static/icon-192.png", 192), ("static/icon-512.png", 512)]
 
 master = Image.open(master_path).convert("RGB")
-for path, size in PWA_ICONS:
+for rel, size in PWA_ICONS:
+    # Anchor outputs to this script's dir so regeneration is correct regardless of cwd
+    # (container WORKDIR /app and local repo-root runs both resolve to the right static/).
+    path = os.path.join(HERE, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     master.resize((size, size), Image.LANCZOS).save(path)
 
