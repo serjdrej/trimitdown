@@ -4,43 +4,76 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TrimItDown</title>
-<meta name="theme-color" content="#1B1A17">
+<meta name="theme-color" content="#FAF9F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TrimItDown">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
+<script>
+// No-FOUC bootstrap: set the theme attributes before the stylesheet applies, so the
+// palette (all colors live under :root[data-theme=…]) is resolved on first paint.
+// app.js re-applies this idempotently and attaches the system-change listener.
+(function () {
+  try {
+    var p = JSON.parse(localStorage.getItem("trimitdown-theme")) || {};
+    var colorTheme = p.colorTheme || "clay";
+    var mode = p.mode || "auto";
+    var dark = mode === "auto"
+      ? matchMedia("(prefers-color-scheme: dark)").matches
+      : mode === "dark";
+    var d = document.documentElement;
+    d.dataset.theme = colorTheme;
+    d.dataset.mode = dark ? "dark" : "light";
+  } catch (e) {
+    var el = document.documentElement;
+    el.dataset.theme = "clay";
+    el.dataset.mode = "light";
+  }
+})();
+</script>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
-  <div class="wordmark"><span class="wm-bold">trimit</span><span class="wm-light">down</span></div>
+  <svg class="wordmark-svg" viewBox="0 0 2523 387" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrimItDown">
+    <path class="wm-trimit" d="M128 386.383C97 386.383 74.1667 378.216 59.5 361.883C44.8333 345.216 37.5 318.716 37.5 282.383V178.883H5.21541e-08L1.5 116.383H28.5C39.1667 116.049 47.1667 114.383 52.5 111.383C58.1667 108.383 61.6667 102.716 63 94.3828L69.5 57.3828H115V115.883H178.5V181.383H115V278.883C115 290.216 117.667 298.549 123 303.883C128.667 309.216 137.167 311.883 148.5 311.883C154.833 311.883 160.833 311.216 166.5 309.883C172.167 308.549 176.833 306.716 180.5 304.383V378.883C169.833 382.216 160 384.216 151 384.883C142.333 385.883 134.667 386.383 128 386.383ZM228.125 379.883V257.383V115.883H294.125L295.625 205.383H305.625C307.958 182.049 312.292 163.549 318.625 149.883C325.292 135.883 334.625 125.716 346.625 119.383C358.958 113.049 374.125 109.883 392.125 109.883C394.792 109.883 397.792 110.049 401.125 110.383C404.458 110.383 408.292 110.716 412.625 111.383L409.625 197.383C404.292 194.716 398.458 193.049 392.125 192.383C386.125 191.383 380.792 190.883 376.125 190.883C363.125 190.883 351.792 193.383 342.125 198.383C332.792 203.383 325.292 211.049 319.625 221.383C314.292 231.716 310.792 244.716 309.125 260.383V379.883H228.125ZM451.27 379.883V115.883H531.77V379.883H451.27ZM491.77 78.8828C476.436 78.8828 464.603 75.7161 456.27 69.3828C448.27 62.7161 444.27 53.3828 444.27 41.3828C444.27 28.7161 448.27 19.2161 456.27 12.8828C464.603 6.21614 476.436 2.88281 491.77 2.88281C507.436 2.88281 519.27 6.21614 527.27 12.8828C535.603 19.2161 539.77 28.5495 539.77 40.8828C539.77 53.2161 535.603 62.7161 527.27 69.3828C519.27 75.7161 507.436 78.8828 491.77 78.8828ZM594.336 379.883V209.383V115.883H657.836L658.836 193.383H668.836C673.503 174.383 679.669 158.716 687.336 146.383C695.003 133.716 704.336 124.383 715.336 118.383C726.336 112.049 739.169 108.883 753.836 108.883C769.169 108.883 781.836 112.216 791.836 118.883C802.169 125.216 810.336 134.716 816.336 147.383C822.336 159.716 826.336 175.049 828.336 193.383H836.836C842.169 173.716 849.169 157.716 857.836 145.383C866.503 132.716 876.836 123.549 888.836 117.883C900.836 111.883 913.836 108.883 927.836 108.883C942.836 108.883 955.836 111.883 966.836 117.883C978.169 123.549 987.503 132.216 994.836 143.883C1002.5 155.216 1008.17 169.549 1011.84 186.883C1015.5 203.883 1017.34 223.716 1017.34 246.383V379.883H936.336V256.383C936.336 238.716 934.836 224.049 931.836 212.383C929.169 200.716 924.836 192.049 918.836 186.383C912.836 180.383 905.169 177.383 895.836 177.383C885.169 177.383 876.003 180.883 868.336 187.883C861.003 194.883 855.336 204.716 851.336 217.383C847.336 229.716 845.336 243.716 845.336 259.383V379.883H766.336V257.883C766.336 239.549 764.669 224.549 761.336 212.883C758.336 201.216 753.669 192.383 747.336 186.383C741.336 180.383 733.669 177.383 724.336 177.383C713.669 177.383 704.669 180.883 697.336 187.883C690.003 194.883 684.336 204.716 680.336 217.383C676.669 229.716 674.836 243.716 674.836 259.383V379.883H594.336ZM1075.78 379.883V115.883H1156.28V379.883H1075.78ZM1116.28 78.8828C1100.95 78.8828 1089.11 75.7161 1080.78 69.3828C1072.78 62.7161 1068.78 53.3828 1068.78 41.3828C1068.78 28.7161 1072.78 19.2161 1080.78 12.8828C1089.11 6.21614 1100.95 2.88281 1116.28 2.88281C1131.95 2.88281 1143.78 6.21614 1151.78 12.8828C1160.11 19.2161 1164.28 28.5495 1164.28 40.8828C1164.28 53.2161 1160.11 62.7161 1151.78 69.3828C1143.78 75.7161 1131.95 78.8828 1116.28 78.8828ZM1321.85 386.383C1290.85 386.383 1268.01 378.216 1253.35 361.883C1238.68 345.216 1231.35 318.716 1231.35 282.383V178.883H1193.85L1195.35 116.383H1222.35C1233.01 116.049 1241.01 114.383 1246.35 111.383C1252.01 108.383 1255.51 102.716 1256.85 94.3828L1263.35 57.3828H1308.85V115.883H1372.35V181.383H1308.85V278.883C1308.85 290.216 1311.51 298.549 1316.85 303.883C1322.51 309.216 1331.01 311.883 1342.35 311.883C1348.68 311.883 1354.68 311.216 1360.35 309.883C1366.01 308.549 1370.68 306.716 1374.35 304.383V378.883C1363.68 382.216 1353.85 384.216 1344.85 384.883C1336.18 385.883 1328.51 386.383 1321.85 386.383Z"/>
+    <path class="wm-down" d="M1531.11 384.766C1494.81 384.766 1467.14 373.372 1448.1 350.586C1429.22 327.637 1419.78 294.271 1419.78 250.488C1419.78 204.59 1429.79 169.596 1449.81 145.508C1469.83 121.419 1497.74 109.375 1533.55 109.375C1548.85 109.375 1562.12 111.735 1573.35 116.455C1584.74 121.175 1594.26 127.604 1601.91 135.742C1609.72 143.717 1615.74 152.832 1619.98 163.086H1621.93C1621.28 154.46 1620.79 145.182 1620.46 135.254C1620.14 125.326 1619.98 116.211 1619.98 107.91V0H1644.63V379.883H1624.62L1621.44 331.299H1619.98C1615.58 341.064 1609.48 350.016 1601.67 358.154C1594.02 366.292 1584.41 372.803 1572.86 377.686C1561.3 382.406 1547.39 384.766 1531.11 384.766ZM1533.79 363.281C1565.04 363.281 1587.26 353.597 1600.45 334.229C1613.63 314.697 1620.22 286.865 1620.22 250.732V246.826C1620.22 209.391 1613.63 180.745 1600.45 160.889C1587.26 140.869 1565.78 130.859 1535.99 130.859C1506.53 130.859 1483.99 141.113 1468.37 161.621C1452.9 182.129 1445.17 211.914 1445.17 250.977C1445.17 287.76 1452.41 315.674 1466.9 334.717C1481.55 353.76 1503.85 363.281 1533.79 363.281ZM1927.98 246.826C1927.98 267.334 1925.46 286.051 1920.42 302.979C1915.37 319.743 1907.88 334.229 1897.96 346.436C1888.03 358.643 1875.66 368.083 1860.85 374.756C1846.2 381.429 1829.11 384.766 1809.58 384.766C1791.02 384.766 1774.5 381.51 1760.02 375C1745.53 368.327 1733.24 358.887 1723.15 346.68C1713.22 334.473 1705.65 319.987 1700.45 303.223C1695.24 286.296 1692.63 267.497 1692.63 246.826C1692.63 218.343 1697.35 193.848 1706.79 173.34C1716.4 152.669 1730.07 136.882 1747.81 125.977C1765.71 114.909 1787.12 109.375 1812.02 109.375C1837.73 109.375 1859.14 115.234 1876.23 126.953C1893.48 138.509 1906.42 154.622 1915.04 175.293C1923.67 195.964 1927.98 219.808 1927.98 246.826ZM1718.02 246.826C1718.02 270.101 1721.36 290.446 1728.03 307.861C1734.71 325.277 1744.8 338.867 1758.31 348.633C1771.98 358.398 1789.23 363.281 1810.06 363.281C1831.39 363.281 1848.88 358.398 1862.55 348.633C1876.23 338.867 1886.32 325.195 1892.83 307.617C1899.34 290.039 1902.59 269.775 1902.59 246.826C1902.59 224.528 1899.5 204.671 1893.32 187.256C1887.13 169.84 1877.37 156.169 1864.02 146.24C1850.67 136.149 1833.26 131.104 1811.77 131.104C1781.01 131.104 1757.66 141.357 1741.71 161.865C1725.92 182.373 1718.02 210.693 1718.02 246.826ZM2188.38 379.883L2131.99 201.66C2130.2 196.289 2128.57 191.162 2127.11 186.279C2125.64 181.396 2124.26 176.676 2122.96 172.119C2121.65 167.562 2120.43 163.167 2119.29 158.936C2118.15 154.541 2117.01 150.228 2115.88 145.996H2114.65C2113.51 150.228 2112.38 154.541 2111.24 158.936C2110.1 163.33 2108.88 167.887 2107.57 172.607C2106.27 177.327 2104.89 182.129 2103.42 187.012C2101.96 191.895 2100.33 196.94 2098.54 202.148L2040.19 379.883H2014.8L1939.36 114.502H1965.48L2012.12 284.18C2014.88 294.108 2017.24 302.979 2019.2 310.791C2021.15 318.604 2022.86 325.684 2024.32 332.031C2025.79 338.379 2027.09 344.401 2028.23 350.098H2029.45C2030.43 346.029 2031.48 341.797 2032.62 337.402C2033.76 332.845 2034.98 327.962 2036.29 322.754C2037.59 317.546 2039.13 312.012 2040.92 306.152C2042.71 300.293 2044.67 293.945 2046.78 287.109L2103.67 114.502H2128.08L2182.77 286.621C2185.37 294.922 2187.73 302.897 2189.85 310.547C2192.13 318.034 2194.08 325.033 2195.71 331.543C2197.5 338.053 2198.96 344.157 2200.1 349.854H2201.57C2202.22 344.482 2203.2 338.623 2204.5 332.275C2205.96 325.765 2207.67 318.522 2209.62 310.547C2211.74 302.572 2214.1 293.783 2216.71 284.18L2261.63 114.502H2286.53L2214.51 379.883H2188.38ZM2429.5 109.375C2459.28 109.375 2482.15 117.188 2498.1 132.812C2514.05 148.438 2522.03 172.933 2522.03 206.299V379.883H2497.61V207.764C2497.61 181.396 2491.59 162.028 2479.55 149.658C2467.5 137.288 2450.01 131.104 2427.06 131.104C2397.92 131.104 2375.62 139.648 2360.16 156.738C2344.86 173.665 2337.21 199.3 2337.21 233.643V379.883H2312.55V114.502H2332.57L2336.24 162.842H2337.7C2342.42 152.913 2348.85 143.962 2356.99 135.986C2365.29 127.848 2375.46 121.419 2387.51 116.699C2399.55 111.816 2413.55 109.375 2429.5 109.375Z"/>
+  </svg>
+  <span id="status-pill"><span class="status-dot"></span><span class="status-label"></span></span>
 </header>
 <main>
   <section id="convert" class="view active">
     <div id="status"></div>
+    <div id="convert-progress" class="progress" hidden>
+      <div class="progress-bar"></div>
+    </div>
     <div id="result" hidden>
-      <div class="result-toolbar">
-        <span id="result-name"></span>
-        <div class="view-toggle">
-          <button id="preview-toggle-btn" class="toggle-btn active" data-i18n="previewBtn">Просмотр</button>
-          <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
-        </div>
-      </div>
       <div class="result-card">
+        <div class="result-head">
+          <div id="result-badge" class="file-badge"></div>
+          <div class="result-head-text">
+            <span id="result-name"></span>
+            <span id="result-status" class="result-status"></span>
+          </div>
+          <div class="view-toggle">
+            <button id="preview-toggle-btn" class="toggle-btn active" data-i18n="previewBtn">Просмотр</button>
+            <button id="source-toggle-btn" class="toggle-btn" data-i18n="sourceBtn">Исходник</button>
+          </div>
+        </div>
         <div id="result-preview" class="markdown-body"></div>
         <textarea id="result-text" class="markdown-body" readonly hidden></textarea>
+        <div id="token-info" class="token-info" hidden>
+          <div class="token-info-row">
+            <span id="token-detail" class="token-detail"></span>
+            <span id="token-savings" class="token-savings"></span>
+          </div>
+          <div class="token-bar"><div id="token-bar-fill" class="token-bar-fill"></div></div>
+        </div>
         <div class="result-card-actions">
-          <button id="download-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span data-i18n="downloadBtn">Скачать .md</span></button>
           <button id="copy-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span data-i18n="copyBtn">Копировать</span></button>
+          <button id="download-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span data-i18n="downloadBtn">Скачать .md</span></button>
         </div>
-      </div>
-      <div id="token-info" class="token-info" hidden>
-        <div class="token-info-row">
-          <span id="token-detail" class="token-detail"></span>
-          <span id="token-savings" class="token-savings"></span>
-        </div>
-        <div class="token-bar"><div id="token-bar-fill" class="token-bar-fill"></div></div>
       </div>
     </div>
     <div id="batch-result" hidden>
@@ -49,7 +82,14 @@
       <button id="download-zip-btn" hidden data-i18n="downloadZip">Скачать всё ZIP</button>
     </div>
     <label id="dropzone" for="file-input">
-      <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
+      <span class="dz-inner">
+        <svg class="dz-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+          <path d="M12 12v9"/>
+          <path d="m16 16-4-4-4 4"/>
+        </svg>
+        <span id="dz-text" data-i18n="dropzoneHint">Нажми или перетащи файл сюда</span>
+      </span>
       <input id="file-input" type="file" hidden multiple>
     </label>
   </section>
@@ -58,10 +98,6 @@
     <ul id="archive-list"></ul>
   </section>
   <section id="settings" class="view">
-    <div class="settings-row">
-      <span data-i18n="modeLabel">Режим</span>
-      <span id="mode-badge" class="badge"></span>
-    </div>
     <div class="settings-group" id="server-url-group" hidden>
       <label class="settings-label" for="server-url-input" data-i18n="serverUrlLabel">Адрес сервера</label>
       <input id="server-url-input" type="text" placeholder="https://192.168.1.10:8002">
@@ -73,15 +109,19 @@
       <p id="server-status-msg" class="hint"></p>
     </div>
     <div class="settings-row">
-      <span data-i18n="themeLabel">Тема</span>
-      <div class="settings-theme">
-        <select disabled>
-          <option data-i18n="themeSystem">Системная</option>
-          <option data-i18n="themeLight">Светлая</option>
-          <option data-i18n="themeDark">Тёмная</option>
-        </select>
-        <span class="badge" data-i18n="comingSoon">скоро</span>
-      </div>
+      <span data-i18n="colorThemeLabel">Цветовая тема</span>
+      <select id="color-theme-select">
+        <option value="clay" data-i18n="themeClay">Глина</option>
+        <option value="ocean" data-i18n="themeOcean">Океан</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <span data-i18n="appearanceLabel">Оформление</span>
+      <select id="appearance-select">
+        <option value="auto" data-i18n="appSystem">Системное</option>
+        <option value="light" data-i18n="appLight">Светлое</option>
+        <option value="dark" data-i18n="appDark">Тёмное</option>
+      </select>
     </div>
     <p class="hint" id="cert-hint"><a href="/cert" data-i18n="certHint">Установить сертификат (для iOS, один раз)</a></p>
     <p class="hint"><a href="/static/privacy.html" data-i18n="privacyHint">Приватность и хранение данных</a></p>
@@ -91,12 +131,15 @@
 <nav class="bottom-nav">
   <button class="tab active" data-tab="convert" data-i18n-aria="tabConvert">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+    <span class="tab-label" data-i18n="tabConvert">Конвертация</span>
   </button>
   <button class="tab" data-tab="archive" data-i18n-aria="tabArchive">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+    <span class="tab-label" data-i18n="tabArchive">Архив</span>
   </button>
   <button class="tab" data-tab="settings" data-i18n-aria="tabSettings">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+    <span class="tab-label" data-i18n="tabSettings">Настройки</span>
   </button>
 </nav>
 <script src="/static/vendor/marked.min.js"></script>

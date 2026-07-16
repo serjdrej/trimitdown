@@ -1,8 +1,14 @@
-from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+"""Regenerate the macOS/Windows app-icon assets from the committed raster master.
 
-MASTER_SIZE = 1024
-FONT_PATH = r"C:\Windows\Fonts\arialbd.ttf"
+The master (`mac-build/icon_master_1024.png`) is a 1024x1024 rasterization of the
+brand vector `brand/td_Icon.svg` (dark #1B1A17 field, light «t», accent «d»).
+We keep a committed PNG master because the build hosts don't ship an SVG
+rasterizer; regenerate the master from the SVG only when the brand mark changes.
+"""
+from pathlib import Path
+from PIL import Image
+
+MASTER = Path("mac-build") / "icon_master_1024.png"
 
 ICONSET_SIZES = [
     (16, "icon_16x16.png"),
@@ -17,19 +23,15 @@ ICONSET_SIZES = [
     (1024, "icon_512x512@2x.png"),
 ]
 
+ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+
+master = Image.open(MASTER).convert("RGB")
+
 out_dir = Path("mac-build") / "AppIcon.iconset"
 out_dir.mkdir(parents=True, exist_ok=True)
-
-master = Image.new("RGB", (MASTER_SIZE, MASTER_SIZE), "#0b0b0d")
-draw = ImageDraw.Draw(master)
-text = "M↓"
-font = ImageFont.truetype(FONT_PATH, int(MASTER_SIZE * 0.42))
-bbox = draw.textbbox((0, 0), text, font=font)
-w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-draw.text(((MASTER_SIZE - w) / 2 - bbox[0], (MASTER_SIZE - h) / 2 - bbox[1]), text, font=font, fill="#22c55e")
-
 for size, name in ICONSET_SIZES:
-    resized = master.resize((size, size), Image.LANCZOS)
-    resized.save(out_dir / name)
+    master.resize((size, size), Image.LANCZOS).save(out_dir / name)
 
-print(f"saved {len(ICONSET_SIZES)} icons into {out_dir}")
+master.save("icon.ico", sizes=ICO_SIZES)
+
+print(f"saved {len(ICONSET_SIZES)} iconset PNGs into {out_dir} and icon.ico")

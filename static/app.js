@@ -3,7 +3,7 @@ const DATE_LOCALE = LANG === "ru" ? "ru-RU" : "en-US";
 
 const STRINGS = {
   ru: {
-    tabConvert: "Конвертировать",
+    tabConvert: "Конвертация",
     tabArchive: "Архив",
     dropzoneHint: "Нажми или перетащи файл сюда",
     downloadBtn: "Скачать .md",
@@ -12,20 +12,20 @@ const STRINGS = {
     copyFailed: "Не вышло",
     searchPlaceholder: "Поиск по названию…",
     privacyHint: "Приватность и хранение данных",
-    modeLabel: "Режим",
     tabSettings: "Настройки",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} токенов в результате`,
-    tokenBeforeAfter: (before, after) => `${before} → ${after} токенов`,
     converting: name => `Конвертирую ${name}…`,
     done: "Готово, сохранено в архив.",
     error: msg => `Ошибка: ${msg}`,
     genericError: "Ошибка конвертации",
     notFound: "Ничего не найдено",
+    emptyArchive: "Пока нет документов",
     deleteConfirm: name => `Удалить ${name}?`,
     deleteFailed: "Не удалось удалить",
     previewBtn: "Просмотр",
     sourceBtn: "RAW",
+    justNow: "готово • только что",
     batchPending: "Ожидание…",
     batchOk: "Готово",
     batchError: "Ошибка",
@@ -39,11 +39,13 @@ const STRINGS = {
     saveBtn: "Сохранить",
     testConnectionBtn: "Проверить соединение",
     resetLocalBtn: "Сбросить на локальный режим",
-    themeLabel: "Тема",
-    themeSystem: "Системная",
-    themeLight: "Светлая",
-    themeDark: "Тёмная",
-    comingSoon: "скоро",
+    colorThemeLabel: "Цветовая тема",
+    themeClay: "Глина",
+    themeOcean: "Океан",
+    appearanceLabel: "Оформление",
+    appSystem: "Системное",
+    appLight: "Светлое",
+    appDark: "Тёмное",
     invalidUrlMsg: "Неверный формат: нужен https://, без слэша в конце",
     restartMsg: "Изменения вступят в силу после перезапуска приложения",
     testingMsg: "Проверяю…",
@@ -61,20 +63,20 @@ const STRINGS = {
     copyFailed: "Failed",
     searchPlaceholder: "Search by name…",
     privacyHint: "Privacy and data storage",
-    modeLabel: "Mode",
     tabSettings: "Settings",
     tokenSavings: pct => `−${pct}%`,
     tokenAfterOnly: after => `~${after} tokens in the result`,
-    tokenBeforeAfter: (before, after) => `${before} → ${after} tokens`,
     converting: name => `Converting ${name}…`,
     done: "Done, saved to archive.",
     error: msg => `Error: ${msg}`,
     genericError: "Conversion failed",
     notFound: "Nothing found",
+    emptyArchive: "No documents yet",
     deleteConfirm: name => `Delete ${name}?`,
     deleteFailed: "Failed to delete",
     previewBtn: "Preview",
     sourceBtn: "RAW",
+    justNow: "done • just now",
     batchPending: "Waiting…",
     batchOk: "Done",
     batchError: "Error",
@@ -88,11 +90,13 @@ const STRINGS = {
     saveBtn: "Save",
     testConnectionBtn: "Test connection",
     resetLocalBtn: "Reset to local mode",
-    themeLabel: "Theme",
-    themeSystem: "System",
-    themeLight: "Light",
-    themeDark: "Dark",
-    comingSoon: "soon",
+    colorThemeLabel: "Color theme",
+    themeClay: "Clay",
+    themeOcean: "Ocean",
+    appearanceLabel: "Appearance",
+    appSystem: "System",
+    appLight: "Light",
+    appDark: "Dark",
     invalidUrlMsg: "Invalid format: needs https://, no trailing slash",
     restartMsg: "Changes take effect after restarting the app",
     testingMsg: "Checking…",
@@ -103,17 +107,49 @@ const STRINGS = {
 };
 const t = STRINGS[LANG];
 
+const THEME_KEY = "trimitdown-theme";
+function loadThemePref() {
+  try { const p = JSON.parse(localStorage.getItem(THEME_KEY));
+        if (p && p.colorTheme && p.mode) return p; } catch (e) {}
+  return { colorTheme: "clay", mode: "auto" };
+}
+function saveThemePref(pref) { localStorage.setItem(THEME_KEY, JSON.stringify(pref)); }
+const darkMQ = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme() {
+  const pref = loadThemePref();
+  const dark = pref.mode === "auto" ? darkMQ.matches : pref.mode === "dark";
+  document.documentElement.dataset.theme = pref.colorTheme;
+  document.documentElement.dataset.mode  = dark ? "dark" : "light";
+  setThemeColorMeta();
+}
+function setThemeColorMeta() {
+  const bg = getComputedStyle(document.body).backgroundColor;
+  let m = document.querySelector('meta[name="theme-color"]');
+  if (!m) { m = document.createElement("meta"); m.name = "theme-color"; document.head.appendChild(m); }
+  m.setAttribute("content", bg);
+}
+// re-run on system change only while in auto:
+darkMQ.addEventListener("change", () => { if (loadThemePref().mode === "auto") applyTheme(); });
+applyTheme();
+
 document.documentElement.lang = LANG;
 document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t[el.dataset.i18n]; });
 document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t[el.dataset.i18nPlaceholder]; });
 document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t[el.dataset.i18nAria]); });
 
-const modeBadge = document.getElementById("mode-badge");
+const statusPill = document.getElementById("status-pill");
+const statusPillLabel = statusPill.querySelector(".status-label");
 const appVersionEl = document.getElementById("app-version");
+function setStatusPill(mode) {
+  const local = mode === "local";
+  statusPill.classList.toggle("mode-local", local);
+  statusPill.classList.toggle("mode-server", !local);
+  statusPillLabel.textContent = local ? t.modeLocal : t.modeServer;
+}
 fetch("/api/mode").then(r => r.json()).then(d => {
-  modeBadge.textContent = d.mode === "local" ? t.modeLocal : t.modeServer;
+  setStatusPill(d.mode);
   appVersionEl.textContent = t.versionLabel(d.version);
-}).catch(() => { modeBadge.textContent = t.modeServer; });
+}).catch(() => { setStatusPill("server"); });
 
 function isValidServerUrl(url) {
   return /^https:\/\/.+[^/]$/.test(url);
@@ -158,6 +194,24 @@ if (window.pywebview && window.pywebview.api) {
   });
 }
 
+const colorThemeSelect = document.getElementById("color-theme-select");
+const appearanceSelect = document.getElementById("appearance-select");
+const initialThemePref = loadThemePref();
+colorThemeSelect.value = initialThemePref.colorTheme;
+appearanceSelect.value = initialThemePref.mode;
+colorThemeSelect.addEventListener("change", () => {
+  const pref = loadThemePref();
+  pref.colorTheme = colorThemeSelect.value;
+  saveThemePref(pref);
+  applyTheme();
+});
+appearanceSelect.addEventListener("change", () => {
+  const pref = loadThemePref();
+  pref.mode = appearanceSelect.value;
+  saveThemePref(pref);
+  applyTheme();
+});
+
 const tabs = document.querySelectorAll(".tab");
 const views = document.querySelectorAll(".view");
 tabs.forEach(tab => tab.addEventListener("click", () => {
@@ -171,10 +225,13 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("file-input");
 const statusEl = document.getElementById("status");
+const progressEl = document.getElementById("convert-progress");
 const resultEl = document.getElementById("result");
 const resultText = document.getElementById("result-text");
 const resultPreview = document.getElementById("result-preview");
 const resultName = document.getElementById("result-name");
+const resultStatus = document.getElementById("result-status");
+const resultBadge = document.getElementById("result-badge");
 const tokenInfoEl = document.getElementById("token-info");
 const tokenSavingsEl = document.getElementById("token-savings");
 const tokenDetailEl = document.getElementById("token-detail");
@@ -189,6 +246,25 @@ const batchSummaryEl = document.getElementById("batch-summary");
 const downloadZipBtn = document.getElementById("download-zip-btn");
 const BATCH_LIMIT = 10;
 let lastFilename = null;
+
+const FILE_BADGE_MAP = {
+  pdf:  { color: "#C0392B", label: "PDF" },
+  docx: { color: "#2B6CB0", label: "DOC" },
+  doc:  { color: "#2B6CB0", label: "DOC" },
+  pptx: { color: "#D97706", label: "PPT" },
+  ppt:  { color: "#D97706", label: "PPT" },
+  xlsx: { color: "#2F855A", label: "XLS" },
+  xls:  { color: "#2F855A", label: "XLS" },
+  epub: { color: "#6B46C1", label: "PUB" },
+  html: { color: "#DD6B20", label: "HTM" },
+  htm:  { color: "#DD6B20", label: "HTM" },
+};
+function fileBadge(filename) {
+  const dot = filename.lastIndexOf(".");
+  const ext = dot >= 0 ? filename.slice(dot + 1).toLowerCase() : "";
+  if (FILE_BADGE_MAP[ext]) return FILE_BADGE_MAP[ext];
+  return { color: "var(--muted)", label: ext ? ext.slice(0, 3).toUpperCase() : "DOC" };
+}
 
 function showPreview() {
   resultPreview.hidden = false;
@@ -207,13 +283,12 @@ function showSource() {
 function renderTokenInfo(tokens) {
   tokenInfoEl.hidden = false;
   const pct = tokens.before != null ? Math.round((1 - tokens.after / tokens.before) * 100) : 0;
+  tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
   if (pct > 0) {
     tokenSavingsEl.textContent = t.tokenSavings(pct);
-    tokenDetailEl.textContent = t.tokenBeforeAfter(tokens.before, tokens.after);
     tokenBarFillEl.style.width = Math.min(100, pct) + "%";
   } else {
     tokenSavingsEl.textContent = "";
-    tokenDetailEl.textContent = t.tokenAfterOnly(tokens.after);
     tokenBarFillEl.style.width = "0%";
   }
 }
@@ -237,6 +312,7 @@ dropzone.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 
 async function convertFile(file) {
   statusEl.textContent = t.converting(file.name);
+  progressEl.hidden = false;
   resultEl.hidden = true;
   batchResultEl.hidden = true;
   tokenInfoEl.hidden = true;
@@ -248,6 +324,10 @@ async function convertFile(file) {
     const data = await res.json();
     lastFilename = data.filename;
     resultName.textContent = data.filename;
+    resultStatus.textContent = t.justNow;
+    const badge = fileBadge(file.name);
+    resultBadge.style.background = badge.color;
+    resultBadge.textContent = badge.label;
     resultText.value = data.content;
     resultPreview.innerHTML = DOMPurify.sanitize(marked.parse(data.content));
     showPreview();
@@ -256,6 +336,8 @@ async function convertFile(file) {
     statusEl.textContent = t.done;
   } catch (e) {
     statusEl.textContent = t.error(e.message);
+  } finally {
+    progressEl.hidden = true;
   }
 }
 
@@ -370,7 +452,17 @@ async function loadArchive() {
   const items = await (await fetch(`/api/archive?q=${q}`)).json();
   archiveList.innerHTML = "";
   if (items.length === 0) {
-    archiveList.innerHTML = `<li class="item-info"><span class="item-meta">${t.notFound}</span></li>`;
+    if (searchInput.value.trim() === "") {
+      archiveList.innerHTML = `<li class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
+          <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+        </svg>
+        <p>${t.emptyArchive}</p>
+      </li>`;
+    } else {
+      archiveList.innerHTML = `<li class="item-info"><span class="item-meta">${t.notFound}</span></li>`;
+    }
     return;
   }
   for (const item of items) {

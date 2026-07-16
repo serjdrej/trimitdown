@@ -1,13 +1,9 @@
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    fonts-dejavu-core \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN pip install --no-cache-dir "markitdown[all]" fastapi uvicorn python-multipart pillow tiktoken
 
 WORKDIR /app
-COPY docker-server/app.py docker-server/generate_icons.py ./
+COPY docker-server/app.py docker-server/generate_icons.py mac-build/icon_master_1024.png ./
 COPY docker-server/static static
 COPY core core
 
