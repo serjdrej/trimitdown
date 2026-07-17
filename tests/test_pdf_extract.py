@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -7,6 +8,7 @@ import pdfplumber
 import pytest
 
 import pdf_fixtures
+from core import pdf_extract
 from core.pdf_extract import pdf_to_markdown
 
 
@@ -82,3 +84,85 @@ class TestTables:
         path = _write(tmp_path, "blank", pdf_fixtures.blank_row_table())
         result = pdf_to_markdown(path)
         assert result == "| Head | Other |\n| --- | --- |\n| a1 | b1 |"
+
+
+class TestRatioThreshold:
+    """Fix 1: X_TOLERANCE_RATIO replaces the absolute X_TOLERANCE. An absolute
+    point value cannot port across font sizes -- see §13 of the design doc.
+    """
+
+    def test_small_font_gap_is_split_by_the_ratio(self, tmp_path):
+        # Same TJ-gap construction as gapped_words(), but at a font size where
+        # the resulting gap is 0.738pt in absolute terms -- the measured
+        # Russian-patent case. ratio 0.12 * 6.0 = 0.72pt is small enough to
+        # still treat this as a word break.
+        path = _write(tmp_path, "gapped_small", pdf_fixtures.gapped_words_small_font())
+        assert pdf_to_markdown(path) == "different stationary"
+
+    def test_the_same_gap_would_stay_glued_at_the_old_absolute_tolerance(self, tmp_path):
+        # Self-check mirroring TestFixtures above: proves this fixture actually
+        # distinguishes a ratio from a fixed absolute number, rather than just
+        # being a smaller copy of gapped_words(). The pre-revision design used
+        # x_tolerance=2 (absolute); 0.738pt is under that, so it never split.
+        path = _write(tmp_path, "gapped_small", pdf_fixtures.gapped_words_small_font())
+        with pdfplumber.open(path) as pdf:
+            assert pdf.pages[0].extract_text(x_tolerance=2) == "differentstationary"
+
+
+class TestSingleColumnGrids:
+    """Fix 2: a frame plus any intersecting rule makes a 1xN grid out of
+    ordinary paragraphs. It must render as prose, exactly like the existing
+    single-row case, not as a table.
+    """
+
+    def test_framed_prose_has_no_table_markup(self, tmp_path):
+        path = _write(tmp_path, "framed", pdf_fixtures.framed_prose())
+        result = pdf_to_markdown(path)
+        assert "| --- |" not in result
+        assert "First paragraph inside the frame." in result
+        assert "Second paragraph inside the frame." in result
+
+
+class TestCellBboxFiltering:
+    """Fix 3: prose must be filtered against cell bboxes, not the table's hull
+    bbox. Table.extract only ever reads inside cell bboxes, so any text
+    sitting in a gap within the hull belongs to no cell and would otherwise
+    vanish from the output entirely.
+    """
+
+    def test_text_in_a_table_hull_gap_is_not_swallowed(self, tmp_path, monkeypatch):
+        # Fake a pathological table whose hull bbox spans the whole page but
+        # whose only real cell is a tiny corner far from the prose. Hull-based
+        # filtering (the old behaviour) would treat every character on the
+        # page as "inside the table" and drop the prose; cell-based filtering
+        # only excludes the tiny corner, so the prose survives.
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        with pdfplumber.open(path) as pdf:
+            page = pdf.pages[0]
+
+            class FakeTable:
+                bbox = (0, 0, 612, 792)
+
+                @staticmethod
+                def extract(**kwargs):
+                    return [["x"]]
+
+                rows = [SimpleNamespace(cells=[(0, 0, 10, 10)])]
+
+            monkeypatch.setattr(page, "find_tables", lambda settings: [FakeTable()])
+            result = pdf_extract._render_page(page)
+
+        assert "Intro prose above the table." in result
+
+
+class TestPipeEscaping:
+    """Fix 4: pipe escaping happens at grid render, not in cell sanitisation.
+    Single-row and single-column grids emit prose, where an escaped pipe would
+    show a visible backslash that isn't in the source document.
+    """
+
+    def test_pipe_in_a_single_row_grid_is_not_escaped(self, tmp_path):
+        path = _write(tmp_path, "pipe_row", pdf_fixtures.pipe_in_single_row())
+        result = pdf_to_markdown(path)
+        assert result == "a|b plain"
+        assert "\\|" not in result

@@ -133,8 +133,12 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
         # PDFs take our own extractor: markitdown's PDF converter glues words
         # together, invents tables out of prose, and drops real ones. No fallback
         # to markitdown here — both sit on pdfminer, so a file that breaks one
-        # breaks the other.
-        if suffix.lower() == ".pdf":
+        # breaks the other. This is a route, not a fallback: markitdown itself
+        # dispatches by sniffing content, so an HTML/TXT file misnamed ".pdf"
+        # used to convert fine through markitdown. Checking the %PDF magic bytes
+        # (already read into `data` above) keeps real PDFs on our path and hands
+        # everything else back to markitdown's own sniffing, exactly as before.
+        if suffix.lower() == ".pdf" and data[:4] == b"%PDF":
             text = await asyncio.to_thread(pdf_to_markdown, tmp_path)
         else:
             text = (await asyncio.to_thread(md.convert, tmp_path)).text_content

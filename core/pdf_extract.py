@@ -11,24 +11,40 @@ from pathlib import Path
 
 import pdfplumber
 
-# Words are separated by positioning, not space characters. The measured
-# inter-word gap on real documents is 2.89-2.93pt, a hair under pdfplumber's 3pt
-# default; intra-word gaps are ~0.0pt, so 2 sits in a wide safe band.
-X_TOLERANCE = 2
+# Fraction of font size, not an absolute point value. An absolute point
+# threshold cannot port across font sizes: the original corpus needed <2.89pt,
+# a Russian patent in the wider 698-file sweep needs <0.74pt, and no single
+# absolute number satisfies both. Chosen by measuring both failure directions
+# across 136 files -- glued words (threshold too high) and words torn apart
+# from the inside (too low). 0.12 ties 0.15 on glue and stays clear of the
+# over-split knee below 0.10.
+X_TOLERANCE_RATIO = 0.12
 TABLE_SETTINGS = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
-TEXT_SETTINGS = {"x_tolerance": X_TOLERANCE}
+TEXT_SETTINGS = {"x_tolerance_ratio": X_TOLERANCE_RATIO}
+# When x_tolerance_ratio is set, pdfplumber ignores x_tolerance entirely --
+# every extraction call site (page text *and* table cells) must pass the
+# ratio, or that call silently reverts to the 3pt default and re-glues words.
 
 
 def _cell_text(value: str | None) -> str:
-    return (value or "").replace("\n", " ").replace("|", "\\|").strip()
+    # Pipe escaping happens at grid render time, not here: single-row and
+    # single-column grids emit prose, where a "\|" would show a visible
+    # backslash that isn't in the source document.
+    return (value or "").replace("\n", " ").strip()
+
+
+def _escape_pipe(value: str) -> str:
+    return value.replace("|", "\\|")
 
 
 def _render_table(table) -> tuple[str | None, bool]:
     """Render one detected grid. Returns (markdown, is_grid).
 
-    Single-row tables come back with is_grid=False: they render as a plain line
-    and flow into the surrounding prose, because as markdown they would be a
-    header row with no body.
+    Single-row *and* single-column tables come back with is_grid=False: they
+    render as plain text and flow into the surrounding prose. A single row
+    would be a markdown header with no body; a single column is what a page
+    frame, a "Note" callout, or an invoice box looks like once any rule
+    crosses it -- not a table just because find_tables saw a grid.
     """
     # find_tables() does not propagate text settings to extract(); without
     # TEXT_SETTINGS here, cell text silently falls back to the 3pt default and
@@ -39,18 +55,24 @@ def _render_table(table) -> tuple[str | None, bool]:
         return None, False
     if len(rows) == 1:
         return " ".join(cell for cell in rows[0] if cell), False
+    if len(rows[0]) == 1:
+        return "\n".join(row[0] for row in rows if row[0]), False
     header, body = rows[0], rows[1:]
     lines = [
-        "| " + " | ".join(header) + " |",
+        "| " + " | ".join(_escape_pipe(c) for c in header) + " |",
         "| " + " | ".join("---" for _ in header) + " |",
     ]
-    lines += ["| " + " | ".join(row) + " |" for row in body]
+    lines += ["| " + " | ".join(_escape_pipe(c) for c in row) + " |" for row in body]
     return "\n".join(lines), True
 
 
 def _render_page(page) -> str:
     tables = page.find_tables(TABLE_SETTINGS)
-    boxes = [table.bbox for table in tables]
+    # Cell bboxes, not the table's hull bbox: Table.extract only reads chars
+    # inside cell bboxes, so text sitting in a hull gap (two grids sharing a
+    # corner stretch the hull across both) belongs to no cell and would
+    # otherwise vanish from the output entirely.
+    boxes = [c for t in tables for row in t.rows for c in row.cells if c]
 
     def outside_tables(obj) -> bool:
         # Centre, not full containment: an object straddling a ruling line still
@@ -66,7 +88,7 @@ def _render_page(page) -> str:
         markdown, is_grid = _render_table(table)
         if markdown:
             blocks.append((table.bbox[1], is_grid, markdown))
-    for line in page.filter(outside_tables).extract_text_lines(x_tolerance=X_TOLERANCE):
+    for line in page.filter(outside_tables).extract_text_lines(x_tolerance_ratio=X_TOLERANCE_RATIO):
         if line["text"].strip():
             blocks.append((line["top"], False, line["text"]))
     blocks.sort(key=lambda block: block[0])

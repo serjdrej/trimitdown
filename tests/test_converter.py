@@ -178,7 +178,7 @@ class TestConvertOne:
     def test_pdf_gets_before_estimate(self, tmp_path, monkeypatch):
         monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# Scanned doc\n")
         monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 4)
-        upload = make_upload("scan.pdf", b"fake pdf bytes")
+        upload = make_upload("scan.pdf", b"%PDF-1.4 fake pdf bytes")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
@@ -213,7 +213,7 @@ class TestConvertOne:
         monkeypatch.setattr(converter, "md", Boom())
         monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
         monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
-        upload = make_upload("doc.pdf", b"fake pdf bytes")
+        upload = make_upload("doc.pdf", b"%PDF-1.4 fake pdf bytes")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
@@ -229,6 +229,25 @@ class TestConvertOne:
         monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
         monkeypatch.setattr(converter, "pdf_to_markdown", boom)
         upload = make_upload("notes.docx", b"fake docx bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From markitdown\n"
+
+    def test_pdf_named_file_without_pdf_signature_routes_to_markitdown(self, tmp_path, monkeypatch):
+        # markitdown dispatches by sniffing content, so an HTML/TXT file
+        # misnamed ".pdf" used to convert fine through markitdown. Routing on
+        # the suffix alone would silently 422 it instead; the %PDF magic-byte
+        # check must fall through to markitdown for this case.
+        class FakeResult:
+            text_content = "# From markitdown\n"
+
+        def boom(path):
+            raise AssertionError("pdf_extract must not see non-PDF content")
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
+        upload = make_upload("fake.pdf", b"<html>not really a pdf</html>")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
