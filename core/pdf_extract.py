@@ -88,7 +88,7 @@ def _render_page(page) -> str:
         markdown, is_grid = _render_table(table)
         if markdown:
             blocks.append((table.bbox[1], is_grid, markdown))
-    for line in page.filter(outside_tables).extract_text_lines(x_tolerance_ratio=X_TOLERANCE_RATIO):
+    for line in page.filter(outside_tables).extract_text_lines(**TEXT_SETTINGS):
         if line["text"].strip():
             blocks.append((line["top"], False, line["text"]))
     blocks.sort(key=lambda block: block[0])

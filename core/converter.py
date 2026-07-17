@@ -138,7 +138,17 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
         # used to convert fine through markitdown. Checking the %PDF magic bytes
         # (already read into `data` above) keeps real PDFs on our path and hands
         # everything else back to markitdown's own sniffing, exactly as before.
-        if suffix.lower() == ".pdf" and data[:4] == b"%PDF":
+        #
+        # This check has now been written wrong twice. `data[:5] == b"%PDF"` was
+        # always False (5-byte slice, 4-byte literal) and made the branch a
+        # silent no-op. `data[:4] == b"%PDF"` looks right but anchors the marker
+        # at byte 0 — real PDFs can have a leading \r\n or junk before the header
+        # (measured: 2 of 719 real files, one offset by 2 bytes, one by 135) and
+        # pdfplumber parses both fine. Anchoring routed them to markitdown, which
+        # is exactly the fallback this comment forbids. pdfminer itself scans for
+        # the marker rather than anchoring, which is why those files open at all
+        # — so scan a window instead of anchoring at byte 0.
+        if suffix.lower() == ".pdf" and data[:1024].find(b"%PDF") != -1:
             text = await asyncio.to_thread(pdf_to_markdown, tmp_path)
         else:
             text = (await asyncio.to_thread(md.convert, tmp_path)).text_content

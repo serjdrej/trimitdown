@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pdf_fixtures
 from core import converter
 from core.converter import (
     convert_and_save,
@@ -252,6 +253,25 @@ class TestConvertOne:
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
         assert data["content"] == "# From markitdown\n"
+
+    def test_pdf_with_offset_marker_still_routes_to_pdf_extract(self, tmp_path, monkeypatch):
+        # The %PDF marker is not guaranteed to sit at byte 0 -- real PDFs can
+        # have a leading \r\n (or other junk) before the header, and
+        # pdfplumber parses them fine. A byte-0-anchored check would send
+        # these to markitdown, recreating the exact defects this extractor
+        # exists to remove. The signature check must scan a window instead.
+        class Boom:
+            def convert(self, path):
+                raise AssertionError("markitdown must not see a real PDF with an offset marker")
+
+        monkeypatch.setattr(converter, "md", Boom())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
+        upload = make_upload("doc.pdf", pdf_fixtures.offset_pdf_marker())
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From pdfplumber\n"
 
 
 class TestCountTokens:

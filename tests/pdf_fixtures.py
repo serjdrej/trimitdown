@@ -161,3 +161,30 @@ def blank_row_table() -> bytes:
 def prose_only() -> bytes:
     """No ruling lines — markitdown wrapped this kind of page in 104 fake table rows."""
     return _build_pdf(_text(72, 700, "Just a paragraph, no ruling lines anywhere."))
+
+
+def offset_pdf_marker() -> bytes:
+    """A real, valid PDF whose %PDF marker sits a few bytes into the file
+    instead of at byte 0 -- reproduces the measured corpus case (a leading
+    \\r\\n before the header). pdfplumber/pdfminer scan for the marker rather
+    than anchor at byte 0, so this parses exactly like any other PDF; a
+    byte-0-anchored signature check would misroute it to markitdown.
+    """
+    return b"\r\n" + _build_pdf(_text(72, 700, "Real PDF content with an offset header."))
+
+
+def gapped_words_in_cell() -> bytes:
+    """A ruled 1x2 grid whose second cell has two words separated only by a
+    TJ offset -- no space character. `find_tables` propagates text settings
+    only if the caller passes them again at `Table.extract()` time; if a call
+    site drops `**TEXT_SETTINGS`, this cell's words come back glued even
+    though prose text elsewhere in the document is correctly split.
+    """
+    cs = _cell_rect(72, 660, 120, 24)
+    cs += _cell_rect(192, 660, 120, 24)
+    cs += _text(72 + 4, 660 + 8, "Header")
+    cs += (
+        f"BT /F1 {FONT_SIZE} Tf {192 + 4} {660 + 8} Td "
+        f"[(different) {GAP_TJ} (stationary)] TJ ET\n"
+    )
+    return _build_pdf(cs)

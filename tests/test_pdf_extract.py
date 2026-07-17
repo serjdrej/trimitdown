@@ -155,6 +155,22 @@ class TestCellBboxFiltering:
         assert "Intro prose above the table." in result
 
 
+class TestCellTextSettings:
+    """Fix: `table.extract(**TEXT_SETTINGS)` in `_render_table` is the only
+    thing standing between cell text and the 3pt default. `find_tables` does
+    not propagate text settings to `Table.extract()`, so a call site that
+    drops `**TEXT_SETTINGS` silently re-glues words inside cells even though
+    every other test fixture uses ordinary space characters and would never
+    notice. This must fail if `**TEXT_SETTINGS` is removed from that call.
+    """
+
+    def test_gapped_words_inside_a_ruled_cell_are_separated(self, tmp_path):
+        path = _write(tmp_path, "gapped_cell", pdf_fixtures.gapped_words_in_cell())
+        result = pdf_to_markdown(path)
+        assert "different stationary" in result
+        assert "differentstationary" not in result
+
+
 class TestPipeEscaping:
     """Fix 4: pipe escaping happens at grid render, not in cell sanitisation.
     Single-row and single-column grids emit prose, where an escaped pipe would
