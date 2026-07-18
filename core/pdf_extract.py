@@ -83,57 +83,59 @@ def _is_diagram_debris(page, table) -> bool:
     return rotated / len(chars) >= X_ROT_DEBRIS
 
 
-def _render_table(table) -> tuple[str | None, bool]:
-    """Render one detected grid. Returns (markdown, is_grid).
-
-    Single-row *and* single-column tables come back with is_grid=False: they
-    render as plain text and flow into the surrounding prose. A single row
-    would be a markdown header with no body; a single column is what a page
-    frame, a "Note" callout, or an invoice box looks like once any rule
-    crosses it -- not a table just because find_tables saw a grid.
-    """
-    # find_tables() does not propagate text settings to extract(); without
-    # TEXT_SETTINGS here, cell text silently falls back to the 3pt default and
-    # re-glues words inside cells.
-    rows = [[_cell_text(cell) for cell in row] for row in table.extract(**TEXT_SETTINGS)]
-    rows = [row for row in rows if any(row)]
-    if not rows:
-        return None, False
-    if len(rows) == 1:
-        return " ".join(cell for cell in rows[0] if cell), False
-    if len(rows[0]) == 1:
-        return "\n".join(row[0] for row in rows if row[0]), False
+def _render_pipe_table(rows: list[list[str]]) -> str:
     header, body = rows[0], rows[1:]
     lines = [
         "| " + " | ".join(_escape_pipe(c) for c in header) + " |",
         "| " + " | ".join("---" for _ in header) + " |",
     ]
     lines += ["| " + " | ".join(_escape_pipe(c) for c in row) + " |" for row in body]
-    return "\n".join(lines), True
+    return "\n".join(lines)
 
 
 def _render_page(page) -> str:
     tables = page.find_tables(TABLE_SETTINGS)
-    # Cell bboxes, not the table's hull bbox: Table.extract only reads chars
-    # inside cell bboxes, so text sitting in a hull gap (two grids sharing a
-    # corner stretch the hull across both) belongs to no cell and would
-    # otherwise vanish from the output entirely.
-    boxes = [c for t in tables for row in t.rows for c in row.cells if c]
+
+    kept = []  # (table, rows) that pass detection
+    for t in tables:
+        # find_tables() does not propagate text settings to extract(); without
+        # TEXT_SETTINGS here, cell text silently falls back to the 3pt default
+        # and re-glues words inside cells.
+        rows = [[_cell_text(c) for c in row] for row in t.extract(**TEXT_SETTINGS)]
+        rows = [r for r in rows if any(r)]
+        if is_real_table(rows) and not _is_diagram_debris(page, t):
+            kept.append((t, rows))
+
+    # Containment backstop: if a kept grid contains another kept grid, the outer
+    # one is a frame that also passed rowfill -- drop it, its child is the table.
+    def _contains(outer, inner) -> bool:
+        ox0, ot, ox1, ob = outer.bbox
+        ix0, it, ix1, ib = inner.bbox
+        if (ox1 - ox0) * (ob - ot) <= (ix1 - ix0) * (ib - it):
+            return False
+        return ox0 - 2 <= ix0 and ot - 2 <= it and ox1 + 2 >= ix1 and ob + 2 >= ib
+
+    kept = [(t, rows) for t, rows in kept
+            if not any(o is not t and _contains(t, o) for o, _ in kept)]
+
+    # Prose-exclusion boxes come from KEPT grids only. Dropped grids' text is
+    # not subtracted, so it flows back through extract_text_lines as ordinary
+    # prose. Cell bboxes, not the table's hull bbox: Table.extract only reads
+    # chars inside cell bboxes, so text sitting in a hull gap (two grids
+    # sharing a corner stretch the hull across both) belongs to no cell and
+    # would otherwise vanish from the output entirely.
+    boxes = [c for t, _ in kept for row in t.rows for c in row.cells if c]
 
     def outside_tables(obj) -> bool:
         # Centre, not full containment: an object straddling a ruling line still
         # resolves to exactly one side.
         cx = (obj["x0"] + obj["x1"]) / 2
         cy = (obj["top"] + obj["bottom"]) / 2
-        return not any(
-            x0 <= cx <= x1 and top <= cy <= bottom for x0, top, x1, bottom in boxes
-        )
+        return not any(x0 <= cx <= x1 and top <= cy <= bottom for x0, top, x1, bottom in boxes)
 
-    blocks: list[tuple[float, bool, str]] = []
-    for table in tables:
-        markdown, is_grid = _render_table(table)
-        if markdown:
-            blocks.append((table.bbox[1], is_grid, markdown))
+    blocks: list[tuple[float, bool, str]] = [
+        (t.bbox[1], True, _render_pipe_table(rows)) for t, rows in kept
+    ]
     for line in page.filter(outside_tables).extract_text_lines(**TEXT_SETTINGS):
         if line["text"].strip():
             blocks.append((line["top"], False, line["text"]))

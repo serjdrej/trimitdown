@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,13 +10,17 @@ import pytest
 
 import pdf_fixtures
 from core import pdf_extract
-from core.pdf_extract import pdf_to_markdown
+from core.pdf_extract import TABLE_SETTINGS, pdf_to_markdown
 
 
 def _write(tmp_path, name, data: bytes):
     path = tmp_path / f"{name}.pdf"
     path.write_bytes(data)
     return path
+
+
+def _n_tables(md: str) -> int:
+    return sum(1 for line in md.splitlines() if re.fullmatch(r"\|(?:\s*---\s*\|)+", line.strip()))
 
 
 class TestFixtures:
@@ -182,3 +187,36 @@ class TestPipeEscaping:
         result = pdf_to_markdown(path)
         assert result == "a|b plain"
         assert "\\|" not in result
+
+
+class TestSelectionFirst:
+    """Fix 5: classification happens before prose subtraction. A kept grid's
+    cells are what gets excluded from prose -- a dropped grid (outer frame)
+    contributes nothing, so its text flows back through extract_text_lines
+    instead of vanishing or being rendered twice.
+    """
+
+    def test_fixture_has_two_grids(self, tmp_path):
+        # Self-check mirroring TestFixtures above: proves the fixture actually
+        # produces two separate ruled grids (outer frame + inner data table),
+        # not one merged structure, before any test asserts on the fix.
+        path = _write(tmp_path, "nested", pdf_fixtures.frame_with_nested_table())
+        with pdfplumber.open(path) as pdf:
+            assert len(pdf.pages[0].find_tables(TABLE_SETTINGS)) == 2
+
+    def test_frame_around_a_table_is_not_itself_a_table(self, tmp_path):
+        path = _write(tmp_path, "nested", pdf_fixtures.frame_with_nested_table())
+        out = pdf_to_markdown(path)
+        # exactly one markdown table (the inner one); the frame flows as prose
+        assert _n_tables(out) == 1
+
+    def test_nested_table_content_is_not_duplicated(self, tmp_path):
+        path = _write(tmp_path, "nested", pdf_fixtures.frame_with_nested_table())
+        out = pdf_to_markdown(path)
+        assert out.count("innercellA1") == 1  # the marker text appears once, not twice
+
+    def test_frame_paragraph_survives_as_prose(self, tmp_path):
+        path = _write(tmp_path, "nested", pdf_fixtures.frame_with_nested_table())
+        out = pdf_to_markdown(path)
+        assert "paragraph in the frame" in out
+        assert "| paragraph in the frame" not in out  # not wrapped in pipes

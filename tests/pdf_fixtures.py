@@ -173,6 +173,30 @@ def offset_pdf_marker() -> bytes:
     return b"\r\n" + _build_pdf(_text(72, 700, "Real PDF content with an offset header."))
 
 
+def frame_with_nested_table() -> bytes:
+    """An outer frame rectangle (with an intersecting rule, so find_tables sees
+    a 2-row x 1-col grid) whose interior holds a paragraph plus a real 3x2
+    ruled data table -- the acceptance-anchor shape in miniature. The frame must be
+    dropped as a layout frame (single-column -> fails is_real_table) while
+    its child, the real inner grid, is kept and rendered as a table; the
+    frame's paragraph must survive as prose, not vanish or duplicate.
+    """
+    fx, fy, fw, fh = 72, 400, 400, 260
+    cs = _cell_rect(fx, fy, fw, fh)
+    mid_y = fy + fh / 2
+    cs += _line(fx, mid_y, fx + fw, mid_y)
+    cs += _text(fx + 4, fy + fh - 20, "This is a paragraph in the frame.")
+
+    labels = [["Header A", "Header B"], ["innercellA1", "innercellB1"], ["a2", "b2"]]
+    ix, iy = fx + 20, fy + 20
+    for r in range(3):
+        for c in range(2):
+            x, y = ix + c * 120, iy + 48 - r * 24
+            cs += _cell_rect(x, y, 120, 24)
+            cs += _text(x + 4, y + 8, labels[r][c])
+    return _build_pdf(cs)
+
+
 def gapped_words_in_cell() -> bytes:
     """A ruled 1x2 grid whose second cell has two words separated only by a
     TJ offset -- no space character. `find_tables` propagates text settings
