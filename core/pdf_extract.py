@@ -37,6 +37,52 @@ def _escape_pipe(value: str) -> str:
     return value.replace("|", "\\|")
 
 
+def _row_is_filled(row: list[str]) -> bool:
+    return sum(1 for c in row if c.strip()) >= 2
+
+
+def is_real_table(rows: list[list[str]]) -> bool:
+    """The detection stage: is this ruled grid a table, or a layout frame?
+
+    pdfplumber's find_tables answers "where are ruled cells?", never "is this a
+    table?" — so a page frame crossed by any rule comes back as a grid. This is
+    Nurminen's detection criterion (tabula-java NurminenDetectionAlgorithm) on
+    pdfplumber's cells: a table needs at least two rows in which at least two
+    columns hold content, and those rows must be the majority of rows that have
+    any content at all. Evaluated against a 74-grid hand-labeled set: keeps
+    44/45 real tables, drops 13/14 layout frames. Geometry (cell length,
+    coverage, empty fraction) was tried and destroys 29-49% of real tables;
+    see docs/superpowers/research/2026-07-18-pdf-detection-research.md.
+    """
+    if len(rows) < 2 or len(rows[0]) < 2:
+        return False
+    rows_with_content = [r for r in rows if any(c.strip() for c in r)]
+    if not rows_with_content:
+        return False
+    filled = sum(1 for r in rows_with_content if _row_is_filled(r))
+    return filled >= 2 and filled / len(rows_with_content) >= 0.5
+
+
+# Diagram-debris filter. find_tables sometimes returns a grid that is chart/diagram
+# leftover, not a table; rowfill keeps 7 of 15 such grids in the labeled set. A
+# graphics-overlap signal (curves-in-bbox) was measured and REJECTED — it drops all
+# 7 but also kills 4 real tables that legitimately contain graphics. The one signal
+# that fired cleanly: heavy rotated text. Real tables have <=3% rotated chars (OCR
+# noise); debris charts have 17-49%. rot>=0.15 drops 2 of the 7 debris grids and 0
+# real tables. It is a partial win — the other 5 stay (measured-open, see deferred).
+X_ROT_DEBRIS = 0.15
+
+
+def _is_diagram_debris(page, table) -> bool:
+    x0, top, x1, bottom = table.bbox
+    chars = [c for c in page.chars
+             if x0 <= (c["x0"] + c["x1"]) / 2 <= x1 and top <= (c["top"] + c["bottom"]) / 2 <= bottom]
+    if not chars:
+        return False
+    rotated = sum(1 for c in chars if not c.get("upright", True))
+    return rotated / len(chars) >= X_ROT_DEBRIS
+
+
 def _render_table(table) -> tuple[str | None, bool]:
     """Render one detected grid. Returns (markdown, is_grid).
 
