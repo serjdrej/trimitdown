@@ -197,6 +197,44 @@ def frame_with_nested_table() -> bytes:
     return _build_pdf(cs)
 
 
+def real_table_with_nested_table() -> bytes:
+    """An outer frame that is ITSELF a real ruled table (2 cols, header + one
+    data row -- passes is_real_table on its own merits, unlike
+    frame_with_nested_table()'s single-column frame), plus a large undivided
+    spacer band below the data row that holds a fully separate, real 3x2
+    ruled data table well inset from every outer line. find_tables returns
+    two grids and BOTH pass is_real_table -- classification alone cannot
+    tell them apart. Only the containment backstop in _render_page (the
+    outer's bbox encloses the inner's) drops the outer and keeps the inner.
+    Without this fixture, that backstop has zero coverage: the only existing
+    nested fixture is dropped at classification, before the backstop runs.
+    """
+    fx, fy, fw, fh = 72, 400, 400, 300
+    row01_y = fy + fh - 40   # header/data-row boundary
+    row12_y = fy + fh - 80   # data-row/spacer boundary
+    mid_x = fx + fw / 2
+
+    cs = _cell_rect(fx, fy, fw, fh)  # outer perimeter
+    cs += _line(fx, row01_y, fx + fw, row01_y)
+    cs += _line(fx, row12_y, fx + fw, row12_y)
+    cs += _line(mid_x, row12_y, mid_x, fy + fh)  # column divider, header+data rows only
+
+    cs += _text(fx + 10, row01_y + 12, "FrameCol1")
+    cs += _text(mid_x + 10, row01_y + 12, "FrameCol2")
+    cs += _text(fx + 10, row12_y + 12, "framerowA")
+    cs += _text(mid_x + 10, row12_y + 12, "framerowB")
+
+    labels = [["InnerColA", "InnerColB"], ["nestedcell1", "nestedcell2"], ["x2", "y2"]]
+    ix, iy = fx + 40, fy + 40
+    for r in range(3):
+        for c in range(2):
+            x, y = ix + c * 120, iy + 48 - r * 24
+            cs += _cell_rect(x, y, 120, 24)
+            cs += _text(x + 4, y + 8, labels[r][c])
+
+    return _build_pdf(cs)
+
+
 def gapped_words_in_cell() -> bytes:
     """A ruled 1x2 grid whose second cell has two words separated only by a
     TJ offset -- no space character. `find_tables` propagates text settings

@@ -161,8 +161,8 @@ class TestCellBboxFiltering:
 
 
 class TestCellTextSettings:
-    """Fix: `table.extract(**TEXT_SETTINGS)` in `_render_table` is the only
-    thing standing between cell text and the 3pt default. `find_tables` does
+    """Fix: `table.extract(**TEXT_SETTINGS)` in the `_render_page` loop is the
+    only thing standing between cell text and the 3pt default. `find_tables` does
     not propagate text settings to `Table.extract()`, so a call site that
     drops `**TEXT_SETTINGS` silently re-glues words inside cells even though
     every other test fixture uses ordinary space characters and would never
@@ -220,3 +220,43 @@ class TestSelectionFirst:
         out = pdf_to_markdown(path)
         assert "paragraph in the frame" in out
         assert "| paragraph in the frame" not in out  # not wrapped in pipes
+
+    # -- Containment backstop coverage --------------------------------------
+    # The tests above never reach the containment backstop in _render_page
+    # (~pdf_extract.py:111-119): frame_with_nested_table()'s outer frame is
+    # single-column, so it fails is_real_table at classification and the
+    # backstop never runs on it. real_table_with_nested_table() closes that
+    # gap: its outer frame is itself a real 2-col table that passes
+    # is_real_table on its own merits, so both grids reach the backstop and
+    # only bbox containment (outer.bbox encloses inner.bbox) tells them apart.
+
+    def test_fixture_has_two_real_table_grids(self, tmp_path):
+        # Self-check mirroring TestFixtures/TestSelectionFirst above: proves
+        # find_tables returns two separate grids and BOTH satisfy
+        # is_real_table, or this fixture would prove nothing about the
+        # backstop -- classification alone would already resolve it.
+        path = _write(tmp_path, "real_nested", pdf_fixtures.real_table_with_nested_table())
+        with pdfplumber.open(path) as pdf:
+            page = pdf.pages[0]
+            tables = page.find_tables(TABLE_SETTINGS)
+            assert len(tables) == 2
+            for t in tables:
+                rows = [[pdf_extract._cell_text(c) for c in row] for row in t.extract(**pdf_extract.TEXT_SETTINGS)]
+                rows = [r for r in rows if any(r)]
+                assert pdf_extract.is_real_table(rows)
+
+    def test_only_the_inner_table_survives_as_markdown(self, tmp_path):
+        path = _write(tmp_path, "real_nested", pdf_fixtures.real_table_with_nested_table())
+        out = pdf_to_markdown(path)
+        assert _n_tables(out) == 1
+
+    def test_inner_table_content_is_not_duplicated(self, tmp_path):
+        path = _write(tmp_path, "real_nested", pdf_fixtures.real_table_with_nested_table())
+        out = pdf_to_markdown(path)
+        assert out.count("nestedcell1") == 1
+
+    def test_outer_frame_text_survives_as_prose(self, tmp_path):
+        path = _write(tmp_path, "real_nested", pdf_fixtures.real_table_with_nested_table())
+        out = pdf_to_markdown(path)
+        assert "framerowA" in out
+        assert "| framerowA" not in out  # not wrapped in pipes -- it's prose, not the table
