@@ -1,3 +1,12 @@
+// This same UI is served both to the iOS PWA (plain browser) and to the desktop
+// shell running in server mode (a pywebview window loading this NAS URL). Tag the
+// desktop shell so CSS can lift the bottom nav there without touching the iOS PWA,
+// which already clears the home indicator via safe-area-inset. pywebview injects
+// window.pywebview asynchronously, so also handle the pywebviewready event.
+function markDesktopShell() { document.documentElement.classList.add("desktop-shell"); }
+if (window.pywebview) markDesktopShell();
+else window.addEventListener("pywebviewready", markDesktopShell);
+
 const LANG = (navigator.language || "en").toLowerCase().startsWith("ru") ? "ru" : "en";
 const DATE_LOCALE = LANG === "ru" ? "ru-RU" : "en-US";
 

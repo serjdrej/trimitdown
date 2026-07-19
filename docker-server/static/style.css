@@ -76,6 +76,8 @@ button:hover { border-color: var(--accent); }
 #copy-btn { background: var(--accent); color: var(--on-accent); }
 #download-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
 .result-card-actions button:hover { opacity: .88; }
+/* 2px accent outline on hover via border + 1px shadow ring — no layout shift. */
+#download-btn:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 #result-text { width: 100%; border: 1px solid var(--border); border-radius: 14px; resize: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); color: var(--text); }
 #search { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; margin-bottom: var(--space-md); }
 #archive-list { list-style: none; padding: 0; margin: 0; }
@@ -135,9 +137,15 @@ button:hover { border-color: var(--accent); }
 .settings-label { font-size: 13px; color: var(--muted); }
 #server-url-input { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+/* 2px accent outline on hover (test/reset/save) — matches #download-btn, no shift. */
+.settings-actions button:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .settings-row select { background: var(--bg); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
 
 .bottom-nav { position: fixed; left: 44px; right: 44px; bottom: calc(env(safe-area-inset-bottom) + 2px); z-index: 10; border-radius: 28px; padding: 8px; display: flex; gap: 2px; background: var(--nav-glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--nav-glass-border); box-shadow: 0 18px 42px -12px rgba(0,0,0,.5); }
+/* Desktop shell (pywebview window in server mode) has no home indicator, so lift
+   the nav 16px off the window bottom. The iOS PWA keeps the safe-area default. */
+.desktop-shell .bottom-nav { bottom: calc(env(safe-area-inset-bottom) + 18px); }
+.desktop-shell main { padding-bottom: calc(env(safe-area-inset-bottom) + 18px + 70px + 40px); }
 .bottom-nav .tab { flex: 1; min-width: 0; padding: 0; height: 52px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: none; border: none; color: var(--muted); cursor: pointer; }
 .bottom-nav .tab svg { width: 22px; height: 22px; }
 .bottom-nav .tab-label { font-size: 11px; line-height: 1; }
