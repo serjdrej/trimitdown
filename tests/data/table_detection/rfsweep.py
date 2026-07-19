@@ -14,7 +14,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import pdfplumber
 import tiktoken
-from core.pdf_extract import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe, _render_table
+from core.pdf_extract import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe
 
 ENC = tiktoken.get_encoding("cl100k_base")
 GLUED = re.compile(r"[A-Za-zА-Яа-яЁё]{26,}")
@@ -72,15 +72,66 @@ def prose_lines(page, boxes):
     return [(ln["top"], False, ln["text"]) for ln in
             page.filter(outside).extract_text_lines(**TEXT_SETTINGS) if ln["text"].strip()]
 
-def render_shipped(page, tables):
+# --- shipped baseline: verbatim copy of pre-Task-2 core.pdf_extract._render_table
+# and the _render_page render loop (git show cae89c3:core/pdf_extract.py), kept
+# local so the baseline the sweep compares against does not depend on the code
+# the sweep is grading (Task 2 deleted _render_table from core.pdf_extract).
+
+def _shipped_render_table(table):
+    rows = [[_cell_text(cell) for cell in row] for row in table.extract(**TEXT_SETTINGS)]
+    rows = [row for row in rows if any(row)]
+    if not rows:
+        return None, False
+    if len(rows) == 1:
+        return " ".join(cell for cell in rows[0] if cell), False
+    if len(rows[0]) == 1:
+        return "\n".join(row[0] for row in rows if row[0]), False
+    header, body = rows[0], rows[1:]
+    lines = [
+        "| " + " | ".join(_escape_pipe(c) for c in header) + " |",
+        "| " + " | ".join("---" for _ in header) + " |",
+    ]
+    lines += ["| " + " | ".join(_escape_pipe(c) for c in row) + " |" for row in body]
+    return "\n".join(lines), True
+
+
+def _shipped_render_page(page, tables):
     boxes = [c for t in tables for row in t.rows for c in row.cells if c]
+
+    def outside_tables(obj) -> bool:
+        cx = (obj["x0"] + obj["x1"]) / 2
+        cy = (obj["top"] + obj["bottom"]) / 2
+        return not any(
+            x0 <= cx <= x1 and top <= cy <= bottom for x0, top, x1, bottom in boxes
+        )
+
     blocks = []
-    for t in tables:
-        md, is_grid = _render_table(t)
-        if md:
-            blocks.append((t.bbox[1], is_grid, md))
-    blocks += prose_lines(page, boxes)
-    return assemble(blocks)
+    for table in tables:
+        markdown, is_grid = _shipped_render_table(table)
+        if markdown:
+            blocks.append((table.bbox[1], is_grid, markdown))
+    for line in page.filter(outside_tables).extract_text_lines(**TEXT_SETTINGS):
+        if line["text"].strip():
+            blocks.append((line["top"], False, line["text"]))
+    blocks.sort(key=lambda block: block[0])
+
+    parts = []
+    buffer = []
+    for _, is_grid, text in blocks:
+        if is_grid:
+            if buffer:
+                parts.append("\n".join(buffer))
+                buffer = []
+            parts.append(text)
+        else:
+            buffer.append(text)
+    if buffer:
+        parts.append("\n".join(buffer))
+    return "\n\n".join(parts)
+
+
+def render_shipped(page, tables):
+    return _shipped_render_page(page, tables)
 
 def render_sel(page, tables, mode):
     kept = []

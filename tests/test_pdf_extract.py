@@ -260,3 +260,28 @@ class TestSelectionFirst:
         out = pdf_to_markdown(path)
         assert "framerowA" in out
         assert "| framerowA" not in out  # not wrapped in pipes -- it's prose, not the table
+
+
+class TestRealDocumentAcceptance:
+    """Real-file acceptance anchor. Binds one of the four documents from the
+    corpus (see rfsweep.py for the full 695-file parity sweep) so a future
+    change can't silently regress content fidelity on it. Skipped when the
+    file isn't present on this machine.
+    """
+
+    acceptance-anchor = Path(r"PATH_REMOVED\CORPUS_DOCUMENT")
+
+    @pytest.mark.skipif(not acceptance-anchor.exists(), reason="corpus file not on this machine")
+    def test_frame_dropped_real_table_kept(self):
+        out = pdf_to_markdown(self.acceptance-anchor)
+        assert _n_tables(out) == 1                        # only the real grid; the frame flows as prose
+        # The ruled grid captured only 3 of the datasheet's 4 data columns (15/22/32),
+        # NOT 46 -- find_tables missed the 46 column's ruling. This is the partial-grid
+        # defect (see "Product decision required" in the Task 3 brief); the test
+        # documents it, it does not bless it. What matters for content fidelity: the 46
+        # column's values must not vanish -- when the frame is dropped its text flows
+        # back as prose.
+        assert "| ГОСТ 33 | 15,6 | 22,5 | 32,6 |" in out  # the captured 3-column grid
+        assert "46,1" in out                              # the dropped 46 column survives as prose
+        # the frame's paragraph flows as prose, not a pipe row
+        assert "| Масло гидравлическое" not in out
