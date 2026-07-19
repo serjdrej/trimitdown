@@ -1,6 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
-
+# Windows onefile build. main.spec targets macOS (.icns icon + .app BUNDLE, built
+# --onedir to dodge the slow re-extraction that broke the .app launch timeout).
+# On Windows onefile works fine (see DEVELOPMENT.md), so this spec mirrors
+# main.spec's Analysis (same datas + collect-all) and emits a single portable
+# TrimItDown-windows-x64.exe with the .ico icon.
 from PyInstaller.utils.hooks import collect_all
 
 datas = [('static', 'static'), ('core/tiktoken_cache', 'core/tiktoken_cache')]
@@ -10,6 +13,7 @@ hiddenimports = []
 for pkg in (
     'markitdown', 'magika', 'mammoth', 'pdfminer', 'pptx',
     'openpyxl', 'xlrd', 'olefile', 'bs4', 'lxml', 'tiktoken',
+    'pdfplumber',
 ):
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
@@ -19,7 +23,7 @@ for pkg in (
 # tiktoken's encoding constructors live in the separate top-level tiktoken_ext
 # namespace package; collect_all('tiktoken') does not pull it. Without it,
 # get_encoding("cl100k_base") raises "Unknown encoding" at runtime even with the
-# BPE cache bundled — which broke token counting in the packaged app.
+# BPE cache bundled, which 500'd every local conversion.
 hiddenimports += ['tiktoken_ext', 'tiktoken_ext.openai_public']
 
 a = Analysis(
@@ -39,50 +43,21 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='TrimItDown',
+    name='TrimItDown-windows-x64',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=os.environ.get('PYI_TARGET_ARCH') or None,
+    target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='mac-build/AppIcon.icns',
-)
-
-# onedir, not onefile: a macOS .app built --onefile re-extracts the entire
-# bundled payload (markitdown/magika/lxml/...) into a fresh temp dir on every
-# launch, which was slow enough to blow past main.py's 15s local-server
-# startup timeout and crash before any window opened. onedir lays the files
-# out once at build time so launches start immediately. PyInstaller also
-# deprecates onefile+windowed .app bundles on macOS for this reason.
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='TrimItDown',
-)
-
-app = BUNDLE(
-    coll,
-    name='TrimItDown.app',
-    icon='mac-build/AppIcon.icns',
-    bundle_identifier='dev.serjdrej.trimitdown',
-    info_plist={
-        'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '11.0',
-        # WKWebView blocks plain-HTTP to 127.0.0.1 by default (ATS); the local
-        # offline fallback server needs this exception or the window loads blank.
-        'NSAppTransportSecurity': {
-            'NSAllowsLocalNetworking': True,
-        },
-    },
+    icon='icon.ico',
 )

@@ -155,8 +155,22 @@ function isValidServerUrl(url) {
   return /^https:\/\/.+[^/]$/.test(url);
 }
 
+// A failed response body isn't always JSON: an unhandled server exception returns
+// a plain-text "Internal Server Error", and res.json() on that throws its own
+// cryptic "Unexpected token" — hiding the real problem. Read the body as text,
+// pull .detail if it happens to be our JSON error, otherwise fall back to a
+// readable generic message.
+async function errorDetail(res) {
+  const body = await res.text();
+  try {
+    return JSON.parse(body).detail || t.genericError;
+  } catch (e) {
+    return t.genericError;
+  }
+}
+
 const serverUrlGroup = document.getElementById("server-url-group");
-if (window.pywebview && window.pywebview.api) {
+function setupServerSettings() {
   serverUrlGroup.hidden = false;
   const serverUrlInput = document.getElementById("server-url-input");
   const serverStatusMsg = document.getElementById("server-status-msg");
@@ -192,6 +206,18 @@ if (window.pywebview && window.pywebview.api) {
     await window.pywebview.api.save_server_url("");
     serverStatusMsg.textContent = t.restartMsg;
   });
+}
+
+// pywebview injects window.pywebview.api asynchronously; the ready signal is the
+// pywebviewready event. Checking synchronously at script load loses the race in
+// the packaged app (slow onefile startup), which left the server-address group
+// hidden and forced users to hand-edit config.json. Run now if the api is
+// already present, otherwise wait for the event. In browser/server mode
+// pywebview never exists, so the group correctly stays hidden.
+if (window.pywebview && window.pywebview.api) {
+  setupServerSettings();
+} else {
+  window.addEventListener("pywebviewready", setupServerSettings);
 }
 
 const colorThemeSelect = document.getElementById("color-theme-select");
@@ -322,7 +348,7 @@ async function convertFile(file) {
   form.append("file", file);
   try {
     const res = await fetch("/api/convert", { method: "POST", body: form });
-    if (!res.ok) throw new Error((await res.json()).detail || t.genericError);
+    if (!res.ok) throw new Error(await errorDetail(res));
     const data = await res.json();
     lastFilename = data.filename;
     resultName.textContent = data.filename;

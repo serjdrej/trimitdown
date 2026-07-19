@@ -163,7 +163,14 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
     Path(tmp_path).unlink(missing_ok=True)
 
     filename = save_unique(archive_dir, safe_stem(file.filename), text)
-    after = count_tokens(text)
+    # Token count is a non-essential stat — the converted document must always be
+    # returned. tiktoken can fail in a packaged build (e.g. the tiktoken_ext
+    # encoding-constructor plugin not bundled), and an unguarded call there turned
+    # every local-mode conversion into a 500. Degrade to a null count instead.
+    try:
+        after = count_tokens(text)
+    except Exception:
+        after = None
     return {
         "filename": filename,
         "content": text,
