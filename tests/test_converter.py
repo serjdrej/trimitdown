@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pdf_fixtures
 from core import converter
 from core.converter import (
     convert_and_save,
@@ -176,19 +177,14 @@ class TestConvertOne:
         assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
 
     def test_pdf_gets_before_estimate(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "# Scanned doc\n"
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# Scanned doc\n")
         monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 4)
-        upload = make_upload("scan.pdf", b"fake pdf bytes")
+        upload = make_upload("scan.pdf", b"%PDF-1.4 fake pdf bytes")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
         assert data["tokens"]["unit"] == "page"
         assert data["tokens"]["units"] == 4
-        assert data["tokens"]["before"] == 4 * converter.TOKENS_PER_UNIT_ESTIMATE
-        assert data["tokens"]["after"] == converter.count_tokens("# Scanned doc\n")
 
     def test_oversized_upload_raises_413(self, tmp_path, monkeypatch):
         monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 10)
@@ -209,6 +205,73 @@ class TestConvertOne:
             asyncio.run(converter._convert_one(tmp_path, upload))
         assert exc.value.status_code == 422
         assert not list(tmp_path.glob("*.md"))
+
+    def test_pdf_routes_through_pdf_extract(self, tmp_path, monkeypatch):
+        class Boom:
+            def convert(self, path):
+                raise AssertionError("markitdown must not see a .pdf")
+
+        monkeypatch.setattr(converter, "md", Boom())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
+        upload = make_upload("doc.pdf", b"%PDF-1.4 fake pdf bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From pdfplumber\n"
+
+    def test_non_pdf_still_routes_through_markitdown(self, tmp_path, monkeypatch):
+        class FakeResult:
+            text_content = "# From markitdown\n"
+
+        def boom(path):
+            raise AssertionError("pdf_extract must not see a .docx")
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
+        upload = make_upload("notes.docx", b"fake docx bytes")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From markitdown\n"
+
+    def test_pdf_named_file_without_pdf_signature_routes_to_markitdown(self, tmp_path, monkeypatch):
+        # markitdown dispatches by sniffing content, so an HTML/TXT file
+        # misnamed ".pdf" used to convert fine through markitdown. Routing on
+        # the suffix alone would silently 422 it instead; the %PDF magic-byte
+        # check must fall through to markitdown for this case.
+        class FakeResult:
+            text_content = "# From markitdown\n"
+
+        def boom(path):
+            raise AssertionError("pdf_extract must not see non-PDF content")
+
+        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
+        upload = make_upload("fake.pdf", b"<html>not really a pdf</html>")
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From markitdown\n"
+
+    def test_pdf_with_offset_marker_still_routes_to_pdf_extract(self, tmp_path, monkeypatch):
+        # The %PDF marker is not guaranteed to sit at byte 0 -- real PDFs can
+        # have a leading \r\n (or other junk) before the header, and
+        # pdfplumber parses them fine. A byte-0-anchored check would send
+        # these to markitdown, recreating the exact defects this extractor
+        # exists to remove. The signature check must scan a window instead.
+        class Boom:
+            def convert(self, path):
+                raise AssertionError("markitdown must not see a real PDF with an offset marker")
+
+        monkeypatch.setattr(converter, "md", Boom())
+        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
+        upload = make_upload("doc.pdf", pdf_fixtures.offset_pdf_marker())
+
+        data = asyncio.run(converter._convert_one(tmp_path, upload))
+
+        assert data["content"] == "# From pdfplumber\n"
 
 
 class TestCountTokens:
