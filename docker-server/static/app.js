@@ -431,7 +431,14 @@ async function convertBatch(files) {
   }
 }
 
-async function triggerDownload(filename) {
+function isStandalonePWA() {
+  // iOS home-screen webapp exposes navigator.standalone; the display-mode query
+  // covers standards-compliant standalone installs on other platforms.
+  return navigator.standalone === true ||
+         window.matchMedia("(display-mode: standalone)").matches;
+}
+
+async function triggerDownload(filename, content) {
   const encoded = encodeURIComponent(filename);
   if (window.pywebview) {
     // Desktop apps (Mac/Windows) embed pywebview, which injects window.pywebview into every
@@ -444,30 +451,54 @@ async function triggerDownload(filename) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+    return;
+  }
+
+  // Bytes source: use the in-memory markdown when the caller has it (the just-
+  // converted result), otherwise fetch from the archive. Building the blob without
+  // awaiting a fetch keeps the user gesture intact for navigator.share below.
+  let blob;
+  if (content != null) {
+    blob = new Blob([content], { type: "text/markdown" });
   } else {
-    // Regular browsers, incl. iOS Safari: plain navigation to the markdown response
-    // makes iOS open a Quick Look preview instead of saving the file. Fetch it as a
-    // same-origin blob and click a real <a download> — iOS 13+ routes that to Files,
-    // desktop browsers save directly. Fall back to navigation if the fetch fails.
     try {
       const res = await fetch(`/api/archive/${encoded}?raw=1`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      blob = await res.blob();
     } catch (e) {
       window.location.href = `/api/archive/${encoded}`;
+      return;
     }
   }
+
+  // Standalone iOS PWA: <a download> and blob navigation both open a Quick Look
+  // preview instead of saving — the Web Share sheet ("Save to Files", ...) is the
+  // only reliable save path there. Regular Safari and desktop browsers download fine.
+  if (isStandalonePWA() && navigator.canShare) {
+    const file = new File([blob], filename, { type: "text/markdown" });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // user dismissed the sheet
+        // any other error: fall through to the blob download below
+      }
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 downloadBtn.addEventListener("click", () => {
-  if (lastFilename) triggerDownload(lastFilename);
+  if (lastFilename) triggerDownload(lastFilename, resultText.value);
 });
 const copyBtnLabel = copyBtn.querySelector("span");
 copyBtn.addEventListener("click", async () => {
