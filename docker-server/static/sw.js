@@ -1,4 +1,4 @@
-const CACHE = "trimitdown-shell-v4";
+const CACHE = "trimitdown-shell-v5";
 const ASSETS = ["/", "/static/style.css", "/static/app.js", "/manifest.json"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

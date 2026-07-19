@@ -431,7 +431,7 @@ async function convertBatch(files) {
   }
 }
 
-function triggerDownload(filename) {
+async function triggerDownload(filename) {
   const encoded = encodeURIComponent(filename);
   if (window.pywebview) {
     // Desktop apps (Mac/Windows) embed pywebview, which injects window.pywebview into every
@@ -445,10 +445,24 @@ function triggerDownload(filename) {
     a.click();
     a.remove();
   } else {
-    // Regular browsers: plain navigation to the text/markdown response, exactly as before —
-    // octet-stream has no type info, and iOS Safari falls back to sniffing the raw bytes for
-    // its preview, sometimes misdetecting plain markdown text as HTML.
-    window.location.href = `/api/archive/${encoded}`;
+    // Regular browsers, incl. iOS Safari: plain navigation to the markdown response
+    // makes iOS open a Quick Look preview instead of saving the file. Fetch it as a
+    // same-origin blob and click a real <a download> — iOS 13+ routes that to Files,
+    // desktop browsers save directly. Fall back to navigation if the fetch fails.
+    try {
+      const res = await fetch(`/api/archive/${encoded}?raw=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.location.href = `/api/archive/${encoded}`;
+    }
   }
 }
 
