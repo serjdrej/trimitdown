@@ -1,0 +1,60 @@
+name: Measurement result
+description: A measure_corpus.py summary from your own PDFs — wins, losses and ties all wanted
+labels: [measurement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. The numbers in `docs/pdf-engine.md` come from one collection of
+        ~700 documents, skewed toward Russian technical material. Results from a corpus
+        that looks nothing like that one are worth more than another run on ours.
+
+        **Send the summary whatever it says.** If only losses came in, the pooled data
+        would be a sample made of failures: it could show where the engine breaks, never
+        how often.
+
+        ```bash
+        python scripts/measure_corpus.py /path/to/your/pdfs
+        ```
+  - type: textarea
+    id: summary
+    attributes:
+      label: The summary
+      description: >
+        Paste the block the script printed to stdout, unedited. It is counts only —
+        no filenames, no paths, no document text. Do not paste the --details file:
+        that one names your documents and belongs on your machine.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: corpus
+    attributes:
+      label: What is in the corpus
+      description: >
+        Whatever you can say without naming anything: languages, kinds of document
+        (invoices, patents, forms, manuals, slide decks), roughly how they are laid out.
+        This is what makes a result comparable rather than just another number.
+      placeholder: e.g. ~200 German insurance forms and letters, mostly single-column, some with ruled tables
+    validations:
+      required: true
+  - type: dropdown
+    id: origin
+    attributes:
+      label: How were the documents produced
+      description: Scans behave differently from born-digital PDFs, and the two are worth separating.
+      options:
+        - Mostly born-digital (exported from an application)
+        - Mostly scanned
+        - A mix
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything you noticed
+      description: >
+        Optional. If you looked at an output and something was wrong with it, describe the
+        shape of the problem. A synthetic PDF reproducing it is the single most useful
+        attachment — see tests/pdf_fixtures.py for how the existing ones are built.

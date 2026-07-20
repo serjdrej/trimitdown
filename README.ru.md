@@ -91,8 +91,12 @@ python scripts/compare_pdf_engines.py tests/data/sample-service-report.pdf
 python scripts/measure_corpus.py /путь/к/вашим/pdf --limit 50
 ```
 
-Если в этой сводке движок где-то проигрывает стандартному конвертеру — пришлите её отдельным
-issue. Подробности: [docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
+**Пришлите эту сводку в любом случае** — выигрыш, проигрыш или ничья
+([шаблон issue](https://github.com/serjdrej/trimitdown/issues/new?template=measurement.yml)).
+Данные, собранные только когда что-то сломалось, — это выборка из поломок, честного вывода из
+неё не сделать. А сложенные вместе по достаточному числу корпусов, эти числа перестают быть
+одной чьей-то подборкой. Подробности:
+[docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
 
 Коротко: мы добавляем стадию *валидации* таблиц, которая есть в классическом конвейере
 tabula-java и которой не хватает Python-экстракторам, — в виде голосования по заполненности

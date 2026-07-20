@@ -88,8 +88,12 @@ converters over all of them and prints a comparable summary, counts only, no fil
 python scripts/measure_corpus.py /path/to/your/pdfs --limit 50
 ```
 
-If that summary shows this engine losing to the stock converter anywhere, please open an issue
-with it. Details in [docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
+**Please send that summary back whatever it says** — a win, a loss, or a tie
+([issue template](https://github.com/serjdrej/trimitdown/issues/new?template=measurement.yml)).
+Results collected only when something breaks are a sample made of breakage, and nothing
+honest can be concluded from it. Pooled across enough corpora, these numbers stop being one
+person's collection. Details in
+[docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
 
 In short: we add the table-*validation* stage that the classic tabula-java pipeline has and
 Python extractors lack, expressed as a cell-fill vote on pdfplumber's ruled grids, with

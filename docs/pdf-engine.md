@@ -139,10 +139,21 @@ python tests/data/table_detection/rfsweep.py       # numeric parity across three
 python tests/data/table_detection/reflowbound.py   # token delta from reflowing prose
 ```
 
-A summary showing this engine losing to markitdown on any row is the most useful thing anyone
-can send back. The numbers above come from one collection, skewed toward Russian technical
-documents. Where the engine still lies is most likely in a corpus that looks nothing like
-that one.
+### Sending results back
+
+Every summary is worth having, not only the ones where this engine loses. There is an
+[issue template](https://github.com/serjdrej/trimitdown/issues/new?template=measurement.yml)
+for them.
+
+Collecting only the failures would build a sample made of failures — it would show where the
+engine breaks, but it could never say how often, because the runs where nothing broke were
+never counted. That is the same mistake as counting table candidates without inspecting them,
+which is how a page frame ended up in this project's own numbers once.
+
+The published table comes from one collection, skewed toward Russian technical documents.
+Pooled across corpora in other languages, other layouts and other scanners, the same rows
+would mean something a single collection cannot make them mean. Wins and ties carry that
+weight as much as losses do.
 
 **`pytest -m corpus` is not the tool for this.** It scores the specific documents behind
 `labelset.jsonl`. Point it at an unrelated collection and it skips, saying so. Point it at a
