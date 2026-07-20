@@ -35,7 +35,7 @@ three distinct ways:
 
 ## The design
 
-`core/pdf_extract.py`, roughly 120 lines. Per page:
+`packages/trimitdown-pdf`, roughly 120 lines. Per page:
 
 1. `find_tables` with both strategies set to `lines` — candidate grids from ruled lines only.
 2. **The row-fill validation stage** (this is the part that does not exist upstream): a
@@ -90,11 +90,16 @@ copyrighted material. This is the honest limitation of the numbers above: they a
 reproducible by the author, not by a reader. What a reader *can* reproduce is:
 
 - the **single-document comparison** below, on a sample file committed to this repo;
-- the **labeled detection set** in `tests/data/table_detection/`, which pins the detection
-  rules and runs as part of the test suite (`python -m pytest`);
 - the **hand-built fixtures** in `tests/pdf_fixtures.py`, minimal PDFs that reproduce each
   measured defect — including a case proving a relative threshold does something no absolute
-  value can.
+  value can. They run on `pytest -m "not corpus"` and need nothing external.
+
+And what a reader **cannot** reproduce, stated plainly: the labeled detection set in
+`tests/data/table_detection/` scores real documents, so it needs the corpus. Its geometry and
+its labels are in this repository; the documents are not, and neither are their filenames —
+records identify documents by opaque id. Those tests carry the `corpus` marker and skip unless
+`TRIMITDOWN_CORPUS` points at a directory holding the corpus. They are a pre-release gate for
+the author, not evidence a reader can re-run.
 
 ## Reproducing the comparison
 

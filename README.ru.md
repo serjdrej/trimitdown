@@ -150,7 +150,7 @@ docker-compose up -d --build
   работают полностью офлайн. Оболочка — [pywebview](https://pywebview.flowrl.com/)
   (WebView2 / WKWebView), упаковка — PyInstaller.
 - **Конвертация:** PDF идут через собственный движок TrimItDown
-  ([`core/pdf_extract.py`](core/pdf_extract.py), построен на pdfplumber); все остальные
+  ([`trimitdown-pdf`](packages/trimitdown-pdf), построен на pdfplumber); все остальные
   форматы — через [MarkItDown](https://github.com/microsoft/markitdown) от Microsoft.
 
 ## Структура репозитория

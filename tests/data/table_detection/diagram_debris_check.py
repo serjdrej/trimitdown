@@ -12,16 +12,17 @@ Only interested in signals that fire on D and NOT on T.
 import json, sys
 from pathlib import Path
 
-sys.path.insert(0, r"REPO_ROOT")
-sys.path.insert(0, r"REPO_ROOT\tests\data\table_detection")
+from _corpus import REPO_ROOT, corpus_dir
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import pdfplumber
 from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text
 from labels import LABELS
 
-DL = Path(r"PATH_REMOVED\Downloads")
-ART = Path(r"REPO_ROOT\tests\data\table_detection")
+DL = corpus_dir()
+ART = Path(__file__).resolve().parent
 
 
 def _row_is_filled(r): return sum(1 for c in r if c.strip()) >= 2

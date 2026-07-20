@@ -34,7 +34,7 @@ via [`core/`](core/).
 
 - Keep PRs focused — one change per PR.
 - Make sure `python -m pytest` passes; changes to the PDF engine
-  ([`core/pdf_extract.py`](core/pdf_extract.py)) are guarded by the labeled table-detection
+  ([`trimitdown-pdf`](packages/trimitdown-pdf)) are guarded by the labeled table-detection
   suite in [`tests/`](tests/).
 - User-facing UI strings must exist in **both Russian and English** (see the `STRINGS`
   dictionaries in `static/app.js` / `docker-server/static/app.js`).

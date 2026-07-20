@@ -1,15 +1,12 @@
 import re
-import sys
-from pathlib import Path
 from types import SimpleNamespace
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pdfplumber
 import pytest
 
 import pdf_fixtures
 import trimitdown_pdf as pdf_extract
+from conftest import corpus_file_names
 from trimitdown_pdf import TABLE_SETTINGS, pdf_to_markdown
 
 
@@ -262,18 +259,27 @@ class TestSelectionFirst:
         assert "| framerowA" not in out  # not wrapped in pipes -- it's prose, not the table
 
 
+@pytest.mark.corpus
 class TestRealDocumentAcceptance:
     """Real-file acceptance anchor. Binds one of the four documents from the
     corpus (see rfsweep.py for the full 695-file parity sweep) so a future
-    change can't silently regress content fidelity on it. Skipped when the
-    file isn't present on this machine.
+    change can't silently regress content fidelity on it.
+
+    The document is a third-party datasheet and is not in this repository. It
+    is identified by opaque id and resolved through the local, gitignored
+    mapping, so a checkout without the corpus resolves nothing and skips.
     """
 
-    acceptance-anchor = Path(r"PATH_REMOVED\CORPUS_DOCUMENT")
+    FILE_ID = "b5beaa148386"
 
-    @pytest.mark.skipif(not acceptance-anchor.exists(), reason="corpus file not on this machine")
-    def test_frame_dropped_real_table_kept(self):
-        out = pdf_to_markdown(self.acceptance-anchor)
+    def test_frame_dropped_real_table_kept(self, corpus):
+        name = corpus_file_names().get(self.FILE_ID)
+        if not name:
+            pytest.skip("no local id -> filename mapping for the acceptance document")
+        hits = list(corpus.rglob(name))
+        if not hits:
+            pytest.skip("acceptance document not found under TRIMITDOWN_CORPUS")
+        out = pdf_to_markdown(hits[0])
         assert _n_tables(out) == 1                        # only the real grid; the frame flows as prose
         # The ruled grid captured only 3 of the datasheet's 4 data columns (15/22/32),
         # NOT 46 -- find_tables missed the 46 column's ruling. This is the partial-grid

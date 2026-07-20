@@ -2,7 +2,8 @@
 rowfill token counts per file for Q2 (the product objective)."""
 import json, re, sys
 from pathlib import Path
-sys.path.insert(0, r"REPO_ROOT")
+from _corpus import REPO_ROOT, corpus_dir
+sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 import pdfplumber, tiktoken
 from markitdown import MarkItDown
@@ -52,9 +53,9 @@ def rowfill_render(page):
     if buf: parts.append("\n".join(buf))
     return "\n\n".join(parts), len(kept), sum(1 for t,_ in kept if partial(page,t))
 
-files=sorted(p for p in Path(r"PATH_REMOVED\Downloads").rglob("*.pdf") if p.stat().st_size<10*1024*1024)
+files=sorted(p for p in corpus_dir().rglob("*.pdf") if p.stat().st_size<10*1024*1024)
 print(f"{len(files)} files",flush=True)
-out=Path(r"PATH_REMOVED\AppData\Local\Temp\claude\REPO_ROOT\SESSION_ID\scratchpad\q1q2.jsonl")
+out=Path("q1q2.jsonl")  # written to the current directory
 with out.open("w",encoding="utf-8") as fh:
     for i,p in enumerate(files):
         rec={"file":p.name}

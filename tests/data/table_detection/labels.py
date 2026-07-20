@@ -1,4 +1,5 @@
-# Hand labels for labelset.jsonl grids, assigned by reading labelset.txt.
+# Hand labels for labelset.jsonl grids, assigned by reading the extracted text
+# of each candidate grid. Documents are identified by opaque id; see README.md.
 # T = real table (markdown table is the right rendering)
 # F = layout frame / form / cover / prose-in-boxes (prose is right)
 # D = diagram/drawing debris (grid from artwork; table rendering is junk)

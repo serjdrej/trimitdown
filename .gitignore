@@ -18,3 +18,12 @@ nas-artifact/
 .pytest_cache/
 .superpowers/
 docs/superpowers/
+# Maps labelset.jsonl's opaque document ids back to real filenames. The corpus
+# is third-party material, so its filenames stay on the machine that owns it.
+tests/data/table_detection/labelset-files.json
+# Output of the measurement scripts. rfsweep.jsonl in particular records one row
+# per corpus document, so committing it would republish the corpus file listing.
+q1q2.jsonl
+tests/data/table_detection/rfsweep.jsonl
+# Intermediate iconset; generate_iconset.py rebuilds it from icon_master_1024.png.
+mac-build/AppIcon.iconset/

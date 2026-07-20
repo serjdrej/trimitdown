@@ -9,7 +9,8 @@ import json, re, sys
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, r"REPO_ROOT")
+from _corpus import REPO_ROOT, corpus_dir
+sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import pdfplumber
@@ -73,7 +74,7 @@ def prose_lines(page, boxes):
             page.filter(outside).extract_text_lines(**TEXT_SETTINGS) if ln["text"].strip()]
 
 # --- shipped baseline: verbatim copy of pre-Task-2 core.pdf_extract._render_table
-# and the _render_page render loop (git show cae89c3:core/pdf_extract.py), kept
+# and the _render_page render loop (from the pre-Task-2 engine), kept
 # local so the baseline the sweep compares against does not depend on the code
 # the sweep is grading (Task 2 deleted _render_table from core.pdf_extract).
 
@@ -168,7 +169,7 @@ def metrics(text, base_nums):
             "num_exc": exc, "num_def": defc, "tokens": len(ENC.encode(text))}
 
 SP = Path(__file__).parent
-files = sorted(p for p in Path(r"PATH_REMOVED\Downloads").rglob("*.pdf")
+files = sorted(p for p in corpus_dir().rglob("*.pdf")
                if p.stat().st_size < 10 * 1024 * 1024)
 print(f"{len(files)} files", flush=True)
 

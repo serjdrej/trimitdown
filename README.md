@@ -145,7 +145,7 @@ on iOS/Windows/macOS, and the API — in [`docker-server/README.en.md`](docker-s
   open straight on it (shared archive); if not, they spin up a bundled local server and work
   fully offline. The shell is [pywebview](https://pywebview.flowrl.com/) (WebView2 / WKWebView),
   packaged with PyInstaller.
-- **Conversion:** PDFs go through TrimItDown's own engine ([`core/pdf_extract.py`](core/pdf_extract.py),
+- **Conversion:** PDFs go through TrimItDown's own engine ([`trimitdown-pdf`](packages/trimitdown-pdf),
   built on pdfplumber); every other format goes through Microsoft's
   [MarkItDown](https://github.com/microsoft/markitdown).
 

@@ -5,13 +5,14 @@ a space. Measures tiktoken delta on a deterministic 30-file sample.
 """
 import sys, random
 from pathlib import Path
-sys.path.insert(0, r"REPO_ROOT")
+from _corpus import REPO_ROOT, corpus_dir
+sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 import tiktoken
 from trimitdown_pdf import pdf_to_markdown
 
 ENC = tiktoken.get_encoding("cl100k_base")
-files = sorted(p for p in Path(r"PATH_REMOVED\Downloads").rglob("*.pdf")
+files = sorted(p for p in corpus_dir().rglob("*.pdf")
                if p.stat().st_size < 10 * 1024 * 1024)
 rng = random.Random(7)
 sample = rng.sample(files, 30)

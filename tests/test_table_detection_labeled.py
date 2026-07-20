@@ -1,33 +1,40 @@
 import json
-import sys
 from pathlib import Path
 
 import pdfplumber
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-ART = Path(__file__).resolve().parent.parent / "tests" / "data" / "table_detection"
-sys.path.insert(0, str(ART))
-
+from conftest import corpus_file_names
+from labels import LABELS  # gid -> "T"/"F"/"D"/"A"
 from trimitdown_pdf import (
     TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _is_diagram_debris, is_real_table)
-from labels import LABELS  # gid -> "T"/"F"/"D"/"A"
 
-DOWNLOADS = Path(r"PATH_REMOVED\Downloads")
+ART = Path(__file__).resolve().parent / "data" / "table_detection"
+
+# Every test here measures against the real corpus.
+pytestmark = pytest.mark.corpus
 
 
-def _labeled_grids():
+def _labeled_grids(root: Path):
     """Yield (gid, label, kept) for every scoreable labeled grid found on disk.
 
     `kept` is the FULL selection decision — rowfill AND not diagram-debris —
-    computed while the page is open, so the test needs no page/table objects.
+    because that is what the engine actually ships.
+
+    Documents are identified by opaque id; the id -> filename mapping is local
+    and gitignored, so a checkout without the corpus resolves nothing and the
+    whole set skips.
     """
+    names = corpus_file_names()
     recs = [json.loads(l) for l in (ART / "labelset.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     by_file = {}
     for r in recs:
-        by_file.setdefault(r["file"], []).append(r)
-    for fname, grids in by_file.items():
-        hits = list(DOWNLOADS.rglob(fname))
+        by_file.setdefault(r["file_id"], []).append(r)
+    for fid, grids in by_file.items():
+        fname = names.get(fid)
+        if not fname:
+            continue  # no mapping on this machine
+        hits = list(root.rglob(fname))
         if not hits:
             continue  # corpus file not present on this machine
         with pdfplumber.open(hits[0]) as pdf:
@@ -54,10 +61,12 @@ EXPECTED = {"T": 45, "F": 14, "D": 15}
 
 
 @pytest.fixture(scope="module")
-def scored():
-    rows = list(_labeled_grids())
+def scored(corpus):
+    rows = list(_labeled_grids(corpus))
     if not rows:
-        pytest.skip("labeled corpus not on disk — run where the ~700-PDF corpus lives")
+        pytest.skip(
+            "no labeled document resolved under TRIMITDOWN_CORPUS — needs the ~700-PDF "
+            "corpus and tests/data/table_detection/labelset-files.json")
     return rows
 
 

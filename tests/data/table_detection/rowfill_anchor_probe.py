@@ -1,6 +1,7 @@
 """Rowfill rule on the acceptance-anchor anchor: does it drop the page frame, keep the 8x4?"""
 import sys
-sys.path.insert(0, r"REPO_ROOT")
+from _corpus import REPO_ROOT, corpus_dir
+sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 import pdfplumber
 from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS
@@ -14,8 +15,9 @@ def rowfill(t):
         nfilled += 1 if ne >= 2 else 0
     return nfilled, (nfilled / nrows_ne if nrows_ne else 0.0)
 
-for path in [r"PATH_REMOVED\CORPUS_DOCUMENT",
-             r"PATH_REMOVED\CORPUS_DOCUMENT"]:
+from _corpus import corpus_paths
+
+for path in corpus_paths(["b5beaa148386", "9e72d0867b56"]):
     print("=", path.rsplit("\\", 1)[1])
     with pdfplumber.open(path) as pdf:
         for pno, page in enumerate(pdf.pages):
