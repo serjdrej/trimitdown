@@ -65,8 +65,12 @@ def scored(corpus):
     rows = list(_labeled_grids(corpus))
     if not rows:
         pytest.skip(
-            "no labeled document resolved under TRIMITDOWN_CORPUS — needs the ~700-PDF "
-            "corpus and tests/data/table_detection/labelset-files.json")
+            "no labeled document resolved under TRIMITDOWN_CORPUS. This gate scores the "
+            "specific documents behind labelset.jsonl and needs both that corpus and "
+            "tests/data/table_detection/labelset-files.json. To exercise the engine on "
+            "your own PDFs instead, run the label-free sweeps: "
+            "tests/data/table_detection/rfsweep.py and reflowbound.py "
+            "(see docs/pdf-engine.md).")
     return rows
 
 
@@ -75,8 +79,14 @@ def _by_label(scored, lbl):
     # Full-set guard: every expected grid must have been re-extracted, or the
     # measurement is being taken on a partial set and its numbers are meaningless.
     assert len(got) == EXPECTED[lbl], (
-        f"{lbl}: found {len(got)} of {EXPECTED[lbl]} labeled grids — corpus incomplete "
-        f"or a same-named file matched; the pass/fail below would be measured on the wrong set")
+        f"{lbl}: found {len(got)} of {EXPECTED[lbl]} labeled grids.\n"
+        f"This gate scores the specific documents behind labelset.jsonl, so it is NOT "
+        f"runnable on an arbitrary corpus. Failing rather than skipping is deliberate: a "
+        f"partial set would report numbers measured on the wrong sample.\n"
+        f"To exercise the engine on your own PDFs, use the label-free sweeps instead --\n"
+        f"  python tests/data/table_detection/rfsweep.py\n"
+        f"  python tests/data/table_detection/reflowbound.py\n"
+        f"See docs/pdf-engine.md, 'Running the sweeps on your own PDFs'.")
     return got
 
 

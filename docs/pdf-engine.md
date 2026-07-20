@@ -86,20 +86,51 @@ with roughly one glued run each, and some are likely metric false positives.
 hydraulics catalogues, bank forms, medical scans, a thesis, slide decks, service manuals.
 
 **The corpus is not in this repository and will not be**, because it is third-party
-copyrighted material. This is the honest limitation of the numbers above: they are
-reproducible by the author, not by a reader. What a reader *can* reproduce is:
+copyrighted material.
 
-- the **single-document comparison** below, on a sample file committed to this repo;
-- the **hand-built fixtures** in `tests/pdf_fixtures.py`, minimal PDFs that reproduce each
-  measured defect — including a case proving a relative threshold does something no absolute
-  value can. They run on `pytest -m "not corpus"` and need nothing external.
+Be plain about what that costs: a reader can check the **mechanism**, not the magnitude.
+**None of the numbers on this page are reader-verifiable** — every one of them needs the
+corpus. What does run on a bare checkout:
 
-And what a reader **cannot** reproduce, stated plainly: the labeled detection set in
-`tests/data/table_detection/` scores real documents, so it needs the corpus. Its geometry and
-its labels are in this repository; the documents are not, and neither are their filenames —
-records identify documents by opaque id. Those tests carry the `corpus` marker and skip unless
-`TRIMITDOWN_CORPUS` points at a directory holding the corpus. They are a pre-release gate for
-the author, not evidence a reader can re-run.
+- `python scripts/compare_pdf_engines.py` — stock markitdown and this engine over one
+  committed sample, side by side. The phantom-column defect is visible in the output.
+- `pytest -m "not corpus"` — tests over PDFs built in code. For the word-gap defect this is a
+  real before/after: one test asserts the glue is present at pdfplumber's default tolerance,
+  another that no absolute value fixes it while the ratio does.
+- the engine itself, ~120 lines in `packages/trimitdown-pdf`.
+
+The invented-tables and dropped-tables defects are demonstrated only on that one sample
+document. The fixtures assert *this* engine's behaviour; they never re-run the stock converter.
+
+The labeled detection set in `tests/data/table_detection/` is not reader-runnable at all. It
+scores real documents, so it needs the corpus: its geometry and labels are here, the documents
+are not, and neither are their filenames — records identify documents by opaque id. Those
+tests carry the `corpus` marker and skip unless `TRIMITDOWN_CORPUS` is set. They are a
+pre-release gate for the author, not evidence anyone else can re-run.
+
+### Running the sweeps on your own PDFs
+
+Two of the measurement scripts need no labels and work on any collection of documents:
+
+```bash
+export TRIMITDOWN_CORPUS=/path/to/your/pdfs
+python tests/data/table_detection/rfsweep.py       # numeric-token parity, both directions
+python tests/data/table_detection/reflowbound.py   # token delta from reflowing prose
+```
+
+`rfsweep.py` reports, corpus-wide, how many numbers this engine duplicates and how many it
+loses against a page-text baseline — the two directions that matter, measured on documents
+whose failure modes nobody here has seen.
+
+That is the most useful thing anyone can send back: a document this engine gets wrong. The
+numbers above come from one collection, skewed toward Russian technical documents. Where the
+engine still lies is most likely in a corpus that looks nothing like that one.
+
+**`pytest -m corpus` is not the tool for this.** It scores the specific documents behind
+`labelset.jsonl`. Point it at an unrelated collection and it skips, saying so. Point it at a
+*partial* copy of the labeled set — a few matching files, or a same-named file — and it
+**fails** instead: a shrunken denominator would report ratios measured on the wrong sample,
+which is exactly the kind of quietly-wrong number this engine exists to avoid.
 
 ## Reproducing the comparison
 
