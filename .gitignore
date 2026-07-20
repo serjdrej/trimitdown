@@ -25,6 +25,10 @@ tests/data/table_detection/labelset-files.json
 # per corpus document, so committing it would republish the corpus file listing.
 q1q2.jsonl
 tests/data/table_detection/rfsweep.jsonl
+# Default --details output of scripts/measure_corpus.py: one row per document,
+# with filenames. The summary the script prints is name-free and meant to be
+# shared; this file is not.
+measure-corpus-details.jsonl
 # Intermediate iconset; generate_iconset.py rebuilds it from icon_master_1024.png.
 mac-build/AppIcon.iconset/
 # pytest --junitxml output. The Tests workflow writes it to assert the portable

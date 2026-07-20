@@ -80,6 +80,17 @@ right of its header:
 | Motor current, supply fan | A | 1.9 | 1.6 | ≤ 2.2 |
 ```
 
+One sample proves nothing about a corpus, and ours is third-party material we cannot publish.
+So the measurement ships instead of the documents — point it at your own PDFs and it runs both
+converters over all of them and prints a comparable summary, counts only, no filenames:
+
+```bash
+python scripts/measure_corpus.py /path/to/your/pdfs --limit 50
+```
+
+If that summary shows this engine losing to the stock converter anywhere, please open an issue
+with it. Details in [docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
+
 In short: we add the table-*validation* stage that the classic tabula-java pipeline has and
 Python extractors lack, expressed as a cell-fill vote on pdfplumber's ruled grids, with
 per-grid fallback to prose — no ML models, no cloud, small enough to ship inside a portable

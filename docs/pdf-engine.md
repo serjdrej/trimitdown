@@ -90,7 +90,9 @@ copyrighted material.
 
 Be plain about what that costs: a reader can check the **mechanism**, not the magnitude.
 **None of the numbers on this page are reader-verifiable** — every one of them needs the
-corpus. What does run on a bare checkout:
+corpus. What a reader can do instead is produce their own set of the same numbers, on their
+own documents: see [Re-measuring on your own PDFs](#re-measuring-on-your-own-pdfs). What runs
+on a bare checkout, with no documents of your own:
 
 - `python scripts/compare_pdf_engines.py` — stock markitdown and this engine over one
   committed sample, side by side. The phantom-column defect is visible in the output.
@@ -108,23 +110,39 @@ are not, and neither are their filenames — records identify documents by opaqu
 tests carry the `corpus` marker and skip unless `TRIMITDOWN_CORPUS` is set. They are a
 pre-release gate for the author, not evidence anyone else can re-run.
 
-### Running the sweeps on your own PDFs
+### Re-measuring on your own PDFs
 
-Two of the measurement scripts need no labels and work on any collection of documents:
+The table above is not reproducible, but the measurement is. Point this at any directory of
+PDFs and it runs both converters over all of them and prints the same rows:
+
+```bash
+python scripts/measure_corpus.py /path/to/your/pdfs
+```
+
+It needs no labels and no corpus of ours. Add `--limit 50` for a first look.
+
+What it reports, per engine: glued word runs, documents containing glue, table rows emitted
+on documents where pdfplumber finds no ruled grid at all, numbers duplicated and numbers lost
+against a page-text baseline, failures, output tokens, runtime. Totals plus medians, so a
+single pathological document cannot carry the result.
+
+**The summary it prints is counts only** — no filenames, no paths, no document text — so it
+can be pasted into an issue as-is. Per-document rows, which do name files, go to a separate
+local file (`--details`, gitignored by default). That split exists because this repository
+once published a per-document listing that should never have left the machine.
+
+Two further scripts measure narrower things and also need no labels:
 
 ```bash
 export TRIMITDOWN_CORPUS=/path/to/your/pdfs
-python tests/data/table_detection/rfsweep.py       # numeric-token parity, both directions
+python tests/data/table_detection/rfsweep.py       # numeric parity across three variants
 python tests/data/table_detection/reflowbound.py   # token delta from reflowing prose
 ```
 
-`rfsweep.py` reports, corpus-wide, how many numbers this engine duplicates and how many it
-loses against a page-text baseline — the two directions that matter, measured on documents
-whose failure modes nobody here has seen.
-
-That is the most useful thing anyone can send back: a document this engine gets wrong. The
-numbers above come from one collection, skewed toward Russian technical documents. Where the
-engine still lies is most likely in a corpus that looks nothing like that one.
+A summary showing this engine losing to markitdown on any row is the most useful thing anyone
+can send back. The numbers above come from one collection, skewed toward Russian technical
+documents. Where the engine still lies is most likely in a corpus that looks nothing like
+that one.
 
 **`pytest -m corpus` is not the tool for this.** It scores the specific documents behind
 `labelset.jsonl`. Point it at an unrelated collection and it skips, saying so. Point it at a
