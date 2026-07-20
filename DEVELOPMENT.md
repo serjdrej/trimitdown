@@ -38,8 +38,7 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 `/api/archive-zip`), live-preview (вендоренные `marked.js`+`DOMPurify` в `static/vendor/`),
 страница приватности (`static/privacy.html`), счётчик токенов (`count_tokens()`, вендоренный
 словарь `tiktoken` в `core/tiktoken_cache/` — оба build-таргета, `docker-server/Dockerfile` и
-`main.spec`, теперь явно тащат `tiktoken` и эту директорию). Детали — в
-`docs/superpowers/specs/2026-07-12-*.md` и `docs/superpowers/plans/2026-07-12-*.md`.
+`main.spec`, теперь явно тащат `tiktoken` и эту директорию).
 
 ## Известная проблема — ПОЧИНЕНО (см. `main.spec`)
 

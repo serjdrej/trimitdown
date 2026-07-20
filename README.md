@@ -32,9 +32,12 @@ shared archive of conversions across all your devices.
 
 Most converters — including the stock [MarkItDown](https://github.com/microsoft/markitdown)
 PDF path — stumble on real-world PDFs in three measurable ways: they **glue words together**,
-**invent tables out of ordinary prose**, and **drop genuine ruled tables**. On our 700-file
-real-world corpus, the stock converter hallucinated tables in 49 files — 2,442 rows of
-"table" that were never tables.
+**invent tables out of ordinary prose**, and **drop genuine ruled tables**. Measured over a
+corpus of ~700 real documents, the stock converter hallucinated tables in 49 files (2,442 rows
+that were never tables) and produced 1,153 glued word runs; the engine below brings those to
+1 file and 27 runs. That corpus is third-party copyrighted material and is not redistributable
+— the full method, the numbers and what a reader *can* reproduce are in
+[docs/pdf-engine.md](docs/pdf-engine.md).
 
 So v1.1.0 replaced it with a custom extraction engine:
 
@@ -45,26 +48,36 @@ So v1.1.0 replaced it with a custom extraction engine:
   decorative frames get rejected; their text flows back into prose instead of vanishing.
 - **Genuine ruled tables render as honest Markdown tables**, cell for cell.
 
-The same document, converted by the stock PDF converter and by TrimItDown:
+Here is one document converted both ways. The file is committed to this repo, so you can run
+the comparison yourself:
 
-**Stock converter** — a phantom empty column, shifted headers:
+```bash
+python scripts/compare_pdf_engines.py tests/data/sample-service-report.pdf
+```
+
+**Stock converter** — a phantom empty column splits the data, shifting every value one column
+right of its header:
 
 ```markdown
-| Parameter            | Unit | Before service |     | After service | Limit |
-| -------------------- | ---- | -------------- | --- | ------------- | ----- |
-| Supply airflow       | m³/h |                | 352 | 398           | ≥ 380 |
-| Extract airflow      | m³/h |                | 341 | 402           | ≥ 380 |
-| Filter pressure drop | Pa   |                | 184 | 92            | ≤ 150 |
+| Parameter                 | Unit | Before service |     | After service | Limit |
+| ------------------------- | ---- | -------------- | --- | ------------- | ----- |
+| Supply airflow            | m³/h |                | 352 | 398           | ≥ 380 |
+| Extract airflow           | m³/h |                | 341 | 402           | ≥ 380 |
+| Filter pressure drop      | Pa   |                | 184 | 92            | ≤ 150 |
+| Heat recovery efficiency  | %    |                | 61  | 78            | ≥ 70  |
+| Motor current, supply fan | A    |                | 1.9 | 1.6           | ≤ 2.2 |
 ```
 
 **TrimItDown** — the table as it appears on the page:
 
 ```markdown
-| Parameter            | Unit | Before service | After service | Limit |
-| -------------------- | ---- | -------------- | ------------- | ----- |
-| Supply airflow       | m³/h | 352            | 398           | ≥ 380 |
-| Extract airflow      | m³/h | 341            | 402           | ≥ 380 |
-| Filter pressure drop | Pa   | 184            | 92            | ≤ 150 |
+| Parameter | Unit | Before service | After service | Limit |
+| --- | --- | --- | --- | --- |
+| Supply airflow | m³/h | 352 | 398 | ≥ 380 |
+| Extract airflow | m³/h | 341 | 402 | ≥ 380 |
+| Filter pressure drop | Pa | 184 | 92 | ≤ 150 |
+| Heat recovery efficiency | % | 61 | 78 | ≥ 70 |
+| Motor current, supply fan | A | 1.9 | 1.6 | ≤ 2.2 |
 ```
 
 In short: we add the table-*validation* stage that the classic tabula-java pipeline has and
@@ -142,6 +155,7 @@ on iOS/Windows/macOS, and the API — in [`docker-server/README.en.md`](docker-s
 - [`docker-server/`](docker-server/) — the self-hosted service + iPhone PWA
 - [`static/`](static/), [`main.py`](main.py), [`server_app.py`](server_app.py) — desktop apps (UI, entry point, offline mode)
 - [`tests/`](tests/) — unit tests + a labeled corpus harness for the table-detection stage
+- [`docs/pdf-engine.md`](docs/pdf-engine.md) — PDF engine design, measurements, reproduction
 
 ## Contributing
 

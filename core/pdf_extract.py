@@ -4,7 +4,7 @@ markitdown's .pdf converter has three defects measured on real documents: it
 glues words together, invents tables out of prose, and drops real ruled tables.
 This module replaces it. Every other format still goes through markitdown.
 
-See docs/superpowers/specs/2026-07-16-pdf-extraction-diagnosis.md.
+See docs/pdf-engine.md for the design, the measurements and how to reproduce them.
 """
 
 from pathlib import Path
@@ -52,7 +52,7 @@ def is_real_table(rows: list[list[str]]) -> bool:
     any content at all. Evaluated against a 74-grid hand-labeled set: keeps
     44/45 real tables, drops 13/14 layout frames. Geometry (cell length,
     coverage, empty fraction) was tried and destroys 29-49% of real tables;
-    see docs/superpowers/research/2026-07-18-pdf-detection-research.md.
+    see docs/pdf-engine.md.
     """
     if len(rows) < 2 or len(rows[0]) < 2:
         return False

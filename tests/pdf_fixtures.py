@@ -1,8 +1,7 @@
 """Minimal PDFs built by hand, reproducing the defects measured on the real corpus.
 
 The real documents that exposed these are third-party copyrighted files and are
-deliberately not in this repo. See
-docs/superpowers/specs/2026-07-16-pdf-extraction-diagnosis.md.
+deliberately not in this repo. See docs/pdf-engine.md.
 """
 
 FONT_SIZE = 10.56
