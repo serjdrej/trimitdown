@@ -120,7 +120,9 @@ on iOS/Windows/macOS, and the API — in [`docker-server/README.en.md`](docker-s
 |---|---|
 | ![Ocean light theme](docs/images/home-ocean-light.png) | ![Ocean dark theme](docs/images/home-ocean-dark.png) |
 
-<!-- TODO: real iPhone screenshots (PWA on the Home Screen / share-sheet flow) go here -->
+| The iPhone PWA — home screen | Converting a PDF |
+|---|---|
+| <img src="docs/images/iphone-home-en.png" alt="TrimItDown PWA on iPhone, empty state" width="260"> | <img src="docs/images/iphone-result-en.png" alt="TrimItDown PWA on iPhone, conversion result" width="260"> |
 
 ## How it works
 

@@ -124,7 +124,9 @@ docker-compose up -d --build
 |---|---|
 | ![Океан, светлая](docs/images/home-ocean-light.png) | ![Океан, тёмная](docs/images/home-ocean-dark.png) |
 
-<!-- TODO: сюда — реальные скриншоты iPhone (PWA на экране «Домой», конвертация через «Поделиться») -->
+| PWA на iPhone — главный экран | Конвертация PDF |
+|---|---|
+| <img src="docs/images/iphone-home-ru.png" alt="TrimItDown PWA на iPhone, пустой экран" width="260"> | <img src="docs/images/iphone-result-ru.png" alt="TrimItDown PWA на iPhone, результат конвертации" width="260"> |
 
 ## Как это работает
 
