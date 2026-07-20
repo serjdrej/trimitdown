@@ -19,6 +19,13 @@ DEFAULT_SAMPLE = Path(__file__).resolve().parent.parent / "tests" / "data" / "sa
 
 
 def main() -> int:
+    # Converted documents carry characters the console's default codepage cannot encode
+    # (m³/h, ≥, Cyrillic). When stdout is redirected or piped, Python falls back to that
+    # codepage -- cp1251 on a Russian Windows -- and the first such character aborts the
+    # run. A filename passed as an argument can do the same to stderr.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SAMPLE
     if not path.exists():
         print(f"no such file: {path}", file=sys.stderr)
