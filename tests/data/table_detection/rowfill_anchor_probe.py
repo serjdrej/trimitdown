@@ -1,4 +1,8 @@
-"""Rowfill rule on the acceptance-anchor anchor: does it drop the page frame, keep the 8x4?"""
+"""Rowfill rule on the acceptance anchor: does it drop the page frame, keep the 8x4?
+
+The anchor documents are third-party datasheets, identified by opaque id and
+resolved through the local mapping -- see README.md in this directory.
+"""
 import sys
 from _corpus import REPO_ROOT, corpus_dir
 sys.path.insert(0, str(REPO_ROOT))

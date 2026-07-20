@@ -39,7 +39,7 @@ that were never tables) and produced 1,153 glued word runs; the engine below bri
 — the full method, the numbers and what a reader *can* reproduce are in
 [docs/pdf-engine.md](docs/pdf-engine.md).
 
-So v1.1.0 replaced it with a custom extraction engine:
+So TrimItDown replaced it with a custom extraction engine:
 
 - **Words split at a measured word-gap threshold** — a fraction of the font size, not a fixed
   point value, so it holds across small print and large headings alike.
