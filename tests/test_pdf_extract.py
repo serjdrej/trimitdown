@@ -302,7 +302,9 @@ class TestRealDocumentAcceptance:
         # documents it, it does not bless it. What matters for content fidelity: the 46
         # column's values must not vanish -- when the frame is dropped its text flows
         # back as prose.
-        assert "| ГОСТ 33 | 15,6 | 22,5 | 32,6 |" in out  # the captured 3-column grid
-        assert "46,1" in out                              # the dropped 46 column survives as prose
-        # the frame's paragraph flows as prose, not a pipe row
-        assert "| Масло гидравлическое" not in out
+        # Numbers only: the document is third-party, so the test anchors on its
+        # data, never on its wording.
+        assert "| 15,6 | 22,5 | 32,6 |" in out   # the captured 3-column grid
+        assert "46,1" in out                     # the dropped 46 column survives as prose
+        # That the frame flowed as prose instead of becoming a second table is
+        # what the _n_tables(out) == 1 assertion above already proves.

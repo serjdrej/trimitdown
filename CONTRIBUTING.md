@@ -22,7 +22,7 @@ python -m uvicorn server_app:app --port 8000   # web UI at http://localhost:8000
 Run the tests with:
 
 ```bash
-python -m pytest
+python -m pytest -m "not corpus"
 ```
 
 [DEVELOPMENT.md](DEVELOPMENT.md) covers the desktop app internals (pywebview shell,

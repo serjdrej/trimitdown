@@ -18,8 +18,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: Shown on the Settings screen (e.g. 1.1.0)
-      placeholder: "1.1.0"
+      description: Shown on the Settings screen (e.g. 1.0.0)
+      placeholder: "1.0.0"
     validations:
       required: true
   - type: textarea
