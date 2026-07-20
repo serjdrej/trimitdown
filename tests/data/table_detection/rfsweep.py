@@ -14,7 +14,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import pdfplumber
 import tiktoken
-from core.pdf_extract import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe
+from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe
 
 ENC = tiktoken.get_encoding("cl100k_base")
 GLUED = re.compile(r"[A-Za-zА-Яа-яЁё]{26,}")

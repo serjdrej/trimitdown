@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, r"REPO_ROOT")
 sys.stdout.reconfigure(encoding="utf-8")
 import tiktoken
-from core.pdf_extract import pdf_to_markdown
+from trimitdown_pdf import pdf_to_markdown
 
 ENC = tiktoken.get_encoding("cl100k_base")
 files = sorted(p for p in Path(r"PATH_REMOVED\Downloads").rglob("*.pdf")

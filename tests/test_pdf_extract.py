@@ -9,8 +9,8 @@ import pdfplumber
 import pytest
 
 import pdf_fixtures
-from core import pdf_extract
-from core.pdf_extract import TABLE_SETTINGS, pdf_to_markdown
+import trimitdown_pdf as pdf_extract
+from trimitdown_pdf import TABLE_SETTINGS, pdf_to_markdown
 
 
 def _write(tmp_path, name, data: bytes):

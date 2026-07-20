@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.pdf_extract import pdf_to_markdown  # noqa: E402
+from trimitdown_pdf import pdf_to_markdown  # noqa: E402
 
 DEFAULT_SAMPLE = Path(__file__).resolve().parent.parent / "tests" / "data" / "sample-service-report.pdf"
 

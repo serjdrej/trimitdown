@@ -6,7 +6,7 @@ sys.path.insert(0, r"REPO_ROOT")
 sys.stdout.reconfigure(encoding="utf-8")
 import pdfplumber, tiktoken
 from markitdown import MarkItDown
-from core.pdf_extract import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe
+from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _escape_pipe
 
 ENC = tiktoken.get_encoding("cl100k_base"); md = MarkItDown()
 NUM = re.compile(r"\d")

@@ -3,6 +3,12 @@ uvicorn
 python-multipart
 markitdown[docx,pdf,pptx,xlsx,xls,outlook]
 pdfplumber==0.11.10
+# The PDF engine lives in packages/trimitdown-pdf and is published to PyPI
+# separately; the app consumes it from the local path so there is exactly one
+# copy of the module in this repo. Plain path, not -e: PyInstaller bundles a
+# normally-installed package, an editable install it cannot follow.
+# For local development install it editable on top -- see DEVELOPMENT.md.
+./packages/trimitdown-pdf
 pywebview
 requests
 tiktoken

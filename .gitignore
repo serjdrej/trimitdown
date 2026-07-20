@@ -6,6 +6,9 @@ config.json
 *.pem
 __pycache__/
 *.pyc
+# Packaging metadata for packages/trimitdown-pdf. Regenerated on every install;
+# committing it would put a second, stale copy of the module's metadata in the repo.
+*.egg-info/
 run_stdout.log
 run_stderr.log
 .DS_Store

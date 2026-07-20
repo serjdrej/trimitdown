@@ -1,15 +1,31 @@
-"""PDF -> markdown.
+"""Table-detection stage for ruled PDF grids, on top of pdfplumber.
 
-markitdown's .pdf converter has three defects measured on real documents: it
-glues words together, invents tables out of prose, and drops real ruled tables.
-This module replaces it. Every other format still goes through markitdown.
+pdfplumber's find_tables answers "where are ruled cells?", never "is this a
+table?" — so a page frame crossed by any rule comes back as a grid. This
+package adds the missing validation stage (`is_real_table`), plus a
+ready-made whole-document renderer (`pdf_to_markdown`) built on it.
 
-See docs/pdf-engine.md for the design, the measurements and how to reproduce them.
+Scope is deliberately narrow: `vertical_strategy: "lines"` only. Borderless
+tables are not detected at all, and there is no OCR — scanned pages yield
+nothing. See docs/pdf-engine.md in the TrimItDown repository for the design,
+the measurements and how to reproduce them.
+
+API is unstable until 1.0.
 """
 
 from pathlib import Path
 
 import pdfplumber
+
+__all__ = [
+    "pdf_to_markdown",
+    "is_real_table",
+    "TABLE_SETTINGS",
+    "TEXT_SETTINGS",
+    "X_TOLERANCE_RATIO",
+]
+
+__version__ = "0.1.0"
 
 # Fraction of font size, not an absolute point value. An absolute point
 # threshold cannot port across font sizes: the original corpus needed <2.89pt,

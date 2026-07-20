@@ -15,7 +15,7 @@ from markitdown import MarkItDown
 from pdfminer.pdfpage import PDFPage
 from pptx import Presentation
 
-from core.pdf_extract import pdf_to_markdown
+from trimitdown_pdf import pdf_to_markdown
 
 md = MarkItDown()
 

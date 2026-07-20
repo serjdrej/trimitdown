@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trimitdown-pdf"
+version = "0.1.0"
+description = "Table-detection stage for ruled PDF grids on top of pdfplumber: tells a real table from a page frame. Lines strategy only, no OCR."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Sergey Dreizin" }]
+keywords = ["pdf", "pdfplumber", "table-detection", "markdown", "table-extraction"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
+dependencies = ["pdfplumber>=0.11.10,<0.12"]
+
+[project.urls]
+Homepage = "https://github.com/serjdrej/trimitdown"
+Repository = "https://github.com/serjdrej/trimitdown"
+Documentation = "https://github.com/serjdrej/trimitdown/blob/main/docs/pdf-engine.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]

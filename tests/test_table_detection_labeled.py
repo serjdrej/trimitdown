@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 ART = Path(__file__).resolve().parent.parent / "tests" / "data" / "table_detection"
 sys.path.insert(0, str(ART))
 
-from core.pdf_extract import (
+from trimitdown_pdf import (
     TABLE_SETTINGS, TEXT_SETTINGS, _cell_text, _is_diagram_debris, is_real_table)
 from labels import LABELS  # gid -> "T"/"F"/"D"/"A"
 

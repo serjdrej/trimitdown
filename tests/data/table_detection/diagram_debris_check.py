@@ -17,7 +17,7 @@ sys.path.insert(0, r"REPO_ROOT\tests\data\table_detection")
 sys.stdout.reconfigure(encoding="utf-8")
 
 import pdfplumber
-from core.pdf_extract import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text
+from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS, _cell_text
 from labels import LABELS
 
 DL = Path(r"PATH_REMOVED\Downloads")
