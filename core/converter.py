@@ -64,7 +64,15 @@ def _estimate_before_tokens(suffix: str, tmp_path: str) -> tuple[int | None, str
 
 
 def safe_stem(name: str) -> str:
-    stem = Path(name).stem
+    # Untrusted filenames may carry either separator regardless of host OS --
+    # this same function sanitizes uploads on the Linux-hosted Docker server
+    # and on the Windows/macOS desktop app. Path().stem's separator and root
+    # parsing differ by platform (Windows treats "\" as a separator and
+    # collapses a leading "///" into a UNC-style prefix; POSIX does neither),
+    # so a name built from Path() here would sanitize differently depending
+    # on which OS the server happens to run on. Reduce explicitly instead.
+    last = re.split(r"[/\\]", name)[-1]
+    stem = last.rsplit(".", 1)[0]
     stem = re.sub(r"[^\w\-. ]", "_", stem, flags=re.UNICODE).strip()
     return stem or "file"
 

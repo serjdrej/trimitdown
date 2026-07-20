@@ -9,8 +9,14 @@ from fastapi.staticfiles import StaticFiles
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
 from core.version import VERSION
 
+# The real container already guarantees this exists: the Dockerfile creates it
+# at build time and docker-compose bind-mounts a host directory over it at
+# runtime. Creating it here too was a module-level side effect that ran on
+# every import -- including in tests, where it tried to mkdir a literal /app
+# on whatever machine runs pytest and failed outside a container. Tests
+# monkeypatch ARCHIVE_DIR after import anyway (see test_docker_server_routes.py),
+# so nothing here depends on this path existing at import time.
 ARCHIVE_DIR = Path("/app/archive")
-ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
