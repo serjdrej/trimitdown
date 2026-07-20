@@ -42,7 +42,7 @@ error shown in the UI at all):
 ## PWA on iPhone/iPad
 
 For the full pitch on the iOS PWA (what it gets you, what it looks like) see the
-[root README](../README.en.md#the-iphone-and-ipad-app). This file only covers the technical
+[root README](../README.md#get-it). This file only covers the technical
 side: certificate trust (above) and the API (below).
 
 ## API

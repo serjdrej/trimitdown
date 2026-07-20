@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work — a crash, a wrong conversion, a UI problem
+labels: [bug]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows app
+        - macOS app
+        - iPhone / iPad (PWA)
+        - Docker server
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown on the Settings screen (e.g. 1.1.0)
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: The file (for conversion bugs)
+      description: >
+        If a specific document converts wrong, please attach it (or a redacted fragment
+        that still reproduces the problem). For PDF table/word-splitting issues this is
+        the single most useful thing you can provide.

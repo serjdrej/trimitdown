@@ -14,3 +14,4 @@ mac-artifacts/
 nas-artifact/
 .pytest_cache/
 .superpowers/
+docs/superpowers/
