@@ -2,6 +2,11 @@ fastapi
 uvicorn
 python-multipart
 markitdown[docx,pdf,pptx,xlsx,xls,outlook]
+# Transitive now -- the app imports pdfplumber only through trimitdown-pdf, which
+# declares >=0.11.10,<1.0. Pinned here anyway so the PyInstaller bundle is
+# reproducible: a desktop release should ship the version it was tested with.
+# The pin must stay inside the range the package declares, or an install of both
+# resolves to a downgrade. docker-server/Dockerfile deliberately does NOT pin.
 pdfplumber==0.11.10
 # The PDF engine lives in packages/trimitdown-pdf and is published to PyPI
 # separately; the app consumes it from the local path so there is exactly one

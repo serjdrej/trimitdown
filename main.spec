@@ -1,5 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
+import importlib.util
 import os
+import sysconfig
+from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -10,6 +13,7 @@ hiddenimports = []
 for pkg in (
     'markitdown', 'magika', 'mammoth', 'pdfminer', 'pptx',
     'openpyxl', 'xlrd', 'olefile', 'bs4', 'lxml', 'tiktoken',
+    'pdfplumber',
 ):
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
@@ -21,6 +25,25 @@ for pkg in (
 # get_encoding("cl100k_base") raises "Unknown encoding" at runtime even with the
 # BPE cache bundled — which broke token counting in the packaged app.
 hiddenimports += ['tiktoken_ext', 'tiktoken_ext.openai_public']
+
+# The PDF engine ships as the trimitdown-pdf package. PyInstaller bundles a
+# normally-installed package but cannot follow an editable install -- it would
+# emit an app that looks fine and dies on the first PDF, the same silent failure
+# mode as a missing tiktoken_ext. Fail the build instead.
+#
+# find_spec, not import: importing the module here would drag pdfplumber into
+# spec evaluation. DEVELOPMENT.md documents the editable install for day-to-day
+# work, so this guard is what stands between that and a broken release build.
+_engine = importlib.util.find_spec('trimitdown_pdf')
+if _engine is None or _engine.origin is None:
+    raise SystemExit(
+        'trimitdown_pdf is not installed.\n'
+        'Run: pip install ./packages/trimitdown-pdf')
+if Path(sysconfig.get_paths()['purelib']).resolve() not in Path(_engine.origin).resolve().parents:
+    raise SystemExit(
+        f'trimitdown_pdf is installed editable ({_engine.origin}).\n'
+        'PyInstaller will not bundle it and the build would ship without the PDF engine.\n'
+        'Run: pip install --force-reinstall ./packages/trimitdown-pdf')
 
 a = Analysis(
     ['main.py'],

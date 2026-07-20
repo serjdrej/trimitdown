@@ -1,0 +1,46 @@
+name: pdfplumber (latest)
+
+# The engine leans on pdfplumber internals -- page.chars/upright, table.rows[].cells,
+# page.filter, extract_text_lines, flush_cache. A break there does not raise; it
+# silently changes what counts as a table, which for this project is the worst
+# possible failure mode. A version cap cannot catch that. This job can.
+#
+# It runs weekly rather than on every push: pdfplumber releases a few times a
+# year, and a red X on unrelated PRs would train everyone to ignore it.
+#
+# Scope, stated plainly: without the corpus this only exercises the synthetic
+# fixtures. It catches API breakage and structural regressions. It does NOT
+# verify the measured detection ratios (44/45 tables, 1/14 frames) -- that is
+# the `pytest -m corpus` gate, which needs the corpus and runs before a release.
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC. GitHub disables scheduled workflows after 60 days of
+    # repository inactivity -- if this stops reporting, that is likely why.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      # Must come AFTER requirements-dev.txt, which pins pdfplumber==0.11.10 for
+      # build reproducibility. Without this step the job would reinstall the pin
+      # and go green forever against the very version it is meant to move off.
+      - name: Upgrade to the latest pdfplumber
+        run: |
+          python -m pip install -U pdfplumber
+          python -c "import pdfplumber; print('pdfplumber', pdfplumber.__version__)"
+
+      - name: Run the portable suite
+        run: python -m pytest -m "not corpus" -rs

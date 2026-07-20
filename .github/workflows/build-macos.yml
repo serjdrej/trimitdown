@@ -25,6 +25,11 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
+      # The iconset is derived from mac-build/icon_master_1024.png and is not
+      # committed; Pillow arrives transitively with pdfplumber.
+      - name: Generate iconset
+        run: python generate_iconset.py
+
       - name: Build .icns from iconset
         run: iconutil -c icns mac-build/AppIcon.iconset -o mac-build/AppIcon.icns
 
@@ -32,6 +37,16 @@ jobs:
         env:
           PYI_TARGET_ARCH: ${{ matrix.arch }}
         run: pyinstaller main.spec
+
+      # A green build proves nothing about what is inside the bundle: a missing
+      # module produces an app that starts fine and fails on the first PDF. Same
+      # check the tiktoken_ext regression needed. Path is explicit -- PyInstaller
+      # names the build directory after the spec, and a stale build/<other>/ dir
+      # would make a glob answer for the wrong build.
+      - name: Verify the PDF engine is in the bundle
+        run: |
+          grep -q "trimitdown_pdf" build/main/Analysis-00.toc \
+            || { echo "trimitdown_pdf missing from the bundle"; exit 1; }
 
       - name: Zip .app bundle
         run: ditto -c -k --sequesterRsrc --keepParent dist/TrimItDown.app TrimItDown-macOS-${{ matrix.arch }}.zip

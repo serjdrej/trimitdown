@@ -20,6 +20,21 @@ def _n_tables(md: str) -> int:
     return sum(1 for line in md.splitlines() if re.fullmatch(r"\|(?:\s*---\s*\|)+", line.strip()))
 
 
+class TestSourceTypes:
+    """pdf_to_markdown takes a path or raw bytes; pipeline callers have bytes."""
+
+    def test_bytes_and_path_agree(self, tmp_path):
+        data = pdf_fixtures.ruled_table()
+        from_path = pdf_to_markdown(_write(tmp_path, "ruled", data))
+        from_bytes = pdf_to_markdown(data)
+        assert from_bytes == from_path
+        assert _n_tables(from_bytes) == 1
+
+    def test_str_path_accepted(self, tmp_path):
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        assert pdf_to_markdown(str(path)) == pdf_to_markdown(path)
+
+
 class TestFixtures:
     def test_gap_matches_the_measured_corpus(self, tmp_path):
         # The fixture must reproduce the real defect, or every test that asserts

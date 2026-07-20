@@ -4,7 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trimitdown-pdf"
-version = "0.1.0"
+# Single source of truth is __version__ in the module. setuptools reads it
+# statically, via AST, without importing -- which matters, because importing
+# would pull pdfplumber into the build environment, where it is absent. That
+# only holds while __version__ stays a plain string literal.
+dynamic = ["version"]
 description = "Table-detection stage for ruled PDF grids on top of pdfplumber: tells a real table from a page frame. Lines strategy only, no OCR."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,12 +23,25 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: Markdown",
     "Topic :: Utilities",
 ]
-dependencies = ["pdfplumber>=0.11.10,<0.12"]
+# Floor: the version the thresholds were measured against. No tight ceiling --
+# an upper cap without a known incompatibility is a guaranteed future conflict
+# for exactly the audience this package targets: people who already have
+# pdfplumber pinned in their pipeline. <1.0 marks the declared-breaking line
+# for a project that has lived in 0.x for a decade.
+#
+# The real protection is the scheduled CI job that runs the suite against the
+# latest pdfplumber: this module leans on internals (page.chars/upright,
+# table.rows[].cells, page.filter, extract_text_lines, flush_cache), where a
+# break would surface as silently different detection, not an ImportError.
+dependencies = ["pdfplumber>=0.11.10,<1.0"]
 
 [project.urls]
 Homepage = "https://github.com/serjdrej/trimitdown"
 Repository = "https://github.com/serjdrej/trimitdown"
 Documentation = "https://github.com/serjdrej/trimitdown/blob/main/docs/pdf-engine.md"
+
+[tool.setuptools.dynamic]
+version = { attr = "trimitdown_pdf.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

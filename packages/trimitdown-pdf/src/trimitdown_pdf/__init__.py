@@ -13,6 +13,7 @@ the measurements and how to reproduce them.
 API is unstable until 1.0.
 """
 
+from io import BytesIO
 from pathlib import Path
 
 import pdfplumber
@@ -173,12 +174,20 @@ def _render_page(page) -> str:
     return "\n\n".join(parts)
 
 
-def pdf_to_markdown(path: str | Path) -> str:
+def pdf_to_markdown(source: str | Path | bytes) -> str:
+    """Render a whole PDF to markdown.
+
+    Accepts a path or the raw bytes. Bytes matter for pipeline callers, whose
+    documents arrive from object storage rather than a local disk.
+    """
+    fp = BytesIO(source) if isinstance(source, bytes) else source
     pages = []
-    with pdfplumber.open(path) as pdf:
+    with pdfplumber.open(fp) as pdf:
         for page in pdf.pages:
             pages.append(_render_page(page))
             # pdfplumber caches every char of every page; uploads run to 200MB
-            # and the container has no memory limit.
+            # and the container has no memory limit. (With a bytes source the
+            # document itself is already resident -- this still frees the much
+            # larger per-char objects.)
             page.flush_cache()
     return "\n\n".join(p for p in pages if p).strip()

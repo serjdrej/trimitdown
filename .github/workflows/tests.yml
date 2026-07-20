@@ -1,0 +1,53 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package declares requires-python >=3.10, so the floor is tested.
+        # 3.12 matches the macOS build and the Docker image; 3.13 is what
+        # development happens on.
+        python-version: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      # `-m "not corpus"` is the portable suite: it runs on synthetic PDFs built
+      # in tests/pdf_fixtures.py and needs nothing external. It must produce ZERO
+      # skips -- a silent skip in a green run is the failure mode this project has
+      # hit repeatedly, so assert on it rather than counting by eye.
+      - name: Run the portable suite
+        run: |
+          python -m pytest -m "not corpus" -rs --junitxml=report.xml
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          suite = ET.parse("report.xml").getroot().find("testsuite")
+          skipped = int(suite.get("skipped", 0))
+          if skipped:
+              names = [f'{c.get("classname")}::{c.get("name")}'
+                       for c in suite.iter("testcase") if c.find("skipped") is not None]
+              sys.exit(f"{skipped} test(s) skipped in the portable suite: {names}")
+          print(f'{suite.get("tests")} tests, no skips')
+          PY
+
+      # The corpus tests must be deselected by the marker, not silently absent.
+      - name: Check the corpus gate is wired up
+        run: |
+          python -m pytest -m corpus --collect-only -q | tail -1
+          test "$(python -m pytest -m corpus --collect-only -q | grep -c '::')" -gt 0 \
+            || { echo "no tests carry the corpus marker -- the gate is not wired up"; exit 1; }

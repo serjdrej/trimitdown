@@ -1,5 +1,11 @@
 FROM python:3.12-slim
 
+# pdfplumber is listed here even though only trimitdown-pdf (installed below)
+# imports it. This layer is cached across rebuilds, and pdfplumber drags Pillow
+# and pypdfium2 -- multi-megabyte binary wheels. Warming them here keeps them out
+# of the layer that is invalidated every time the package changes.
+# Deliberately unpinned, unlike requirements.txt: the image tracks current
+# pdfplumber, and the range in packages/trimitdown-pdf governs what is valid.
 RUN pip install --no-cache-dir "markitdown[all]" pdfplumber fastapi uvicorn python-multipart pillow tiktoken
 
 WORKDIR /app
