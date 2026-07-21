@@ -19,6 +19,8 @@ engine loses to markitdown on any row of it.
 
 import argparse
 import json
+import os
+import random
 import re
 import statistics
 import sys
@@ -26,7 +28,12 @@ import time
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+# Per-document rows carry corpus filenames, so they are written outside the repo
+# tree (a sibling dir), where they cannot be committed. See tests/conftest.py.
+PRIVATE_DIR = Path(os.environ.get("TRIMITDOWN_PRIVATE") or REPO_ROOT.parent / "trimitdown-private")
 
 import pdfplumber  # noqa: E402
 import tiktoken  # noqa: E402
@@ -162,14 +169,19 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("corpus", type=Path, help="directory of PDFs, searched recursively")
-    ap.add_argument("--details", type=Path, default=Path("measure-corpus-details.jsonl"),
-                    help="per-document rows, including filenames; stays local")
+    ap.add_argument("--details", type=Path, default=PRIVATE_DIR / "measure-corpus-details.jsonl",
+                    help="per-document rows, including filenames; written outside the repo "
+                         "tree (the trimitdown-private sibling) so it cannot be committed")
     ap.add_argument("--max-mb", type=float, default=10.0,
                     help="skip documents larger than this (0 disables); the published "
                          "numbers used 10")
     ap.add_argument("--limit", type=int, default=0,
-                    help="stop after this many documents; a run over a few dozen is "
-                         "enough to see whether the two engines differ on your material")
+                    help="measure only this many documents, drawn at random (see --seed); "
+                         "a few dozen is enough to see whether the two engines differ on "
+                         "your material. Default: all of them")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="random seed for --limit's sample; the same seed picks the same "
+                         "documents, so a --limit run is reproducible")
     args = ap.parse_args()
 
     if not args.corpus.is_dir():
@@ -179,8 +191,12 @@ def main() -> int:
     limit = args.max_mb * 1024 * 1024
     paths = sorted(p for p in args.corpus.rglob("*.pdf")
                    if not limit or p.stat().st_size < limit)
-    if args.limit:
-        paths = paths[:args.limit]
+    if args.limit and args.limit < len(paths):
+        # A random sample, not the alphabetical head: filenames cluster by
+        # source, so the first N documents are one folder's worth, not a
+        # cross-section. Seeded, so the run stays reproducible. Sorted back into
+        # path order only so progress output and the details file read sensibly.
+        paths = sorted(random.Random(args.seed).sample(paths, args.limit))
     if not paths:
         print(f"no PDFs under {args.corpus}", file=sys.stderr)
         return 1
@@ -194,6 +210,7 @@ def main() -> int:
     n_bytes = n_gridless = 0
 
     print(f"{len(paths)} documents", file=sys.stderr, flush=True)
+    args.details.parent.mkdir(parents=True, exist_ok=True)
     with args.details.open("w", encoding="utf-8") as fh:
         for i, path in enumerate(paths, 1):
             try:

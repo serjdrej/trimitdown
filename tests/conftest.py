@@ -23,6 +23,12 @@ import pytest
 TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 LABEL_DIR = TESTS_DIR / "data" / "table_detection"
+# Everything that carries a corpus filename lives OUTSIDE the repository tree,
+# in a sibling directory, so it is impossible to commit -- no .gitignore rule to
+# forget, no `git add -f` to slip past. Default: <repo>/../trimitdown-private,
+# overridable with TRIMITDOWN_PRIVATE. This repo once published a corpus file
+# listing; keeping that data out of the working tree entirely is the fix.
+PRIVATE_DIR = Path(os.environ.get("TRIMITDOWN_PRIVATE") or REPO_ROOT.parent / "trimitdown-private")
 
 # `labels.py` lives beside the labelset and is imported by name; the repo root
 # carries `core`. Doing it here removes the hand-rolled sys.path lines that used
@@ -55,7 +61,10 @@ def corpus_file_names() -> dict[str, str]:
     carries no corpus filenames. The mapping back is local and gitignored; it
     only exists on a machine that owns the corpus.
     """
-    mapping = LABEL_DIR / "labelset-files.json"
+    mapping = PRIVATE_DIR / "labelset-files.json"
+    if not mapping.exists():
+        # Fallback to the old in-tree location for a machine not yet migrated.
+        mapping = LABEL_DIR / "labelset-files.json"
     if not mapping.exists():
         return {}
     return json.loads(mapping.read_text(encoding="utf-8"))

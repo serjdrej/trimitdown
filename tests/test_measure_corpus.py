@@ -103,3 +103,29 @@ def test_limit_stops_early(tmp_path, corpus_of_two):
     )
     assert result.returncode == 0, result.stderr
     assert "documents: 1 " in result.stdout
+
+
+def test_limit_sample_is_seeded(tmp_path):
+    # A --limit run must be reproducible: the same seed picks the same
+    # documents, so a summary someone reports can be regenerated.
+    root = tmp_path / "pdfs"
+    root.mkdir()
+    for i in range(6):
+        root.joinpath(f"doc{i}.pdf").write_bytes(pdf_fixtures.prose_only())
+
+    def sampled(seed):
+        details = tmp_path / f"d{seed}.jsonl"
+        subprocess.run(
+            [sys.executable, str(SCRIPT), str(root), "--details", str(details),
+             "--limit", "3", "--seed", str(seed)],
+            capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT, check=True,
+        )
+        rows = [json.loads(l) for l in details.read_text(encoding="utf-8").splitlines()]
+        return {row["file"] for row in rows}
+
+    assert sampled(0) == sampled(0)          # reproducible
+    assert len(sampled(0)) == 3              # honours the limit
+    # The seed actually varies the draw. Two specific seeds could coincide
+    # (20 possible 3-of-6 samples), so assert across several that the sample
+    # is not constant -- that would mean the seed is ignored.
+    assert len({frozenset(sampled(s)) for s in range(6)}) > 1

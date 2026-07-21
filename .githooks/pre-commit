@@ -1,0 +1,54 @@
+#!/bin/sh
+# Pre-commit PII scanner. Blocks a commit whose staged changes match a PII
+# marker. This repository once published a corpus file listing that carried
+# personal data; git history had to be rewritten and the repo recreated. This
+# hook is the backstop so that cannot recur silently.
+#
+# The patterns committed here are non-identifying on purpose -- document-type
+# nouns and a generic user-path shape, nothing naming a person or machine.
+# Identifying literals (a surname, an email, old login/host names, corpus
+# filenames) live in the trimitdown-private sibling dir, outside the repo tree,
+# so committing this file re-introduces none of the data the migration removed.
+#
+# Install once per clone:      git config core.hooksPath .githooks
+# Emergency bypass (avoid):    git commit --no-verify
+
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+
+# Non-identifying markers. "СНИЛС"/"Паспорт"/"ИНН" are just Russian words for
+# ID-document types; the last matches any Windows user path.
+patterns='СНИЛС
+Паспорт
+ИНН
+[Uu]sers[/\\][A-Za-z0-9._-]{2,}'
+
+# Identifying literals, kept outside version control. Override with
+# TRIMITDOWN_PRIVATE (must match tests/conftest.py's default).
+extra="${TRIMITDOWN_PRIVATE:-$(dirname "$root")/trimitdown-private}/pii-patterns.txt"
+if [ -f "$extra" ]; then
+    patterns="$patterns
+$(grep -v '^[[:space:]]*#' "$extra" | grep -v '^[[:space:]]*$' || true)"
+fi
+
+# Only added lines (leading +), excluding this hook itself -- it necessarily
+# contains the very marker words it scans for.
+staged=$(git diff --cached --unified=0 -- . ':(exclude).githooks/pre-commit' \
+    | grep '^+' | grep -v '^+++' || true)
+
+hit=$(printf '%s\n' "$patterns" | while IFS= read -r pat; do
+    [ -z "$pat" ] && continue
+    printf '%s\n' "$staged" | grep -inE -e "$pat" | sed "s|^|[$pat] |" || true
+done)
+
+if [ -n "$hit" ]; then
+    echo "pre-commit: staged changes look like they contain personal data:" >&2
+    printf '%s\n' "$hit" | head -20 >&2
+    echo "" >&2
+    echo "Review carefully. If it is genuinely a false positive:" >&2
+    echo "    git commit --no-verify" >&2
+    exit 1
+fi
+
+exit 0

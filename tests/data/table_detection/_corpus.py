@@ -18,6 +18,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[2]
+# Corpus-derived data lives outside the repo tree; see tests/conftest.py.
+PRIVATE_DIR = Path(os.environ.get("TRIMITDOWN_PRIVATE") or REPO_ROOT.parent / "trimitdown-private")
 
 
 def corpus_dir() -> Path:
@@ -41,7 +43,9 @@ def corpus_paths(file_ids) -> list[Path]:
     labelset.jsonl names documents by id so the public repository carries no
     corpus filenames; `labelset-files.json` maps back and is gitignored.
     """
-    mapping_file = HERE / "labelset-files.json"
+    mapping_file = PRIVATE_DIR / "labelset-files.json"
+    if not mapping_file.exists():
+        mapping_file = HERE / "labelset-files.json"  # old in-tree location
     if not mapping_file.exists():
         sys.exit(f"no local id -> filename mapping at {mapping_file}")
     mapping = json.loads(mapping_file.read_text(encoding="utf-8"))

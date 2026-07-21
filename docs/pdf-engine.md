@@ -119,7 +119,9 @@ PDFs and it runs both converters over all of them and prints the same rows:
 python scripts/measure_corpus.py /path/to/your/pdfs
 ```
 
-It needs no labels and no corpus of ours. Add `--limit 50` for a first look.
+It needs no labels and no corpus of ours. Add `--limit 50` for a first look — that draws 50
+documents at random (seeded, so it is reproducible), not the first 50 by name, which would be
+one folder rather than a cross-section.
 
 What it reports, per engine: glued word runs, documents containing glue, table rows emitted
 on documents where pdfplumber finds no ruled grid at all, numbers duplicated and numbers lost

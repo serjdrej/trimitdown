@@ -2,7 +2,7 @@
 rowfill token counts per file for Q2 (the product objective)."""
 import json, re, sys
 from pathlib import Path
-from _corpus import REPO_ROOT, corpus_dir
+from _corpus import PRIVATE_DIR, REPO_ROOT, corpus_dir
 sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 import pdfplumber, tiktoken
@@ -55,7 +55,8 @@ def rowfill_render(page):
 
 files=sorted(p for p in corpus_dir().rglob("*.pdf") if p.stat().st_size<10*1024*1024)
 print(f"{len(files)} files",flush=True)
-out=Path("q1q2.jsonl")  # written to the current directory
+out=PRIVATE_DIR/"q1q2.jsonl"  # one row per corpus doc -> outside the repo tree
+out.parent.mkdir(parents=True,exist_ok=True)
 with out.open("w",encoding="utf-8") as fh:
     for i,p in enumerate(files):
         rec={"file":p.name}

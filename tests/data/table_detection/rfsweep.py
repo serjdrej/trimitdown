@@ -9,7 +9,7 @@ import json, re, sys
 from collections import Counter
 from pathlib import Path
 
-from _corpus import REPO_ROOT, corpus_dir
+from _corpus import PRIVATE_DIR, REPO_ROOT, corpus_dir
 sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -169,11 +169,15 @@ def metrics(text, base_nums):
             "num_exc": exc, "num_def": defc, "tokens": len(ENC.encode(text))}
 
 SP = Path(__file__).parent
+# One row per corpus document, so it carries the corpus file listing: write it
+# outside the repo tree (trimitdown-private), where it cannot be committed.
+OUT = PRIVATE_DIR / "rfsweep.jsonl"
+OUT.parent.mkdir(parents=True, exist_ok=True)
 files = sorted(p for p in corpus_dir().rglob("*.pdf")
                if p.stat().st_size < 10 * 1024 * 1024)
 print(f"{len(files)} files", flush=True)
 
-with (SP / "rfsweep.jsonl").open("w", encoding="utf-8") as fh:
+with OUT.open("w", encoding="utf-8") as fh:
     for i, p in enumerate(files):
         rec = {"file": p.name}
         try:
