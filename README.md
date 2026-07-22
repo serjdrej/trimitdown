@@ -32,11 +32,12 @@ shared archive of conversions across all your devices.
 
 Most converters — including the stock [MarkItDown](https://github.com/microsoft/markitdown)
 PDF path — stumble on real-world PDFs in three measurable ways: they **glue words together**,
-**invent tables out of ordinary prose**, and **drop genuine ruled tables**. Measured over a
-corpus of ~700 real documents, the stock converter hallucinated tables in 49 files (2,442 rows
-that were never tables) and produced 1,153 glued word runs; the engine below brings those to
-1 file and 27 runs. That corpus is third-party copyrighted material and is not redistributable
-— the full method, the numbers and what a reader *can* reproduce are in
+**invent tables out of ordinary prose**, and **drop genuine ruled tables**. Measured over 891
+real documents from two independent collections, the stock converter emitted 5,624 table rows
+on documents containing no ruled grid at all — prose reshaped into tables — against 2 from the
+engine below. Glued words it roughly halves (107 runs vs 53). Those corpora are third-party
+copyrighted material and are not redistributable — the full method, the numbers, the cases
+where this engine *loses*, and what a reader **can** reproduce are in
 [docs/pdf-engine.md](docs/pdf-engine.md).
 
 So TrimItDown replaced it with a custom extraction engine:

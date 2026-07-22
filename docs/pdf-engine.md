@@ -22,8 +22,8 @@ These were fixed before any implementation and ruled out most of the field:
 
 ## The three defects
 
-Measured on a corpus of ~700 real PDFs (see [Corpus](#corpus)), the stock converter fails in
-three distinct ways:
+Measured on the corpus (see [Corpus](#corpus)), the stock converter fails in three distinct
+ways:
 
 1. **Glued words.** Word boundaries are decided by an *absolute* point threshold. No single
    value ports across font sizes: one corpus file needs a threshold below 2.89 pt, a
@@ -58,18 +58,62 @@ parameter and pdfminer's `word_margin` has always been relative. What is ours th
 
 ## Measured results
 
-Full corpus run, stock markitdown vs the shipped engine:
+The numbers below come from running `scripts/measure_corpus.py` — the same tool the
+[next section](#re-measuring-on-your-own-pdfs) hands to a reader — over two independent
+collections, 891 documents in all (~600 MB) after removing the duplicates that appear in both.
+A reader reproduces the *method* and the output format on their own documents, not these
+magnitudes.
+
+Six of the 891 are broken at the source — scans and exports that encode almost no word spacing,
+where even the stock converter's own gluing runs into the hundreds. Those are reported
+[separately](#broken-source-documents) so a single pathological file cannot carry the result.
+The headline is the other 885 (226 of them with no ruled grid anywhere):
 
 | | markitdown | TrimItDown |
 |---|---|---|
-| glued word runs | 1153 | **27** |
-| files containing glue | 31 | 20 |
-| fake tables (rows emitted on grid-less pages) | **49 files / 2442 rows** | **1 file** |
-| conversion failures | 0 | **0** |
-| total runtime | 993 s | 976 s |
+| table rows on grid-less documents | **5624** | **2** |
+| glued word runs | 107 | **53** |
+| documents containing glue | 24 (3%) | 18 (2%) |
+| output tokens | 5 528 360 | **5 008 691** |
+| conversion failures | 0 | 0 |
+| runtime | ~930 s | ~916 s |
 
-The word-gap threshold was chosen by scoring **both** failure directions — gluing *and*
-over-splitting — across 136 files, rather than tuning until gluing disappeared:
+Read it top to bottom — the order is the honest order.
+
+**Invented tables are the result that holds.** 5624 rows of prose reshaped into tables, on the
+documents where pdfplumber finds no grid to justify a single one, against two from this engine —
+and the split reproduces on each collection separately (1497→2 and 4127→0). This is what the
+row-fill validation stage buys, and it is the defect with the largest token cost: the ~9% lower
+token count is mostly those rows never being invented.
+
+**Glue is a modest, honest win.** On 870 of the 885 documents the two engines tie, almost always
+at zero — the medians are 0 for both. Over the whole set this engine glues about half as much
+(107 vs 53). It *loses* on four documents, one of them materially: a form with real space
+characters where the relative threshold still fuses 26 runs against markitdown's 9. On a
+document that encodes its spaces, geometry should defer to them; here it does not yet, and that
+is a real defect, not a metric artifact.
+
+**Number parity is roughly even, and the metric is not one to lean on.** Counted against a flat
+`page.extract_text()` baseline, duplicated and dropped numbers come out close between the two
+engines over the combined set — but the direction *reverses* between the two collections, and
+the table-heavier one is where this engine looks worse. That is the signature of a confounded
+measurement: this engine restructures ruled tables into markdown, so its output diverges from
+flat page text by more than a run-on paste does, whether or not a number actually moved.
+`measure_corpus.py` still reports it, because it catches gross duplication — but on table-heavy
+material it conflates "changed the number" with "put the number in a cell," and here it is not
+evidence either way.
+
+### Broken-source documents
+
+Six documents in the combined set encode almost no word spacing at the source — the
+space-to-glyph ratio is near zero and no gap is wide enough to split words. On five of the six
+this engine still emits zero glued runs against 52–256 from the stock converter; on the worst,
+a scan, both fail but this engine is still ahead (413 glued vs 508). The conclusion the glue
+numbers above describe — that the mechanism works on well-formed documents — does not rest on
+these, and on the broken ones this engine is not worse, only less dramatically better.
+
+The word-gap threshold itself was chosen by scoring **both** failure directions — gluing *and*
+over-splitting — across a 136-file slice of the corpus, not by tuning until gluing disappeared:
 
 | threshold | glued runs | files affected | over-split proxy |
 |---|---|---|---|
@@ -77,13 +121,15 @@ over-splitting — across 136 files, rather than tuning until gluing disappeared
 | absolute 2 pt | 269 | 30 | 4207 |
 | **relative 0.12 × font size** | **27** | **20** | see note |
 
-The residual 20-file glue floor is not reachable by any tolerance — those are mostly scans
-with roughly one glued run each, and some are likely metric false positives.
+No absolute point value ports across font sizes — 2 pt cuts gluing but over-splits more, 3 pt
+does the reverse. The ratio is what holds; the residual it leaves is the broken-source floor
+above, scans with no spacing to recover.
 
 ## Corpus
 
-~700 real-world PDFs, about 1.1 GB: Russian and English technical datasheets, patents,
-hydraulics catalogues, bank forms, medical scans, a thesis, slide decks, service manuals.
+Two independent collections, 891 real-world PDFs in all, about 600 MB: Russian and English
+technical datasheets, patents, hydraulics catalogues, bank forms, medical scans, a thesis,
+slide decks, service manuals.
 
 **The corpus is not in this repository and will not be**, because it is third-party
 copyrighted material.
