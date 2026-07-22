@@ -188,6 +188,51 @@ class TestCellTextSettings:
         assert "differentstationary" not in result
 
 
+class TestNestedCellSubtraction:
+    """`_extract_rows` subtracts a child cell's chars from the parent cell that
+    encloses it. pdfplumber reports one rectangle per cell and those rectangles
+    overlap wherever a ruling line stops short; `Table.extract()` reads each one
+    independently, so without the subtraction a char in the overlap is rendered
+    once per rectangle. Measured over all 893 documents of the private corpora
+    this was every duplicated digit the engine produced: 3138 before, 0 after.
+    """
+
+    def test_fixture_really_nests_one_cell_inside_another(self, tmp_path):
+        # Self-check, in the style of the other fixture self-checks here: if
+        # pdfplumber ever resolves this geometry into a clean rowspan, the
+        # fixture stops exercising the subtraction and the test below would
+        # pass for the wrong reason.
+        path = _write(tmp_path, "nested_cell", pdf_fixtures.cell_nested_in_a_spanning_cell())
+        with pdfplumber.open(path) as pdf:
+            table = pdf.pages[0].find_tables(TABLE_SETTINGS)[0]
+            cells = {c for row in table.rows for c in row.cells if c}
+            assert any(pdf_extract._encloses(outer, inner)
+                       for outer in cells for inner in cells if outer != inner)
+
+    def test_value_in_the_nested_cell_is_rendered_once(self, tmp_path):
+        path = _write(tmp_path, "nested_cell", pdf_fixtures.cell_nested_in_a_spanning_cell())
+        out = pdf_to_markdown(path)
+        assert out.count("4242") == 1
+
+    def test_parent_only_text_survives_the_subtraction(self, tmp_path):
+        # The child's chars come out of the parent; the parent's own must stay.
+        # Removing the whole parent cell instead would also make the test above
+        # pass, and would silently drop content.
+        path = _write(tmp_path, "nested_cell", pdf_fixtures.cell_nested_in_a_spanning_cell())
+        out = pdf_to_markdown(path)
+        assert "Header" in out
+        assert "1717" in out
+
+    def test_cells_that_nest_nothing_are_left_alone(self, tmp_path):
+        # `_extract_rows` returns Table.extract's own text verbatim for every
+        # cell without children, which is nearly all of them.
+        path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
+        with pdfplumber.open(path) as pdf:
+            page = pdf.pages[0]
+            table = page.find_tables(TABLE_SETTINGS)[0]
+            assert pdf_extract._extract_rows(page, table) == table.extract(**pdf_extract.TEXT_SETTINGS)
+
+
 class TestPipeEscaping:
     """Fix 4: pipe escaping happens at grid render, not in cell sanitisation.
     Single-row and single-column grids emit prose, where an escaped pipe would
@@ -272,6 +317,130 @@ class TestSelectionFirst:
         out = pdf_to_markdown(path)
         assert "framerowA" in out
         assert "| framerowA" not in out  # not wrapped in pipes -- it's prose, not the table
+
+
+class TestTwoColumnReadingOrder:
+    """Fix 6: prose was ordered by vertical position alone, so a two-column
+    page was read straight across the gutter and the two columns fused into
+    single lines.
+
+    Measured over 891 documents / 6697 pages: the detector fires on 213 pages
+    (3.2%) across 80 documents (9.0%). Only 83 of those are two-column prose;
+    on the other 130 the gutter belongs to a wide ruled table and the guard
+    refuses the split. Scored against the engine's output the defect was 910
+    fused lines, 1 after. The detector here is the one that produced those
+    numbers, ported rather than rewritten, so the measurement and the fix
+    cannot disagree about what "two-column" means.
+    """
+
+    def test_fixture_really_fuses_the_columns(self, tmp_path):
+        # Self-check, in the style of the other fixture self-checks here: the
+        # defect must be present in the fixture, or the ordering assertions
+        # below would pass against a fixture that never had the bug.
+        path = _write(tmp_path, "twocol", pdf_fixtures.two_column_page())
+        with pdfplumber.open(path) as pdf:
+            lines = pdf.pages[0].extract_text_lines()
+        assert any("left0a" in ln["text"] and "right0a" in ln["text"] for ln in lines)
+
+    def test_gutter_is_detected(self, tmp_path):
+        path = _write(tmp_path, "twocol", pdf_fixtures.two_column_page())
+        with pdfplumber.open(path) as pdf:
+            assert pdf_extract._column_gutter(pdf.pages[0]) is not None
+
+    def test_left_column_is_emitted_before_the_right(self, tmp_path):
+        path = _write(tmp_path, "twocol", pdf_fixtures.two_column_page())
+        out = pdf_to_markdown(path)
+        assert max(out.index(f"left{r}a") for r in range(10)) < \
+            min(out.index(f"right{r}a") for r in range(10))
+
+    def test_no_output_line_holds_both_columns(self, tmp_path):
+        # Reordering alone would not fix this: extract_text_lines groups by
+        # vertical position across the full page width, so a line spanning the
+        # gutter is already fused by the time it is returned. The prose has to
+        # be re-extracted per column, which is what makes this assertion pass.
+        path = _write(tmp_path, "twocol", pdf_fixtures.two_column_page())
+        out = pdf_to_markdown(path)
+        assert not [ln for ln in out.splitlines() if "left" in ln and "right" in ln]
+
+    def test_no_word_is_lost_or_duplicated_by_the_reorder(self, tmp_path):
+        path = _write(tmp_path, "twocol", pdf_fixtures.two_column_page())
+        out = pdf_to_markdown(path)
+        for r in range(10):
+            for w in "abcd":
+                assert out.count(f"left{r}{w}") == 1
+                assert out.count(f"right{r}{w}") == 1
+
+
+class TestSingleColumnIsUntouched:
+    """The regression guard that matters most. 97% of corpus pages are single
+    column, and on a page with no detected gutter the render path must be the
+    one that shipped -- same extraction call, same ordering, same string.
+    """
+
+    def test_no_gutter_is_detected(self, tmp_path):
+        path = _write(tmp_path, "onecol", pdf_fixtures.single_column_dense())
+        with pdfplumber.open(path) as pdf:
+            assert pdf_extract._column_gutter(pdf.pages[0]) is None
+
+    def test_output_is_character_for_character_the_pre_fix_output(self, tmp_path):
+        path = _write(tmp_path, "onecol", pdf_fixtures.single_column_dense())
+        expected = "\n".join(
+            " ".join(f"line{r}{chr(ord('a') + w)}" for w in range(8)) for r in range(15)
+        )
+        assert pdf_to_markdown(path) == expected
+
+
+class TestGridSpanningTheGutter:
+    """A grid that spans both columns is the one thing the split must never
+    tear. The page below is two-column by the detector's own verdict, so what
+    keeps it in single-column order is the guard, not a failed detection.
+    """
+
+    def test_fixture_is_two_column_and_its_grid_crosses_the_gutter(self, tmp_path):
+        # Self-check: without it, the ordering assertion below would pass for
+        # the wrong reason if detection simply missed this page.
+        path = _write(tmp_path, "spanning", pdf_fixtures.two_column_with_spanning_table())
+        with pdfplumber.open(path) as pdf:
+            page = pdf.pages[0]
+            gutter = pdf_extract._column_gutter(page)
+            assert gutter is not None
+            assert any(t.bbox[0] < gutter[0] and t.bbox[2] > gutter[1]
+                       for t in page.find_tables(TABLE_SETTINGS))
+
+    def test_the_page_is_not_column_split(self, tmp_path):
+        path = _write(tmp_path, "spanning", pdf_fixtures.two_column_with_spanning_table())
+        out = pdf_to_markdown(path)
+        # Vertical order: the right column's first row precedes the left
+        # column's last row. A column split would invert exactly this.
+        assert out.index("right0a") < out.index("left9a")
+
+    def test_the_spanning_grid_survives_intact(self, tmp_path):
+        path = _write(tmp_path, "spanning", pdf_fixtures.two_column_with_spanning_table())
+        out = pdf_to_markdown(path)
+        assert _n_tables(out) == 1
+        assert "| spanA0 | spanB0 |" in out
+        assert "| spanA1 | spanB1 |" in out
+
+
+class TestWideGapThatIsNotAColumnBoundary:
+    """A wide centred gap is not by itself a gutter. Both of the detector's
+    other conditions -- enough words to project at all, and a quarter of the
+    word mass on each side -- have to reject a page on their own.
+    """
+
+    def test_a_nearly_empty_right_side_does_not_split_the_page(self, tmp_path):
+        path = _write(tmp_path, "sparse", pdf_fixtures.wide_gap_but_one_side_empty())
+        with pdfplumber.open(path) as pdf:
+            assert pdf_extract._column_gutter(pdf.pages[0]) is None
+        out = pdf_to_markdown(path)
+        assert out.index("strayone") < out.index("left14a")
+
+    def test_too_few_words_does_not_split_the_page(self, tmp_path):
+        path = _write(tmp_path, "fewwords", pdf_fixtures.two_columns_but_too_few_words())
+        with pdfplumber.open(path) as pdf:
+            assert pdf_extract._column_gutter(pdf.pages[0]) is None
+        out = pdf_to_markdown(path)
+        assert out.index("right0a") < out.index("left2a")
 
 
 @pytest.mark.corpus

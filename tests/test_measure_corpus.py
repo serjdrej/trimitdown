@@ -28,40 +28,70 @@ _spec.loader.exec_module(mc)
 
 
 class TestMetrics:
-    def test_numbers_ignores_single_digits(self):
-        # Single digits are too common in prose to carry signal about whether a
-        # converter dropped or duplicated a document's data.
-        assert mc.numbers_in("page 5 of 7") == {}
-
-    def test_numbers_counts_multiplicity(self):
-        # Multiplicity is the whole mechanism: a number emitted twice by a
+    def test_digits_counts_multiplicity(self):
+        # Multiplicity is the whole mechanism: a digit emitted twice by a
         # converter that appears once in the page text is a duplicate, and
         # a Counter difference is what surfaces it.
-        assert mc.numbers_in("12 and 12 and 34") == {"12": 2, "34": 1}
+        assert mc.digits_in("12 and 12 and 34") == {"1": 2, "2": 2, "3": 1, "4": 1}
 
     def test_glued_run_counted(self):
         # 31 letters with no break -- two words fused, not a real word.
         text = "extraordinarilyuncharacteristic"
-        assert mc.score(text, mc.numbers_in(""), has_grids=False)["glued"] == 1
+        assert mc.score(text, mc.digits_in(""), has_grids=False)["glued"] == 1
 
     def test_ordinary_prose_is_not_glue(self):
-        assert mc.score("perfectly ordinary prose", mc.numbers_in(""), False)["glued"] == 0
+        assert mc.score("perfectly ordinary prose", mc.digits_in(""), False)["glued"] == 0
 
     def test_phantom_rows_only_on_gridless_documents(self):
         # Same output, two documents: rows on a page with no ruled grid are
         # invented; on a page that has one they may be correct, and this script
         # has no labels to tell which.
         table = "| a | b |\n| --- | --- |\n| 1 | 2 |"
-        empty = mc.numbers_in("")
+        empty = mc.digits_in("")
         assert mc.score(table, empty, has_grids=False)["phantom_rows"] == 3
         assert mc.score(table, empty, has_grids=True)["phantom_rows"] == 0
 
+    def test_mojibake_counts_the_latin1_decoded_cyrillic_range(self):
+        # "Привет" as cp1251 bytes read back as latin-1 -- the exact shape the
+        # row exists to spot. Every character lands in U+00C0-U+00FF.
+        text = "Привет".encode("cp1251").decode("latin-1")
+        assert mc.score(text, mc.digits_in(""), False)["mojibake"] == len(text)
+
+    def test_clean_text_scores_no_mojibake(self):
+        assert mc.score("ordinary prose", mc.digits_in(""), False)["mojibake"] == 0
+        assert mc.score("Привет, мир", mc.digits_in(""), False)["mojibake"] == 0
+
+    def test_document_flag_separates_mis_decoding_from_accented_prose(self):
+        # The character count alone cannot tell a mis-decoded document from a
+        # French one; the per-document share is what does. A sentence with a
+        # few accents must not trip the flag, a wholly mis-decoded one must.
+        accented = mc.score("a very ordinary French sentence with é and à in it",
+                            mc.digits_in(""), False)
+        assert accented["mojibake"] == 2
+        assert accented["mojibake_doc"] == 0
+
+        garbled = "Привет мир".encode("cp1251").decode("latin-1")
+        assert mc.score(garbled, mc.digits_in(""), False)["mojibake_doc"] == 1
+
+    def test_empty_output_does_not_divide_by_zero(self):
+        assert mc.score("", mc.digits_in(""), False)["mojibake_doc"] == 0
+
     def test_parity_measures_both_directions(self):
-        baseline = mc.numbers_in("10 20 30")
+        baseline = mc.digits_in("10 20 30")
         lost = mc.score("10 20", baseline, False)
-        assert (lost["num_deficit"], lost["num_excess"]) == (1, 0)
+        assert (lost["digit_deficit"], lost["digit_excess"]) == (2, 0)
         duplicated = mc.score("10 10 20 30", baseline, False)
-        assert (duplicated["num_deficit"], duplicated["num_excess"]) == (0, 1)
+        assert (duplicated["digit_deficit"], duplicated["digit_excess"]) == (0, 2)
+
+    def test_parity_ignores_where_a_cell_boundary_falls(self):
+        # The reason this row counts digits and not number tokens. Splitting
+        # "10" across two cells emits the same digits in the same quantity, so
+        # parity stays clean; the token metric it replaced scored this as a
+        # number lost, and on the private corpora that one effect accounted for
+        # every "number lost" it ever reported.
+        baseline = mc.digits_in("10 20 30")
+        split = mc.score("| 1 | 0 | 20 | 30 |", baseline, False)
+        assert (split["digit_deficit"], split["digit_excess"]) == (0, 0)
 
 
 @pytest.fixture

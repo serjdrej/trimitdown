@@ -234,6 +234,130 @@ def real_table_with_nested_table() -> bytes:
     return _build_pdf(cs)
 
 
+def cell_nested_in_a_spanning_cell() -> bytes:
+    """One grid whose column divider stops short, so pdfplumber reports a cell
+    INSIDE another cell of the same table.
+
+    The top band has a vertical divider that reaches only the short rule at
+    Y_SPLIT, not the band's lower edge. pdfplumber's cell derivation anchors one
+    rectangle per intersection, so it emits both the whole band
+    (X0,Y_MID)-(X1,Y_TOP) and the small (XM,Y_SPLIT)-(X1,Y_TOP) sitting inside
+    it. `Table.extract()` reads each rectangle independently, so "4242" lands in
+    two cells of the same rendered row.
+
+    This is not a hypothetical: across both private corpora it accounted for
+    every duplicated digit the engine produced (3138 of them, on 27 of 893
+    documents), and it is the reason `_extract_rows` subtracts a child cell's
+    chars from its parent.
+    """
+    X0, XM, X1 = 72, 200, 320
+    Y_TOP, Y_SPLIT, Y_MID, Y_BOT = 700, 676, 652, 628
+
+    cs = ""
+    for y in (Y_TOP, Y_MID, Y_BOT):
+        cs += _line(X0, y, X1, y)
+    cs += _line(X0, Y_BOT, X0, Y_TOP)
+    cs += _line(X1, Y_BOT, X1, Y_TOP)
+    # Stops at Y_SPLIT rather than Y_MID -- this is the whole point of the
+    # fixture. Carried to Y_MID, pdfplumber resolves a clean rowspan instead and
+    # no cell nests inside another.
+    cs += _line(XM, Y_SPLIT, XM, Y_TOP)
+    cs += _line(XM, Y_SPLIT, X1, Y_SPLIT)
+    cs += _line(XM, Y_BOT, XM, Y_MID)
+
+    cs += _text(X0 + 4, Y_SPLIT + 8, "Header")
+    cs += _text(XM + 4, Y_SPLIT + 8, "4242")   # inside BOTH the band and the small cell
+    cs += _text(X0 + 4, Y_MID + 8, "1717")     # inside the band only
+    cs += _text(X0 + 4, Y_BOT + 8, "Total")
+    cs += _text(XM + 4, Y_BOT + 8, "5959")
+    return _build_pdf(cs)
+
+
+# -- Two-column reading order -------------------------------------------------
+# The engine ordered prose by vertical position alone, so a page with two
+# columns was read straight across the gutter. These fixtures reproduce that
+# geometry the way the corpus measurement sees it: projected onto 60 x-bins,
+# the empty band between the columns is several bins wide and its centre sits
+# in the middle 40% of the page.
+COL_LEFT_X = 72
+COL_RIGHT_X = 340
+COL_TOP_Y = 700
+COL_DY = 16
+
+
+def _column_block(x, tag, n_rows, n_words=4, y0=COL_TOP_Y, dy=COL_DY):
+    """Rows of tagged words at a fixed left edge. Every word is unique, so a
+    test can assert on ordering, on survival and on duplication separately.
+    """
+    cs = ""
+    for r in range(n_rows):
+        words = " ".join(f"{tag}{r}{chr(ord('a') + w)}" for w in range(n_words))
+        cs += _text(x, y0 - r * dy, words)
+    return cs
+
+
+def two_column_page() -> bytes:
+    """Ten rows of prose in two columns, each row's two halves sharing a
+    baseline.
+
+    `extract_text_lines` groups by vertical position across the full page
+    width, so every one of these rows comes back as a single line holding both
+    columns. That is the measured defect: over 891 documents / 6697 pages the
+    detector fires on 213 pages, 83 of which are two-column prose, and scored
+    against the engine's own output those pages carried 910 fused lines.
+    """
+    return _build_pdf(_column_block(COL_LEFT_X, "left", 10)
+                      + _column_block(COL_RIGHT_X, "right", 10))
+
+
+def two_column_with_spanning_table() -> bytes:
+    """The same two-column prose, plus a ruled grid spanning BOTH columns.
+
+    The page is two-column by the detector's own verdict, so this fixture
+    isolates the guard rather than the detection: splitting the page along the
+    gutter would tear the table in half, so the verdict must be discarded and
+    single-column order kept for the whole page.
+    """
+    cs = _column_block(COL_LEFT_X, "left", 10) + _column_block(COL_RIGHT_X, "right", 10)
+    labels = [["spanA0", "spanB0"], ["spanA1", "spanB1"]]
+    for r in range(2):
+        for c in range(2):
+            x, y = 72 + c * 234, 460 - r * 24
+            cs += _cell_rect(x, y, 234, 24)
+            cs += _text(x + 4, y + 8, labels[r][c])
+    return _build_pdf(cs)
+
+
+def single_column_dense() -> bytes:
+    """An ordinary single-column page, well over the detector's 60-word floor.
+
+    97% of corpus pages look like this and not one of them may move, so this
+    is the fixture the byte-identity assertion is anchored on.
+    """
+    return _build_pdf(_column_block(72, "line", 15, n_words=8))
+
+
+def wide_gap_but_one_side_empty() -> bytes:
+    """A wide, centred empty band that is NOT a column boundary: everything to
+    the right of it is two stray words -- a page number, a margin note. Each
+    side must hold at least a quarter of the page's word mass; this one holds
+    about 3%, so the band is a margin, not a gutter.
+    """
+    cs = _column_block(COL_LEFT_X, "left", 15)
+    cs += _text(COL_RIGHT_X, COL_TOP_Y, "strayone")
+    cs += _text(COL_RIGHT_X, COL_TOP_Y - COL_DY, "straytwo")
+    return _build_pdf(cs)
+
+
+def two_columns_but_too_few_words() -> bytes:
+    """Textbook two-column geometry, but only 24 words on the page -- under the
+    60-word floor, below which the projection is too sparse to call a gutter
+    apart from ordinary ragged whitespace.
+    """
+    return _build_pdf(_column_block(COL_LEFT_X, "left", 3)
+                      + _column_block(COL_RIGHT_X, "right", 3))
+
+
 def gapped_words_in_cell() -> bytes:
     """A ruled 1x2 grid whose second cell has two words separated only by a
     TJ offset -- no space character. `find_tables` propagates text settings

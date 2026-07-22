@@ -47,16 +47,52 @@ from trimitdown_pdf import TABLE_SETTINGS, TEXT_SETTINGS, pdf_to_markdown  # noq
 # scripts use, so the counts stay comparable with the published ones.
 GLUED = re.compile(r"[A-Za-zА-Яа-яЁё]{26,}")
 
-# Two or more digits: single digits are too common in prose to carry signal.
-NUM = re.compile(r"\d+(?:[.,]\d+)*")
+# Parity is scored over digit CHARACTERS, not number tokens. Tokens were tried
+# first (two-or-more digits, matched with r"\d+(?:[.,]\d+)*") and had to be
+# withdrawn: they measure re-tokenisation, not data loss. This engine reshapes a
+# ruled grid into cells, and a cell boundary that lands mid-number turns one
+# "10" into a "1" and a "0" -- two tokens the length filter then discarded, so
+# the document scored as having *lost* a number it still contains in full. On
+# one 349-page catalogue that single effect produced 791 numbers "lost" and zero
+# digits lost. Measured over all 893 documents of both private corpora, digit
+# deficit was 0 for both engines on every single document, while the token
+# metric claimed 1492 losses for this engine and 1356 for markitdown -- all of
+# it re-tokenisation, none of it data.
+#
+# Digit counts are invariant under splitting and joining, so what survives is
+# what the row claims to measure: a digit the converter dropped, or one it
+# emitted twice.
+#
+# What it therefore cannot see, and no row here does: order. Two overlapping
+# text layers whose glyphs interleave into "123" + ".4XYZ" -> ".14X2Y3Z"
+# (an invented example of a real shape -- the corpus documents that do this
+# are the owner's own and nothing from them is reproduced here)
+# conserve every digit and score clean. That failure is real and is in the
+# corpus; it needs a different row, not a wider regex here.
+DIGIT = re.compile(r"\d")
+
+# Mojibake: cp1251 Cyrillic whose bytes were decoded as latin-1 lands almost
+# entirely in U+00C0-U+00FF, so a document rendered through the wrong codec
+# comes out as a dense run of accented Latin letters. This is a DIAGNOSTIC row
+# only -- nothing in the engine repairs it, and nothing should on the strength
+# of this counter alone. It is here so that the next full corpus re-measure
+# yields the frequency for free rather than needing its own sweep.
+#
+# The character count alone cannot separate "a document is mojibake" from "a
+# document is French": a page of legitimate accented Latin scores on this row
+# too. The per-document share is what distinguishes them, hence the second row
+# -- real prose in any Latin-script language stays well under 15% of its own
+# characters, while a wholly mis-decoded Cyrillic document is most of them.
+MOJIBAKE = re.compile(r"[À-ÿ]")
+MOJIBAKE_DOC_SHARE = 0.15
 
 ENC = tiktoken.get_encoding("cl100k_base")
 
 ENGINES = ("markitdown", "trimitdown")
 
 
-def numbers_in(text: str) -> Counter:
-    return Counter(m for m in NUM.findall(text) if len(m) >= 2)
+def digits_in(text: str) -> Counter:
+    return Counter(DIGIT.findall(text))
 
 
 def table_rows(text: str) -> int:
@@ -64,11 +100,20 @@ def table_rows(text: str) -> int:
 
 
 def analyse(path: Path) -> tuple[Counter, int]:
-    """Baseline numbers and ruled-grid count for one document.
+    """Baseline digits and ruled-grid count for one document.
 
     The baseline is pdfplumber's own page text -- neither converter's output.
-    Both engines are then scored against it in both directions: numbers it has
-    that they lost, and numbers they emit more often than it does.
+    Both engines are then scored against it in both directions: digits it has
+    that they lost, and digits they emit more often than it does.
+
+    Read the digit rows as a self-check on THIS engine, not as a head-to-head.
+    markitdown pastes a page's text through in reading order, so its digits are
+    the baseline's digits: over all 893 documents of the private corpora it
+    scored exactly zero in both directions on every single one. A row the other
+    engine cannot lose is not a comparison. It is still worth printing, because
+    this engine restructures pages and therefore *can* repeat a digit -- and on
+    those same documents it once repeated 3138 of them, every one traced to a
+    single bug in cell rendering (see _extract_rows), and 0 afterwards.
     """
     grids = 0
     base = []
@@ -80,21 +125,26 @@ def analyse(path: Path) -> tuple[Counter, int]:
             # for the lifetime of the document. On a large scanned file that is
             # the difference between a few hundred MB and an OOM kill.
             page.flush_cache()
-    return numbers_in("\n\n".join(base)), grids
+    return digits_in("\n\n".join(base)), grids
 
 
 def score(text: str, baseline: Counter, has_grids: bool) -> dict:
-    out = numbers_in(text)
+    out = digits_in(text)
+    mojibake = len(MOJIBAKE.findall(text))
     return {
         "glued": len(GLUED.findall(text)),
+        "mojibake": mojibake,
+        # A whole document decoded through the wrong codec, as opposed to a
+        # handful of accented characters in otherwise clean text.
+        "mojibake_doc": int(mojibake > MOJIBAKE_DOC_SHARE * len(text)),
         # Rows emitted for a document in which pdfplumber found no ruled grid at
         # all. Every one of them is prose reshaped into a table -- the defect
         # that motivated the row-fill validation stage. Documents that do have
         # grids are excluded rather than judged, because telling a correct row
         # from an invented one there needs labels this script does not have.
         "phantom_rows": 0 if has_grids else table_rows(text),
-        "num_excess": sum((out - baseline).values()),
-        "num_deficit": sum((baseline - out).values()),
+        "digit_excess": sum((out - baseline).values()),
+        "digit_deficit": sum((baseline - out).values()),
         "tokens": len(ENC.encode(text)),
     }
 
@@ -118,6 +168,13 @@ def report(rows: list[dict], totals: dict, failures: dict, elapsed: dict,
     files_with_glue = {
         e: sum(1 for r in rows if r[e]["glued"]) for e in ENGINES
     }
+    files_mojibake = {
+        e: sum(1 for r in rows if r[e]["mojibake_doc"]) for e in ENGINES
+    }
+    # Every row here converted on both engines, so "s" is always present.
+    med_s = {
+        e: statistics.median([r[e]["s"] for r in rows] or [0]) for e in ENGINES
+    }
     versions = {
         "python": ".".join(str(v) for v in sys.version_info[:3]),
         "pdfplumber": pdfplumber.__version__,
@@ -136,19 +193,28 @@ def report(rows: list[dict], totals: dict, failures: dict, elapsed: dict,
         line("glued word runs", "glued"),
         f"| documents containing glue | {pct(files_with_glue['markitdown'], n_docs)} "
         f"| {pct(files_with_glue['trimitdown'], n_docs)} |",
+        line("mojibake characters (U+00C0-U+00FF)", "mojibake"),
+        f"| documents over {MOJIBAKE_DOC_SHARE:.0%} mojibake "
+        f"| {pct(files_mojibake['markitdown'], n_docs)} "
+        f"| {pct(files_mojibake['trimitdown'], n_docs)} |",
         line("table rows on grid-less documents", "phantom_rows"),
-        line("numbers duplicated vs page text", "num_excess"),
-        line("numbers lost vs page text", "num_deficit"),
+        line("digits duplicated vs page text", "digit_excess"),
+        line("digits lost vs page text", "digit_deficit"),
         f"| conversion failures | {failures['markitdown']} | {failures['trimitdown']} |",
         line("output tokens", "tokens"),
-        f"| runtime | {elapsed['markitdown']:.1f} s | {elapsed['trimitdown']:.1f} s |",
+        # Both, because they answer different questions and on this corpus they
+        # disagree. The median is the one a reader converting a document should
+        # read; the total is the one someone converting a whole archive should.
+        f"| median seconds per document | {med_s['markitdown']:.3f} s "
+        f"| {med_s['trimitdown']:.3f} s |",
+        f"| total runtime | {elapsed['markitdown']:.1f} s | {elapsed['trimitdown']:.1f} s |",
         "",
     ]
 
     # A total says which engine wins overall; it says nothing about whether one
     # document is carrying the whole result. The median does, and a corpus where
     # the two disagree is exactly the interesting report.
-    for key, label in (("glued", "glued runs"), ("num_deficit", "numbers lost")):
+    for key, label in (("glued", "glued runs"), ("digit_deficit", "digits lost")):
         meds = {e: statistics.median([r[e][key] for r in rows] or [0]) for e in ENGINES}
         out.append(f"median {label} per document: markitdown {meds['markitdown']:.0f}, "
                    f"TrimItDown {meds['trimitdown']:.0f}")
@@ -234,9 +300,16 @@ def main() -> int:
                     row[engine] = {"error": f"{type(e).__name__}: {e}"[:200]}
                     continue
                 finally:
-                    elapsed[engine] += time.perf_counter() - started
+                    took = time.perf_counter() - started
+                    elapsed[engine] += took
                 row[engine] = score(text, baseline, bool(grids))
                 totals[engine].update(row[engine])
+                # Conversion seconds for this one document, recorded after the
+                # totals update so timing stays out of the count columns. A
+                # corpus total answers "how long to convert this corpus"; it
+                # does not answer "how long will my document take", because a
+                # few very long documents carry most of the total.
+                row[engine]["s"] = round(took, 4)
 
             # Only documents both engines converted enter the comparison; a row
             # where one side failed would otherwise credit that side with zero

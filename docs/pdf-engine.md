@@ -46,7 +46,10 @@ ways:
    not deleted — its text flows back into the prose stream, per grid. Nothing is lost.
 4. Prose is extracted with a **relative** word-gap threshold (`x_tolerance_ratio=0.12`) — a
    fraction of the font size, which is what makes it hold across small and large type.
-5. Blocks are ordered by vertical position; accepted grids render as markdown tables.
+5. Blocks are ordered by vertical position — except on a page detected as two-column, where
+   the prose is re-extracted per column and the whole left column is emitted before the whole
+   right one (see [Reading order](#reading-order-on-two-column-pages)). Accepted grids render
+   as markdown tables.
 
 On prior art: the *idea* of a detection stage is not new — tabula-java's
 `NurminenDetectionAlgorithm` defines it, and validates candidates by text-edge alignment and
@@ -55,6 +58,66 @@ graphics intersection. What appears to be absent in Python is a detection stage 
 relative word-gap tolerance itself is *not* novel — `x_tolerance_ratio` is a stock pdfplumber
 parameter and pdfminer's `word_margin` has always been relative. What is ours there is the
 *measured selection* of the value, not the mechanism.
+
+### Reading order on two-column pages
+
+Ordering prose by vertical position alone reads a two-column page straight across the gutter,
+fusing the left and right columns into single lines. Nothing in the shipped metrics can see
+this: the digit rows are blind to order by construction, and a fused line loses no character.
+It was measured separately, over 891 documents / 6697 pages. The gutter detector fires on
+**213 pages (3.2%)** across **80 documents (9.0%)**.
+
+Those 213 are not 213 two-column *prose* pages, and the first pass at this said they were.
+Scored again against the engine's own output rather than against raw page geometry:
+
+| | pages | fused prose lines, before | after |
+|---|---|---|---|
+| two-column prose — page is split | 83 | 673 | **1** |
+| gutter is a wide table's own column gap — split refused | 130 | 237 | 237 |
+| | **213** | **910** | **238** |
+
+On those 130 pages a mean of **86%** of the page's words sit inside an accepted grid, and 118
+of the 130 are over 50%. The "columns" there are a ruled table's own column groups, not a
+prose layout, and the engine already rendered that text as grid rows rather than as fused
+prose. The guard refuses to split them, which is the correct outcome for the right reason.
+
+That also corrects the first measurement's headline. It counted geometric word-lines over the
+raw page — every row of a wide table has words on both sides of the gutter, so every row
+scored as fused — and reported 5702 fused lines of 11185. Against the engine's actual output
+the prose-level defect was 910 lines, and 4792 of the difference was table rows that were
+never fused in the first place. Same detector, same 213 pages; the number moved by 6x because
+the thing being counted changed. Measure the output, not the page.
+
+**Detection.** Word bboxes are projected onto 60 x-bins. The widest empty band whose centre
+sits in the middle 40% of the page is the gutter candidate, accepted only if each side holds
+at least a quarter of the word mass, on a page with at least 60 words. The 60-word floor is
+what stops a sparse page's ordinary ragged whitespace from reading as a column boundary, and
+the mass test is what stops a margin note or a page number from doing the same. Detection is
+per page, not per document: a two-column document with a single-column first page is common.
+
+The detector in the engine is the one that produced the table above, ported rather than
+re-derived. That is deliberate: a fix tuned to a slightly different definition of
+"two-column" than the measurement's would make its own before/after numbers meaningless.
+
+**The fix is a re-extraction, not a re-sort.** `extract_text_lines` groups by vertical
+position across the full page width, so a line spanning the gutter is already fused into one
+string by the time it is returned — reordering the results cannot separate it again. The page
+is filtered to one column first, so the fused line never forms.
+
+**The guard.** If an accepted grid spans both columns, the page is not split at all. A table
+is a single object that legitimately crosses the gutter; splitting the page around it would
+tear it from the prose it belongs with. One such grid discards the verdict for the whole page
+rather than being assigned to a column.
+
+Two columns only. Three-column layouts are not handled and are not detected as anything —
+they fall through to the single-column path, which is the behaviour they had before.
+
+**Result.** Across the 80 affected documents, 42 improved, 38 are unchanged and **0
+regressed**. Of the 38, 36 were never split at all — their only detected pages were
+guard-blocked table pages — and the other 2 were split but had no fused line to begin with.
+On 100 documents where the detector finds no gutter at all, output is byte-identical to the
+pre-change engine, which is the assertion that matters most: 97% of corpus pages are single
+column and none of them may move.
 
 ## Measured results
 
@@ -74,9 +137,12 @@ The headline is the other 885 (226 of them with no ruled grid anywhere):
 | table rows on grid-less documents | **5624** | **2** |
 | glued word runs | 107 | **53** |
 | documents containing glue | 24 (3%) | 18 (2%) |
-| output tokens | 5 528 360 | **5 008 691** |
+| digits duplicated vs page text | 0 | **0** |
+| digits lost vs page text | 0 | 0 |
+| output tokens | 5 528 360 | **5 001 929** |
 | conversion failures | 0 | 0 |
-| runtime | ~930 s | ~916 s |
+| median seconds per document | 0.107 s | **0.098 s** |
+| total runtime | 895 s | 909 s |
 
 Read it top to bottom — the order is the honest order.
 
@@ -93,15 +159,35 @@ characters where the relative threshold still fuses 26 runs against markitdown's
 document that encodes its spaces, geometry should defer to them; here it does not yet, and that
 is a real defect, not a metric artifact.
 
-**Number parity is roughly even, and the metric is not one to lean on.** Counted against a flat
-`page.extract_text()` baseline, duplicated and dropped numbers come out close between the two
-engines over the combined set — but the direction *reverses* between the two collections, and
-the table-heavier one is where this engine looks worse. That is the signature of a confounded
-measurement: this engine restructures ruled tables into markdown, so its output diverges from
-flat page text by more than a run-on paste does, whether or not a number actually moved.
-`measure_corpus.py` still reports it, because it catches gross duplication — but on table-heavy
-material it conflates "changed the number" with "put the number in a cell," and here it is not
-evidence either way.
+**The digit rows are a self-check, and they earned their place.** Zero in both directions is the
+only result markitdown can post — it pastes a page's text through in reading order, so it *is*
+approximately the baseline. The row exists for this engine, which restructures pages and can
+therefore genuinely repeat or drop a digit. It did: an earlier build emitted **3138 duplicated
+digits across 27 documents**, every one traced to overlapping cell rectangles being read twice
+(see the nested-cell subtraction in the pipeline above). The row is what caught it, and zero is
+what the fix produced. Read a clean parity row as "nothing was dropped or repeated", not as
+"the numbers are right" — digit counts are blind to order, and nothing printed here covers that.
+
+An earlier version of this document reported these two rows as evidence of nothing, calling the
+metric confounded because its direction reversed between the two collections. That reading was
+wrong. The metric it described counted number *tokens*, and a cell boundary landing mid-number
+splits one token into two — so the reversal tracked which collection had more tables, not which
+engine was more faithful. Counting digit characters instead removes the artifact, and what was
+left was not noise but a real bug. The lesson is in
+[Re-measuring](#re-measuring-on-your-own-pdfs); it is repeated here because the wrong conclusion
+was published first.
+
+**On speed, the median and the total disagree, so both are printed.** This engine is faster on
+**533 of the 885 documents** and faster at the median (0.098 s against 0.107 s), while being
+1.5% slower over the corpus as a whole. Both are true because the total is not describing a
+document: **the ten slowest documents, 1.1% of the corpus, carry 40% of the runtime, and the
+slowest fifty carry 72%.** A reader converting a document should read the median; someone
+converting a whole archive should read the total.
+
+The two most recent stages cost what they cost, measured by timing them directly rather than by
+differencing two runs: the column detector 2.6% of conversion time, the cell-overlap scan 1.4%.
+Run-to-run wall-clock on the same machine moves by a comparable amount, which is why a total
+runtime lifted from a different run is not evidence about either.
 
 ### Broken-source documents
 
@@ -169,10 +255,48 @@ It needs no labels and no corpus of ours. Add `--limit 50` for a first look — 
 documents at random (seeded, so it is reproducible), not the first 50 by name, which would be
 one folder rather than a cross-section.
 
-What it reports, per engine: glued word runs, documents containing glue, table rows emitted
-on documents where pdfplumber finds no ruled grid at all, numbers duplicated and numbers lost
-against a page-text baseline, failures, output tokens, runtime. Totals plus medians, so a
-single pathological document cannot carry the result.
+What it reports, per engine: glued word runs, documents containing glue, mojibake characters
+and documents that are mostly mojibake, table rows emitted on documents where pdfplumber
+finds no ruled grid at all, digits duplicated and digits lost
+against a page-text baseline, failures, output tokens, and both the median seconds per document
+and the total runtime — they answer different questions and on our corpus they disagree, because
+a handful of very long documents carry most of the total. Totals plus medians throughout, because
+on the number rows the median is usually zero and the total is usually two or three
+documents — read them together or the total will mislead you.
+
+The two digit rows are a self-check on this engine, not a head-to-head, and they are printed
+that way deliberately. The baseline is pdfplumber's page text, and markitdown pastes a page's
+text through in reading order — so markitdown *is* approximately the baseline. Over all 893
+documents of the private corpora it scored exactly zero in both directions on every one of
+them. There is no result markitdown can post here other than zero. This engine reshapes
+pages, so it can genuinely lose or repeat a digit, and the row exists to catch that — it
+caught 3138 duplicated digits on 27 documents, all from one bug in cell rendering.
+
+They count digit characters rather than number tokens for a reason worth stating, because the
+first version of this row did the opposite and reversed direction between the two corpora.
+Tokens confuse re-tokenisation with data loss: a cell boundary landing between the `1` and the
+`0` of a `10` turns one token into two, and the "two or more digits" filter then discards
+both, so a document scores as having lost a number it still carries in full. One 349-page
+catalogue produced 791 "numbers lost" that way and lost no digit at all. Across all 893
+documents the digit deficit was zero for both engines on every single one, while the token
+metric claimed 1492 losses for this engine and 1356 for markitdown — all of it layout, none
+of it data. That row also reversed direction between the two corpora, which is how it was
+caught: it is dominated by whichever corpus is more table-heavy, not by which engine is more
+faithful.
+
+The two mojibake rows are **diagnostic only**. cp1251 Cyrillic whose bytes are decoded as
+latin-1 lands almost entirely in `U+00C0-U+00FF`, so a document that came through the wrong
+codec is a dense run of accented Latin letters. Nothing in the engine repairs this, and
+nothing should on the strength of this counter alone — the character count cannot by itself
+tell a mis-decoded Russian document from a French one, which is why the second row counts
+documents where the class exceeds 15% of the output. Real prose in any Latin-script language
+stays well under that; a wholly mis-decoded document is most of it. The rows exist so that
+the next full corpus run yields the frequency for free, rather than needing its own sweep.
+
+Digit counts are blind to order, and nothing else printed here covers it. Two overlapping text
+layers whose glyphs interleave — `123` and `.4XYZ` coming out as `.14X2Y3Z` — conserve every
+digit and score clean on both rows. That failure is real and is in the corpus. Read a clean
+parity row as "nothing was dropped or repeated", not as "the numbers are right".
 
 **The summary it prints is counts only** — no filenames, no paths, no document text — so it
 can be pasted into an issue as-is. Per-document rows, which do name files, go to a separate
