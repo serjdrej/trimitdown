@@ -8,10 +8,13 @@ markitdown[docx,pdf,pptx,xlsx,xls,outlook]
 # The pin must stay inside the range the package declares, or an install of both
 # resolves to a downgrade. docker-server/Dockerfile deliberately does NOT pin.
 pdfplumber==0.11.10
-# The PDF engine lives in packages/trimitdown-pdf and is published to PyPI
-# separately; the app consumes it from the local path so there is exactly one
-# copy of the module in this repo. Plain path, not -e: PyInstaller bundles a
-# normally-installed package, an editable install it cannot follow.
+# The PDF engine lives in packages/trimitdown-pdf, packaged for separate
+# publication to PyPI -- not yet uploaded, so this line stays a path. The app
+# consumes it from that local path so there is exactly one copy of the module in
+# this repo. Once the package is on PyPI this becomes a version range, and the
+# path install survives only as the dev/CI shortcut.
+# Plain path, not -e: PyInstaller bundles a normally-installed package, an
+# editable install it cannot follow.
 # For local development install it editable on top -- see DEVELOPMENT.md.
 ./packages/trimitdown-pdf
 pywebview

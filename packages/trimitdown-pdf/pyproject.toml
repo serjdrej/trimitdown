@@ -16,10 +16,18 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Sergey Dreizin" }]
 keywords = ["pdf", "pdfplumber", "table-detection", "markdown", "table-extraction"]
+# No "License :: OSI Approved :: MIT License" classifier on purpose: PEP 639
+# forbids pairing a license classifier with the `license` expression above, and
+# setuptools>=77 errors out if both are present.
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Text Processing :: Markup :: Markdown",
     "Topic :: Utilities",
 ]
@@ -39,6 +47,8 @@ dependencies = ["pdfplumber>=0.11.10,<1.0"]
 Homepage = "https://github.com/serjdrej/trimitdown"
 Repository = "https://github.com/serjdrej/trimitdown"
 Documentation = "https://github.com/serjdrej/trimitdown/blob/main/docs/pdf-engine.md"
+Issues = "https://github.com/serjdrej/trimitdown/issues"
+Changelog = "https://github.com/serjdrej/trimitdown/releases"
 
 [tool.setuptools.dynamic]
 version = { attr = "trimitdown_pdf.__version__" }

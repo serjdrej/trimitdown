@@ -1,5 +1,7 @@
 # trimitdown-pdf
 
+*Читать по-русски: [README.ru.md](https://github.com/serjdrej/trimitdown/blob/main/packages/trimitdown-pdf/README.ru.md)*
+
 **The validation stage pdfplumber doesn't have.**
 
 `page.find_tables()` answers *"where are the ruled cells?"* — it never answers
@@ -65,6 +67,32 @@ from trimitdown_pdf import pdf_to_markdown
 
 print(pdf_to_markdown("report.pdf"))
 ```
+
+## Measured against markitdown
+
+`scripts/measure_corpus.py` in the repository ran both engines over two
+independent collections — 891 real-world PDFs, 885 of them well-formed — on one
+machine at one pdfplumber version (2026-07-21):
+
+| | markitdown | trimitdown-pdf |
+| --- | --- | --- |
+| table rows on grid-less documents | 5624 | **2** |
+| glued word runs | 107 | **53** |
+| output tokens | 5 528 360 | **5 008 691** (~9% fewer) |
+
+The invented-table result is the one that holds: it reproduces on each
+collection separately (1497→2 and 4127→0), and the lower token count is mostly
+those rows never being invented. Glue is the smaller, more honest win — the two
+engines tie on 870 of the 885 documents, and this one *loses* on four, one of
+them materially, on a form that encodes real space characters. That is a
+documented defect, not a rounding artifact.
+
+**Number parity is not claimed.** That metric reverses direction between the two
+collections and is confounded; it is under separate investigation. Nothing here
+says numeric content survives conversion better.
+
+The corpus is third-party copyrighted material and is not published. The
+measurement script is — point it at your own PDFs and it prints the same table.
 
 ## Limitations — read these first
 
