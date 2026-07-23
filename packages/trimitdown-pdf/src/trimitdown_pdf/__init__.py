@@ -56,7 +56,7 @@ def _escape_pipe(value: str) -> str:
 
 
 def _row_is_filled(row: list[str]) -> bool:
-    return sum(1 for c in row if c.strip()) >= 2
+    return sum(1 for c in row if (c or "").strip()) >= 2
 
 
 def is_real_table(rows: list[list[str]]) -> bool:
@@ -74,7 +74,7 @@ def is_real_table(rows: list[list[str]]) -> bool:
     """
     if len(rows) < 2 or len(rows[0]) < 2:
         return False
-    rows_with_content = [r for r in rows if any(c.strip() for c in r)]
+    rows_with_content = [r for r in rows if any((c or "").strip() for c in r)]
     if not rows_with_content:
         return False
     filled = sum(1 for r in rows_with_content if _row_is_filled(r))
@@ -343,8 +343,20 @@ def pdf_to_markdown(source: str | Path | bytes) -> str:
     fp = BytesIO(source) if isinstance(source, bytes) else source
     pages = []
     with pdfplumber.open(fp) as pdf:
-        for page in pdf.pages:
-            pages.append(_render_page(page))
+        for number, page in enumerate(pdf.pages, start=1):
+            # A page with no text layer (len(page.chars) == 0 -- almost always a
+            # scan, and we have no OCR) renders to "" and would be dropped by the
+            # join filter below with no trace, indistinguishable from an unread
+            # page. Emit a marker instead so the loss is visible. The anchor
+            # "no extractable text layer" is a stable contract: app-side
+            # localisation and any future engine port resolve the per-user
+            # message against this substring, so it must stay verbatim. A page
+            # that has chars but still renders "" (all text went into grids) is
+            # deliberately NOT marked -- that would be a false "no text layer".
+            if len(page.chars) == 0:
+                pages.append(f"[trimitdown-pdf: no extractable text layer on page {number}]")
+            else:
+                pages.append(_render_page(page))
             # pdfplumber caches every char of every page; uploads run to 200MB
             # and the container has no memory limit. (With a bytes source the
             # document itself is already resident -- this still frees the much

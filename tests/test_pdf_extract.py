@@ -7,7 +7,7 @@ import pytest
 import pdf_fixtures
 import trimitdown_pdf as pdf_extract
 from conftest import corpus_file_names
-from trimitdown_pdf import TABLE_SETTINGS, pdf_to_markdown
+from trimitdown_pdf import TABLE_SETTINGS, is_real_table, pdf_to_markdown
 
 
 def _write(tmp_path, name, data: bytes):
@@ -64,6 +64,34 @@ class TestText:
         assert "| --- |" not in result
 
 
+class TestEmptyPages:
+    """A: a page with no text layer (len(page.chars) == 0) got dropped, leaving
+    the consumer unable to tell an empty page from an unread one. Measured: 103
+    documents (11.6%) returned "" and 21 lost pages silently. The fix emits a
+    per-page marker inside pdf_to_markdown; the anchor 'no extractable text
+    layer' is a stable contract app-side localisation resolves against.
+    """
+
+    def test_page_without_text_layer_is_marked_not_dropped(self, tmp_path):
+        # Measured: today this returns "". The whole point of A is that it stops.
+        path = _write(tmp_path, "scan", pdf_fixtures.image_only_page())
+        result = pdf_to_markdown(path)
+        assert result != ""
+        assert "no extractable text layer" in result
+
+    def test_text_page_gets_no_marker(self, tmp_path):
+        # Regression guard: a normal prose page must never be marked.
+        path = _write(tmp_path, "prose", pdf_fixtures.prose_only())
+        assert "no extractable text layer" not in pdf_to_markdown(path)
+
+    def test_marker_carries_page_number_and_keeps_neighbour_text(self, tmp_path):
+        # Page 1 prose, page 2 image-only: prose survives, page 2 is marked "2".
+        data = pdf_fixtures.text_then_image()
+        result = pdf_to_markdown(_write(tmp_path, "mixed", data))
+        assert "Just a paragraph" in result          # neighbour text kept
+        assert "no extractable text layer on page 2" in result
+
+
 class TestTables:
     def test_ruled_grid_renders_as_a_markdown_table(self, tmp_path):
         path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
@@ -101,6 +129,30 @@ class TestTables:
         path = _write(tmp_path, "blank", pdf_fixtures.blank_row_table())
         result = pdf_to_markdown(path)
         assert result == "| Head | Other |\n| --- | --- |\n| a1 | b1 |"
+
+
+class TestIsRealTablePredicate:
+    """B.1: is_real_table is a public predicate meant to drop straight onto a
+    consumer's own pdfplumber pipeline. Table.extract() puts None in empty
+    cells, so the predicate's most natural input carries None -- it must not
+    crash on it. The three verdict tests below pass both before and after the
+    (c or "").strip() guard: they prove the guard changes no existing verdict,
+    only the None case does.
+    """
+
+    def test_two_filled_rows_is_a_table(self):
+        assert is_real_table([['H1', 'H2'], ['a', 'b'], ['c', 'd']]) is True
+
+    def test_single_filled_row_is_not(self):
+        assert is_real_table([['H1', 'H2'], ['a', '']]) is False
+
+    def test_minority_filled_rows_is_a_frame(self):
+        # one filled row among many sparse ones = layout frame, not a table
+        assert is_real_table([['x', ''], ['y', ''], ['a', 'b'], ['z', '']]) is False
+
+    def test_accepts_raw_extract_output_with_none(self):
+        # table.extract() puts None in empty cells; the predicate must not crash.
+        assert is_real_table([['a', None], ['b', 'c']]) is False
 
 
 class TestRatioThreshold:

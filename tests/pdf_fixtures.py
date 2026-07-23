@@ -53,6 +53,51 @@ def _build_pdf(content_stream: str) -> bytes:
     return bytes(out)
 
 
+def _build_multipage_pdf(streams: list[str]) -> bytes:
+    """Multi-page sibling of _build_pdf: one page per content stream, sharing a
+    single font. _build_pdf hardwires Count 1 / Kids [3 0 R], so it cannot
+    express per-page behaviour; this builder is what lets a fixture put a text
+    layer on one page and none on the next (the measured partial-loss shape).
+    """
+    n = len(streams)
+    page_objs = [4 + 2 * i for i in range(n)]
+    kids = " ".join(f"{p} 0 R" for p in page_objs)
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [" + kids.encode() + b"] /Count " + str(n).encode() + b" >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    for i, content_stream in enumerate(streams):
+        content_obj = 5 + 2 * i
+        objects.append(
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 3 0 R >> >> /Contents "
+            + str(content_obj).encode() + b" 0 R >>"
+        )
+        stream = content_stream.encode("latin-1")
+        objects.append(
+            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream"
+        )
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += str(i).encode() + b" 0 obj\n" + body + b"\nendobj\n"
+
+    xref_at = len(out)
+    out += b"xref\n0 " + str(len(objects) + 1).encode() + b"\n"
+    out += b"0000000000 65535 f \n"
+    for off in offsets:
+        out += ("%010d 00000 n \n" % off).encode()
+    out += (
+        b"trailer\n<< /Size " + str(len(objects) + 1).encode() + b" /Root 1 0 R >>\n"
+        b"startxref\n" + str(xref_at).encode() + b"\n%%EOF\n"
+    )
+    return bytes(out)
+
+
 def _text(x, y, s, size=FONT_SIZE):
     return f"BT /F1 {size} Tf {x} {y} Td ({s}) Tj ET\n"
 
@@ -160,6 +205,22 @@ def blank_row_table() -> bytes:
 def prose_only() -> bytes:
     """No ruling lines — markitdown wrapped this kind of page in 104 fake table rows."""
     return _build_pdf(_text(72, 700, "Just a paragraph, no ruling lines anywhere."))
+
+
+def image_only_page() -> bytes:
+    """Graphics, no text operators: page.chars == []. Stands in for a scanned
+    page -- the engine has no OCR, so it extracts nothing."""
+    return _build_pdf(_cell_rect(100, 100, 400, 200))
+
+
+def text_then_image() -> bytes:
+    """Two pages: prose on page 1, an image-only page on page 2. Reproduces the
+    21 partially-empty documents -- page 1's text must survive while page 2 is
+    marked, not silently dropped."""
+    return _build_multipage_pdf([
+        _text(72, 700, "Just a paragraph, no ruling lines anywhere."),
+        _cell_rect(100, 100, 400, 200),
+    ])
 
 
 def offset_pdf_marker() -> bytes:
