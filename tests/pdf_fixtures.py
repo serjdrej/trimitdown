@@ -436,7 +436,7 @@ def gapped_words_in_cell() -> bytes:
     return _build_pdf(cs)
 
 
-def unspaced_lines(n: int = 55) -> bytes:
+def unspaced_lines(n: int = 80) -> bytes:
     """A document that encodes no word spacing at all — every line is one
     unbroken run of letters, which both converters report as glued.
 

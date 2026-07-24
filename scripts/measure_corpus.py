@@ -429,13 +429,19 @@ def main() -> int:
     print(report(well, totals, failures, elapsed, len(well), n_bytes, n_gridless,
                  n_notext))
     if broken:
-        b_totals, _, _, _, _ = aggregate(broken)
+        b_totals, _, b_bytes, _, b_notext = aggregate(broken)
         print()
         print(f"Reported separately: {len(broken)} document(s) that encode almost no word")
         print(f"spacing at the source (markitdown glues over {BROKEN_SOURCE_GLUE} runs in each).")
         print(f"Glued runs there: markitdown {b_totals['markitdown']['glued']}, "
               f"TrimItDown {b_totals['trimitdown']['glued']}. They are excluded from the")
         print("table above so that a few pathological files cannot carry the result.")
+        # The header above describes the well-formed set only. Without these two
+        # figures a whole-corpus size or scan count cannot be reassembled from
+        # the output at all, which would make a published corpus-wide number
+        # impossible for a reader to reproduce even in form.
+        print(f"They add {b_bytes / 1024 / 1024:.1f} MB and {b_notext} page(s) with no text "
+              f"layer to the header's totals.")
     print(f"\nper-document rows (with filenames): {args.details}", file=sys.stderr)
     return 0
 

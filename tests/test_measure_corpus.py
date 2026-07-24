@@ -317,3 +317,26 @@ def test_documents_sharing_a_name_but_not_a_size_are_both_measured(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert "documents: 2 " in result.stdout
+
+
+def test_skipped_duplicates_are_announced(tmp_path):
+    """De-duplication that goes silent costs the reader a signal, not data.
+
+    Dropping the notice passes every other test in this file, so it is asserted
+    here: someone who points the script at overlapping trees must be told how
+    many documents it decided were the same one.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    same = pdf_fixtures.prose_only()
+    for root in (a, b):
+        root.mkdir()
+        root.joinpath("doc.pdf").write_bytes(same)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b),
+         "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "documents: 1 " in result.stdout
+    assert "1 duplicate(s) skipped" in result.stderr
