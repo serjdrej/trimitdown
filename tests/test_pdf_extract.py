@@ -245,7 +245,7 @@ class TestNestedCellSubtraction:
     encloses it. pdfplumber reports one rectangle per cell and those rectangles
     overlap wherever a ruling line stops short; `Table.extract()` reads each one
     independently, so without the subtraction a char in the overlap is rendered
-    once per rectangle. Measured over all 893 documents of the private corpora
+    once per rectangle. Measured over all 891 documents of the private corpora
     this was every duplicated digit the engine produced: 3138 before, 0 after.
     """
 

@@ -1,7 +1,7 @@
 """Run both PDF converters over your own PDFs and print a comparable summary.
 
-The numbers in docs/pdf-engine.md come from one private collection of ~700
-documents, skewed toward Russian technical material. Nobody else can re-run
+The numbers in docs/pdf-engine.md come from two private collections, 891
+documents in all, skewed toward Russian technical material. Nobody else can re-run
 them: the corpus is third-party and is not in this repository. This script is
 the answer to that -- it re-measures the same defects on *your* documents, so
 the claim can be checked against a corpus whose failure modes nobody here has
@@ -54,7 +54,7 @@ GLUED = re.compile(r"[A-Za-zА-Яа-яЁё]{26,}")
 # "10" into a "1" and a "0" -- two tokens the length filter then discarded, so
 # the document scored as having *lost* a number it still contains in full. On
 # one 349-page catalogue that single effect produced 791 numbers "lost" and zero
-# digits lost. Measured over all 893 documents of both private corpora, digit
+# digits lost. Measured over all 891 documents of both private corpora, digit
 # deficit was 0 for both engines on every single document, while the token
 # metric claimed 1492 losses for this engine and 1356 for markitdown -- all of
 # it re-tokenisation, none of it data.
@@ -85,6 +85,16 @@ DIGIT = re.compile(r"\d")
 # the output and the reader pays for it; subtracting it there would flatter this
 # engine on the one row where the marker genuinely costs something.
 NO_TEXT_MARKER = "no extractable text layer"
+
+# A document that encodes almost no word spacing at the source glues heavily in
+# any converter, and a handful of them will otherwise carry the whole glue
+# result: on the private corpora six such files held 1388 of markitdown's 1495
+# glued runs. They are reported separately so that cannot happen. The criterion
+# is a property of the document -- how badly the STOCK converter glues it -- and
+# never of this engine's own output, so it cannot be tuned to flatter the result.
+# The threshold sits in a wide empty gap in the data (the next document down
+# scored 15), not at a value chosen to move the headline.
+BROKEN_SOURCE_GLUE = 50
 
 
 def without_engine_markers(text: str) -> str:
@@ -127,7 +137,7 @@ def analyse(path: Path) -> tuple[Counter, int]:
 
     Read the digit rows as a self-check on THIS engine, not as a head-to-head.
     markitdown pastes a page's text through in reading order, so its digits are
-    the baseline's digits: over all 893 documents of the private corpora it
+    the baseline's digits: over all 891 documents of the private corpora it
     scored exactly zero in both directions on every single one. A row the other
     engine cannot lose is not a comparison. It is still worth printing, because
     this engine restructures pages and therefore *can* repeat a digit -- and on
@@ -253,6 +263,40 @@ def report(rows: list[dict], totals: dict, failures: dict, elapsed: dict,
     return "\n".join(out)
 
 
+def split_by_source_quality(rows: list) -> tuple[list, list]:
+    """Separate the well-formed documents from the broken-source ones.
+
+    The verdict is read off the STOCK converter's glue count, never off this
+    engine's, so no change here can move a document out of the headline to make
+    this engine look better.
+    """
+    well = [r for r in rows if r["markitdown"]["glued"] <= BROKEN_SOURCE_GLUE]
+    broken = [r for r in rows if r["markitdown"]["glued"] > BROKEN_SOURCE_GLUE]
+    return well, broken
+
+
+def aggregate(rows: list) -> tuple:
+    """Corpus figures for a set of rows.
+
+    Derived from the rows rather than accumulated while measuring, so that every
+    number in one summary shares a single denominator. Accumulating during the
+    sweep counted documents that parsed but failed to convert, which left the
+    document count and the gridless count describing different populations.
+    """
+    totals = {e: Counter() for e in ENGINES}
+    elapsed = {e: 0.0 for e in ENGINES}
+    n_bytes = n_gridless = n_notext = 0
+    for r in rows:
+        n_bytes += r["bytes"]
+        n_gridless += not r["grids"]
+        n_notext += r["notext"]
+        for e in ENGINES:
+            # "s" is timing, not a count; it must not enter the count columns.
+            totals[e].update({k: v for k, v in r[e].items() if k != "s"})
+            elapsed[e] += r[e]["s"]
+    return totals, elapsed, n_bytes, n_gridless, n_notext
+
+
 def main() -> int:
     # Converted documents carry characters the console codepage cannot encode
     # (m³/h, ≥, Cyrillic); on a Russian Windows the first one aborts the run.
@@ -260,7 +304,11 @@ def main() -> int:
         stream.reconfigure(encoding="utf-8", errors="replace")
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("corpus", type=Path, help="directory of PDFs, searched recursively")
+    ap.add_argument("corpus", type=Path, nargs="+",
+                    help="one or more directories of PDFs, searched recursively. Pass every "
+                         "collection to ONE run: measuring them separately and adding the "
+                         "summaries up double-counts whatever appears in both, and loses the "
+                         "medians entirely")
     ap.add_argument("--details", type=Path, default=PRIVATE_DIR / "measure-corpus-details.jsonl",
                     help="per-document rows, including filenames; written outside the repo "
                          "tree (the trimitdown-private sibling) so it cannot be committed")
@@ -276,13 +324,20 @@ def main() -> int:
                          "documents, so a --limit run is reproducible")
     args = ap.parse_args()
 
-    if not args.corpus.is_dir():
-        print(f"not a directory: {args.corpus}", file=sys.stderr)
-        return 1
+    for root in args.corpus:
+        if not root.is_dir():
+            print(f"not a directory: {root}", file=sys.stderr)
+            return 1
 
     limit = args.max_mb * 1024 * 1024
-    paths = sorted(p for p in args.corpus.rglob("*.pdf")
-                   if not limit or p.stat().st_size < limit)
+    # Same basename in two collections is the same document. Counting it twice
+    # inflates every total and silently weights it double in the medians.
+    by_name = {}
+    for root in args.corpus:
+        for q in root.rglob("*.pdf"):
+            if not limit or q.stat().st_size < limit:
+                by_name.setdefault(q.name, q)
+    paths = sorted(by_name.values())
     if args.limit and args.limit < len(paths):
         # A random sample, not the alphabetical head: filenames cluster by
         # source, so the first N documents are one folder's worth, not a
@@ -290,16 +345,14 @@ def main() -> int:
         # path order only so progress output and the details file read sensibly.
         paths = sorted(random.Random(args.seed).sample(paths, args.limit))
     if not paths:
-        print(f"no PDFs under {args.corpus}", file=sys.stderr)
+        print(f"no PDFs under {', '.join(str(r) for r in args.corpus)}", file=sys.stderr)
         return 1
 
     from markitdown import MarkItDown
     markitdown = MarkItDown()
 
-    rows, totals = [], {e: Counter() for e in ENGINES}
+    rows = []
     failures = {e: 0 for e in ENGINES}
-    elapsed = {e: 0.0 for e in ENGINES}
-    n_bytes = n_gridless = n_notext = 0
 
     print(f"{len(paths)} documents", file=sys.stderr, flush=True)
     args.details.parent.mkdir(parents=True, exist_ok=True)
@@ -314,10 +367,8 @@ def main() -> int:
                                      }, ensure_ascii=False) + "\n")
                 continue
 
-            n_bytes += path.stat().st_size
-            n_gridless += not grids
-            n_notext += no_text_pages
-            row = {"file": path.name, "grids": grids}
+            row = {"file": path.name, "grids": grids,
+                   "bytes": path.stat().st_size, "notext": no_text_pages}
             for engine in ENGINES:
                 started = time.perf_counter()
                 try:
@@ -328,14 +379,13 @@ def main() -> int:
                     continue
                 finally:
                     took = time.perf_counter() - started
-                    elapsed[engine] += took
                 row[engine] = score(text, baseline, bool(grids))
-                totals[engine].update(row[engine])
-                # Conversion seconds for this one document, recorded after the
-                # totals update so timing stays out of the count columns. A
-                # corpus total answers "how long to convert this corpus"; it
-                # does not answer "how long will my document take", because a
-                # few very long documents carry most of the total.
+                # Conversion seconds for this one document. Kept per document
+                # rather than accumulated: a corpus total answers "how long to
+                # convert this corpus", not "how long will my document take",
+                # because a few very long documents carry most of the total --
+                # and aggregate() needs the per-document value to total a
+                # subset of the corpus without re-measuring it.
                 row[engine]["s"] = round(took, 4)
 
             # Only documents both engines converted enter the comparison; a row
@@ -352,8 +402,27 @@ def main() -> int:
         print("no document converted through both engines", file=sys.stderr)
         return 1
 
-    print(report(rows, totals, failures, elapsed, len(rows), n_bytes, n_gridless,
+    # The headline is the well-formed documents; the broken-source ones follow
+    # in their own block. This split used to live only in the prose of
+    # docs/pdf-engine.md, and a rerun that read the summary alone folded them
+    # back into the headline -- which moved the glue result from 2.0x to 3.2x in
+    # this engine's own favour. It is code now so a rerun cannot lose it.
+    well, broken = split_by_source_quality(rows)
+    if not well:
+        print("every document scored as broken at the source", file=sys.stderr)
+        return 1
+
+    totals, elapsed, n_bytes, n_gridless, n_notext = aggregate(well)
+    print(report(well, totals, failures, elapsed, len(well), n_bytes, n_gridless,
                  n_notext))
+    if broken:
+        b_totals, _, _, _, _ = aggregate(broken)
+        print()
+        print(f"Reported separately: {len(broken)} document(s) that encode almost no word")
+        print(f"spacing at the source (markitdown glues over {BROKEN_SOURCE_GLUE} runs in each).")
+        print(f"Glued runs there: markitdown {b_totals['markitdown']['glued']}, "
+              f"TrimItDown {b_totals['trimitdown']['glued']}. They are excluded from the")
+        print("table above so that a few pathological files cannot carry the result.")
     print(f"\nper-document rows (with filenames): {args.details}", file=sys.stderr)
     return 0
 

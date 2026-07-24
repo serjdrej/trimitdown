@@ -125,7 +125,7 @@ measurement script is — point it at your own PDFs and it prints the same table
   [trimitdown-pdf: no extractable text layer on page 12]
   ```
 
-  This adds no information the page did not have — it costs about 55 characters
+  This adds no information the page did not have — it costs about 54 characters
   per page and is not a substitute for OCR. Its only job is to make the gap
   greppable, so a pipeline can route those pages to OCR instead of indexing a
   hole it never noticed. The substring `no extractable text layer` is stable and

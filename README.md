@@ -35,7 +35,8 @@ PDF path — stumble on real-world PDFs in three measurable ways: they **glue wo
 **invent tables out of ordinary prose**, and **drop genuine ruled tables**. Measured over 891
 real documents from two independent collections, the stock converter emitted 5,624 table rows
 on documents containing no ruled grid at all — prose reshaped into tables — against 2 from the
-engine below. Glued words it roughly halves (107 runs vs 53). Those corpora are third-party
+engine below. On the 885 of those documents that are not broken at the source, it roughly
+halves glued words (107 runs vs 53). Those corpora are third-party
 copyrighted material and are not redistributable — the full method, the numbers, the cases
 where this engine *loses*, and what a reader **can** reproduce are in
 [docs/pdf-engine.md](docs/pdf-engine.md).

@@ -213,7 +213,7 @@ it buys is that the gap is *findable*: a pipeline can grep for it and route thos
 rather than index a hole it never noticed it had. The substring `no extractable text layer` is
 treated as a stable contract for that reason.
 
-It costs. The two collections held 581 such pages, about 53 characters each — roughly 9 000
+It costs. The two collections held 581 such pages, about 54 characters each — roughly 9 000
 tokens, which is where this run's token total sits above the previous one. The measurement
 script counts those tokens against this engine deliberately and does not score the markers on
 the parity rows, since a page number inside a marker is the engine reporting an absence, not
@@ -296,7 +296,7 @@ documents — read them together or the total will mislead you.
 
 The two digit rows are a self-check on this engine, not a head-to-head, and they are printed
 that way deliberately. The baseline is pdfplumber's page text, and markitdown pastes a page's
-text through in reading order — so markitdown *is* approximately the baseline. Over all 893
+text through in reading order — so markitdown *is* approximately the baseline. Over all 891
 documents of the private corpora it scored exactly zero in both directions on every one of
 them. There is no result markitdown can post here other than zero. This engine reshapes
 pages, so it can genuinely lose or repeat a digit, and the row exists to catch that — it
@@ -307,7 +307,7 @@ first version of this row did the opposite and reversed direction between the tw
 Tokens confuse re-tokenisation with data loss: a cell boundary landing between the `1` and the
 `0` of a `10` turns one token into two, and the "two or more digits" filter then discards
 both, so a document scores as having lost a number it still carries in full. One 349-page
-catalogue produced 791 "numbers lost" that way and lost no digit at all. Across all 893
+catalogue produced 791 "numbers lost" that way and lost no digit at all. Across all 891
 documents the digit deficit was zero for both engines on every single one, while the token
 metric claimed 1492 losses for this engine and 1356 for markitdown — all of it layout, none
 of it data. That row also reversed direction between the two corpora, which is how it was

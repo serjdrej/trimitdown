@@ -126,7 +126,7 @@ def _extract_rows(page, table) -> list[list[str | None]]:
     while the cells it covers are still reported separately. Table.extract()
     reads each rectangle independently, so every char in the overlap is emitted
     once per rectangle -- the same value twice in one rendered row. Measured
-    over all 893 documents of the private corpora, this accounted for every
+    over all 891 documents of the private corpora, this accounted for every
     duplicated digit either engine produced: 3138 before, 0 after, on 27
     documents, with no document made worse on either parity row.
 

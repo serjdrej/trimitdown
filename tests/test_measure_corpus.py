@@ -159,3 +159,79 @@ def test_limit_sample_is_seeded(tmp_path):
     # (20 possible 3-of-6 samples), so assert across several that the sample
     # is not constant -- that would mean the seed is ignored.
     assert len({frozenset(sampled(s)) for s in range(6)}) > 1
+
+
+def test_same_document_in_two_collections_is_measured_once(tmp_path):
+    # Two collections that share a document must be passed to ONE run. Measuring
+    # them separately and adding the summaries counted the shared document twice
+    # -- which is how a 891-document corpus was once published as 893, dragging
+    # every total and both medians with it.
+    a, b = tmp_path / "a", tmp_path / "b"
+    for root in (a, b):
+        root.mkdir()
+        root.joinpath("shared.pdf").write_bytes(pdf_fixtures.prose_only())
+    b.joinpath("only-in-b.pdf").write_bytes(pdf_fixtures.ruled_table())
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b),
+         "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "documents: 2 " in result.stdout
+
+
+class TestBrokenSourceSplit:
+    """The 885/6 population split, which used to live only in prose.
+
+    A document that encodes almost no word spacing glues heavily in any
+    converter. Folding a handful of them into the headline let six files carry
+    1388 of markitdown's 1495 glued runs, and moved the published glue result
+    from 2.0x to 3.2x in this engine's favour. The split has to be code.
+    """
+
+    @staticmethod
+    def row(markitdown_glued, trimitdown_glued=0):
+        return {
+            "file": "x.pdf", "grids": 1, "bytes": 100, "notext": 0,
+            "markitdown": {"glued": markitdown_glued, "tokens": 10, "s": 0.1},
+            "trimitdown": {"glued": trimitdown_glued, "tokens": 9, "s": 0.1},
+        }
+
+    def test_broken_source_documents_leave_the_headline(self):
+        rows = [self.row(0), self.row(3), self.row(508, 413)]
+        well, broken = mc.split_by_source_quality(rows)
+        assert [r["markitdown"]["glued"] for r in well] == [0, 3]
+        assert [r["markitdown"]["glued"] for r in broken] == [508]
+
+    def test_verdict_reads_the_stock_converter_never_our_own_output(self):
+        # Otherwise the split could be tuned to drop whichever documents this
+        # engine happens to lose on.
+        rows = [self.row(0, 9999)]
+        well, broken = mc.split_by_source_quality(rows)
+        assert len(well) == 1 and not broken
+
+    def test_threshold_is_inclusive_at_the_boundary(self):
+        assert mc.BROKEN_SOURCE_GLUE == 50
+        well, broken = mc.split_by_source_quality([self.row(50), self.row(51)])
+        assert [r["markitdown"]["glued"] for r in well] == [50]
+        assert [r["markitdown"]["glued"] for r in broken] == [51]
+
+
+def test_aggregate_totals_one_subset_without_remeasuring():
+    # Every headline figure must share one denominator. Accumulating while
+    # measuring counted documents that parsed but failed to convert, so the
+    # document count and the gridless count described different populations.
+    rows = [
+        {"file": "a.pdf", "grids": 0, "bytes": 10, "notext": 2,
+         "markitdown": {"glued": 1, "s": 0.5}, "trimitdown": {"glued": 0, "s": 0.25}},
+        {"file": "b.pdf", "grids": 3, "bytes": 30, "notext": 0,
+         "markitdown": {"glued": 4, "s": 1.5}, "trimitdown": {"glued": 2, "s": 0.75}},
+    ]
+    totals, elapsed, n_bytes, n_gridless, n_notext = mc.aggregate(rows)
+    assert (n_bytes, n_gridless, n_notext) == (40, 1, 2)
+    assert totals["markitdown"]["glued"] == 5
+    assert totals["trimitdown"]["glued"] == 2
+    # Timing is not a count and must stay out of the count columns.
+    assert "s" not in totals["markitdown"]
+    assert elapsed == {"markitdown": 2.0, "trimitdown": 1.0}

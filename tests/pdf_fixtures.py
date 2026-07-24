@@ -307,7 +307,7 @@ def cell_nested_in_a_spanning_cell() -> bytes:
     two cells of the same rendered row.
 
     This is not a hypothetical: across both private corpora it accounted for
-    every duplicated digit the engine produced (3138 of them, on 27 of 893
+    every duplicated digit the engine produced (3138 of them, on 27 of 891
     documents), and it is the reason `_extract_rows` subtracts a child cell's
     chars from its parent.
     """
