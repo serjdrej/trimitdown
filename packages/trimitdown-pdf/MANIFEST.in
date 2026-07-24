@@ -1,0 +1,9 @@
+# setuptools puts exactly one README in the sdist -- the one named by `readme`
+# in pyproject.toml, which is the English file. The Russian translation is a
+# peer document, not a generated artifact, and an sdist that omits it is not a
+# complete copy of the source. It costs a few kilobytes.
+#
+# The link between the two READMEs is an absolute GitHub URL and does not break
+# without this line; completeness of the source distribution is the whole reason
+# it is here.
+include README.ru.md

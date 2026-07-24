@@ -1,0 +1,81 @@
+# Publishes packages/trimitdown-pdf to PyPI via Trusted Publishing (OIDC).
+#
+# There is no API token anywhere in this repository, and there should never be
+# one: PyPI hands this workflow a short-lived credential only when the OIDC
+# claim matches the publisher registered on pypi.org -- this repository, this
+# filename, this environment. Rename the file and publishing stops working,
+# which is the intended behaviour.
+#
+# Deliberately `workflow_dispatch` only. No `on: release`, no tag trigger: a
+# version number on PyPI is burned the moment it uploads and can never be
+# reused, so the workflow must not be reachable by anything that could fire by
+# accident. The `pypi` environment carries required reviewers, which puts a
+# second, manual gate between the build and the upload.
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      # Publishing from a tree whose tests do not pass is the one mistake that
+      # cannot be undone afterwards. This is the same portable suite tests.yml
+      # runs; it needs no corpus and takes seconds.
+      - name: Run the portable suite
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -m "not corpus" -q
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build --outdir dist packages/trimitdown-pdf
+          python -m twine check --strict dist/*
+
+      # The required reviewer approves the *publish* job without seeing the
+      # artifacts, so state plainly here what they are about to release. A
+      # version already on PyPI cannot be replaced, so a wrong number needs to
+      # be caught at this line and not after the upload.
+      - name: Report what would be published
+        run: |
+          {
+            echo "### Ready to publish"
+            echo
+            echo '```'
+            ls -1 dist/
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Must match the environment name registered with the publisher on pypi.org
+    # exactly; a mismatch fails the OIDC exchange rather than publishing wrongly.
+    environment: pypi
+    permissions:
+      # The only job that gets to mint an OIDC token. The build job above does
+      # not need it and does not have it.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

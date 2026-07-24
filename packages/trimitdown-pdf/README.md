@@ -71,25 +71,38 @@ print(pdf_to_markdown("report.pdf"))
 ## Measured against markitdown
 
 `scripts/measure_corpus.py` in the repository ran both engines over two
-independent collections — 891 real-world PDFs, 885 of them well-formed — on one
-machine at one pdfplumber version (2026-07-21):
+independent collections — 893 real-world PDFs, 597 MB, 226 of them without a
+ruled grid anywhere — on one machine at one pdfplumber version (2026-07-24):
 
 | | markitdown | trimitdown-pdf |
 | --- | --- | --- |
 | table rows on grid-less documents | 5624 | **2** |
-| glued word runs | 107 | **53** |
-| output tokens | 5 528 360 | **5 008 691** (~9% fewer) |
+| glued word runs | 1495 | **466** |
+| documents containing glue | 30 (3%) | **19 (2%)** |
+| digits invented vs page text | 0 | 0 |
+| digits lost vs page text | 0 | 0 |
+| conversion failures | 0 | 0 |
+| output tokens | 5 873 707 | **5 233 639** (−10.9%) |
 
 The invented-table result is the one that holds: it reproduces on each
-collection separately (1497→2 and 4127→0), and the lower token count is mostly
-those rows never being invented. Glue is the smaller, more honest win — the two
-engines tie on 870 of the 885 documents, and this one *loses* on four, one of
-them materially, on a form that encodes real space characters. That is a
-documented defect, not a rounding artifact.
+collection separately (1497→2 and 4127→0), no document scores worse than
+markitdown, and the lower token count is mostly those rows never being invented.
 
-**Number parity is not claimed.** That metric reverses direction between the two
-collections and is confounded; it is under separate investigation. Nothing here
-says numeric content survives conversion better.
+**Fewer tokens, and not by dropping content.** Both engines were scored against
+each page's own `extract_text()`: neither invented a digit and neither lost one,
+across all 893 documents. That check covers digits only — it does not prove
+word-level completeness — but it rules out the failure mode where a converter
+looks efficient because it quietly discards what it could not handle.
+
+Where this engine *costs* tokens it says so. On 309 of the 893 documents the
+output is larger, by a median of 32 tokens; eighteen exceed 1000. Those are the
+table-dense documents, and the excess is markdown table syntax — pipes and
+separator rows are what it costs to keep a structure that flat text loses.
+
+Glue is the smaller win. The engines tie on 872 of the 893 documents; this one
+is better on 17 and *loses* on four, the worst by 17 runs, on forms that encode
+spacing with real space characters. That is a documented defect, not a rounding
+artifact.
 
 The corpus is third-party copyrighted material and is not published. The
 measurement script is — point it at your own PDFs and it prints the same table.
@@ -100,8 +113,19 @@ measurement script is — point it at your own PDFs and it prints the same table
   Borderless and whitespace-aligned tables are not detected *at all* — not
   poorly, not at all. If your documents are borderless, this package does
   nothing for you.
-- **No OCR.** Scanned pages and image-only PDFs produce no output. There is no
-  fallback.
+- **No OCR.** Scanned pages and image-only PDFs yield no text, and there is no
+  fallback. Rather than emit nothing, a page with no text layer renders as one
+  line naming itself:
+
+  ```
+  [trimitdown-pdf: no extractable text layer on page 12]
+  ```
+
+  This adds no information the page did not have — it costs about 55 characters
+  per page and is not a substitute for OCR. Its only job is to make the gap
+  greppable, so a pipeline can route those pages to OCR instead of indexing a
+  hole it never noticed. The substring `no extractable text layer` is stable and
+  safe to match on. The measured corpus contained 581 such pages.
 - **No layout model.** Multi-column page flow, reading order across columns,
   headers/footers and figure captions are out of scope.
 
