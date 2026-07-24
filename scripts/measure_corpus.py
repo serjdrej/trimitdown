@@ -71,6 +71,25 @@ GLUED = re.compile(r"[A-Za-zА-Яа-яЁё]{26,}")
 # corpus; it needs a different row, not a wider regex here.
 DIGIT = re.compile(r"\d")
 
+# A page with no text layer renders to a marker naming the page number rather
+# than to nothing at all (see trimitdown_pdf.pdf_to_markdown). That page number
+# is a digit, and the baseline it is scored against -- the page's own text -- is
+# empty, that being the whole point. Scored naively the marker therefore reads as
+# the engine duplicating data: over both private corpora it produced 837 such
+# "duplicated" digits across 124 documents, every one of them a page number
+# inside a marker, and 0 remained once marker lines were excluded. The marker is
+# the engine reporting an absence, not data it claims to have extracted, so the
+# parity rows do not score it.
+#
+# The token row still counts it, deliberately. The marker occupies real space in
+# the output and the reader pays for it; subtracting it there would flatter this
+# engine on the one row where the marker genuinely costs something.
+NO_TEXT_MARKER = "no extractable text layer"
+
+
+def without_engine_markers(text: str) -> str:
+    return "\n".join(ln for ln in text.splitlines() if NO_TEXT_MARKER not in ln)
+
 # Mojibake: cp1251 Cyrillic whose bytes were decoded as latin-1 lands almost
 # entirely in U+00C0-U+00FF, so a document rendered through the wrong codec
 # comes out as a dense run of accented Latin letters. This is a DIAGNOSTIC row
@@ -116,20 +135,25 @@ def analyse(path: Path) -> tuple[Counter, int]:
     single bug in cell rendering (see _extract_rows), and 0 afterwards.
     """
     grids = 0
+    no_text_pages = 0
     base = []
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
             grids += len(page.find_tables(TABLE_SETTINGS))
+            # A property of the corpus, not of either engine: both are handed the
+            # same unreadable pages. Reported so a reader can see what share of
+            # their own documents is scans before reading the rows below.
+            no_text_pages += not page.chars
             base.append(page.extract_text(**TEXT_SETTINGS) or "")
             # Without this pdfplumber keeps every page's parsed objects alive
             # for the lifetime of the document. On a large scanned file that is
             # the difference between a few hundred MB and an OOM kill.
             page.flush_cache()
-    return digits_in("\n\n".join(base)), grids
+    return digits_in("\n\n".join(base)), grids, no_text_pages
 
 
 def score(text: str, baseline: Counter, has_grids: bool) -> dict:
-    out = digits_in(text)
+    out = digits_in(without_engine_markers(text))
     mojibake = len(MOJIBAKE.findall(text))
     return {
         "glued": len(GLUED.findall(text)),
@@ -160,7 +184,7 @@ def pct(part: int, whole: int) -> str:
 
 
 def report(rows: list[dict], totals: dict, failures: dict, elapsed: dict,
-           n_docs: int, n_bytes: int, n_gridless: int) -> str:
+           n_docs: int, n_bytes: int, n_gridless: int, n_notext: int) -> str:
     def line(label: str, key: str, fmt=str) -> str:
         a, b = fmt(totals["markitdown"][key]), fmt(totals["trimitdown"][key])
         return f"| {label} | {a} | {b} |"
@@ -186,6 +210,8 @@ def report(rows: list[dict], totals: dict, failures: dict, elapsed: dict,
         "",
         f"- documents: {n_docs} ({n_bytes / 1024 / 1024:.1f} MB), "
         f"{n_gridless} of them with no ruled grid anywhere",
+        f"- pages with no text layer: {n_notext} "
+        f"(scans -- nothing for either engine to extract, and neither does OCR)",
         "- versions: " + ", ".join(f"{k} {v}" for k, v in versions.items()),
         "",
         "| | markitdown | TrimItDown |",
@@ -273,14 +299,14 @@ def main() -> int:
     rows, totals = [], {e: Counter() for e in ENGINES}
     failures = {e: 0 for e in ENGINES}
     elapsed = {e: 0.0 for e in ENGINES}
-    n_bytes = n_gridless = 0
+    n_bytes = n_gridless = n_notext = 0
 
     print(f"{len(paths)} documents", file=sys.stderr, flush=True)
     args.details.parent.mkdir(parents=True, exist_ok=True)
     with args.details.open("w", encoding="utf-8") as fh:
         for i, path in enumerate(paths, 1):
             try:
-                baseline, grids = analyse(path)
+                baseline, grids, no_text_pages = analyse(path)
             except Exception as e:
                 # A document neither engine can parse measures nothing about
                 # either of them, so it leaves no row rather than a zeroed one.
@@ -290,6 +316,7 @@ def main() -> int:
 
             n_bytes += path.stat().st_size
             n_gridless += not grids
+            n_notext += no_text_pages
             row = {"file": path.name, "grids": grids}
             for engine in ENGINES:
                 started = time.perf_counter()
@@ -325,7 +352,8 @@ def main() -> int:
         print("no document converted through both engines", file=sys.stderr)
         return 1
 
-    print(report(rows, totals, failures, elapsed, len(rows), n_bytes, n_gridless))
+    print(report(rows, totals, failures, elapsed, len(rows), n_bytes, n_gridless,
+                 n_notext))
     print(f"\nper-document rows (with filenames): {args.details}", file=sys.stderr)
     return 0
 
