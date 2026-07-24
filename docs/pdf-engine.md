@@ -139,17 +139,17 @@ The headline is the other 885 (226 of them with no ruled grid anywhere):
 | documents containing glue | 24 (3%) | 18 (2%) |
 | digits duplicated vs page text | 0 | **0** |
 | digits lost vs page text | 0 | 0 |
-| output tokens | 5 528 360 | **5 001 929** |
+| output tokens | 5 528 360 | **5 011 180** |
 | conversion failures | 0 | 0 |
-| median seconds per document | 0.107 s | **0.098 s** |
-| total runtime | 895 s | 909 s |
+| median seconds per document | 0.103 s | **0.097 s** |
+| total runtime | 875 s | 888 s |
 
 Read it top to bottom — the order is the honest order.
 
 **Invented tables are the result that holds.** 5624 rows of prose reshaped into tables, on the
 documents where pdfplumber finds no grid to justify a single one, against two from this engine —
 and the split reproduces on each collection separately (1497→2 and 4127→0). This is what the
-row-fill validation stage buys, and it is the defect with the largest token cost: the ~9% lower
+row-fill validation stage buys, and it is the defect with the largest token cost: the 9.4% lower
 token count is mostly those rows never being invented.
 
 **Glue is a modest, honest win.** On 870 of the 885 documents the two engines tie, almost always
@@ -177,8 +177,16 @@ left was not noise but a real bug. The lesson is in
 [Re-measuring](#re-measuring-on-your-own-pdfs); it is repeated here because the wrong conclusion
 was published first.
 
+The same row then caught a second artifact, this one belonging to the measurement rather than
+the engine. Adding the empty-page marker made the parity row report **837 duplicated digits
+across 124 documents** — every one of them a page number inside a marker, scored against a page
+whose text is empty by definition. Stripping marker lines left a residual of exactly zero on
+all 124. The lesson is not that the row is unreliable; it is that a metric has to be re-checked
+against its mechanism when the *output format* changes, and not only when the number it prints
+is inconvenient.
+
 **On speed, the median and the total disagree, so both are printed.** This engine is faster on
-**533 of the 885 documents** and faster at the median (0.098 s against 0.107 s), while being
+**493 of the 885 documents** and faster at the median (0.097 s against 0.103 s), while being
 1.5% slower over the corpus as a whole. Both are true because the total is not describing a
 document: **the ten slowest documents, 1.1% of the corpus, carry 40% of the runtime, and the
 slowest fifty carry 72%.** A reader converting a document should read the median; someone
@@ -188,6 +196,28 @@ The two most recent stages cost what they cost, measured by timing them directly
 differencing two runs: the column detector 2.6% of conversion time, the cell-overlap scan 1.4%.
 Run-to-run wall-clock on the same machine moves by a comparable amount, which is why a total
 runtime lifted from a different run is not evidence about either.
+
+### Pages with no text layer
+
+A page whose character list is empty has nothing to extract — a scan, or an image-only export.
+The stock converter emits nothing for it, and the page silently ceases to exist downstream.
+This engine emits one line instead:
+
+```
+[trimitdown-pdf: no extractable text layer on page 12]
+```
+
+**This is not a feature that recovers anything.** It adds no information the page did not have,
+it is not OCR, and on a document that is nothing but scans the entire output is markers. What
+it buys is that the gap is *findable*: a pipeline can grep for it and route those pages to OCR
+rather than index a hole it never noticed it had. The substring `no extractable text layer` is
+treated as a stable contract for that reason.
+
+It costs. The two collections held 581 such pages, about 53 characters each — roughly 9 000
+tokens, which is where this run's token total sits above the previous one. The measurement
+script counts those tokens against this engine deliberately and does not score the markers on
+the parity rows, since a page number inside a marker is the engine reporting an absence, not
+data it claims to have extracted.
 
 ### Broken-source documents
 

@@ -71,18 +71,22 @@ print(pdf_to_markdown("report.pdf"))
 ## Measured against markitdown
 
 `scripts/measure_corpus.py` in the repository ran both engines over two
-independent collections — 893 real-world PDFs, 597 MB, 226 of them without a
-ruled grid anywhere — on one machine at one pdfplumber version (2026-07-24):
+independent collections — 891 real-world PDFs, about 600 MB — on one machine at
+one pdfplumber version (2026-07-24). Six of them are broken at the source,
+encoding almost no word spacing, and are reported separately in
+[`docs/pdf-engine.md`](https://github.com/serjdrej/trimitdown/blob/main/docs/pdf-engine.md)
+so that a handful of pathological files cannot carry the result. The headline is
+the other 885, 226 of which have no ruled grid anywhere:
 
 | | markitdown | trimitdown-pdf |
 | --- | --- | --- |
 | table rows on grid-less documents | 5624 | **2** |
-| glued word runs | 1495 | **466** |
-| documents containing glue | 30 (3%) | **19 (2%)** |
+| glued word runs | 107 | **53** |
+| documents containing glue | 24 (3%) | **18 (2%)** |
 | digits invented vs page text | 0 | 0 |
 | digits lost vs page text | 0 | 0 |
 | conversion failures | 0 | 0 |
-| output tokens | 5 873 707 | **5 233 639** (−10.9%) |
+| output tokens | 5 528 360 | **5 011 180** (−9.4%) |
 
 The invented-table result is the one that holds: it reproduces on each
 collection separately (1497→2 and 4127→0), no document scores worse than
@@ -90,17 +94,17 @@ markitdown, and the lower token count is mostly those rows never being invented.
 
 **Fewer tokens, and not by dropping content.** Both engines were scored against
 each page's own `extract_text()`: neither invented a digit and neither lost one,
-across all 893 documents. That check covers digits only — it does not prove
+across all 885 documents. That check covers digits only — it does not prove
 word-level completeness — but it rules out the failure mode where a converter
 looks efficient because it quietly discards what it could not handle.
 
-Where this engine *costs* tokens it says so. On 309 of the 893 documents the
+Where this engine *costs* tokens it says so. On 309 of the 885 documents the
 output is larger, by a median of 32 tokens; eighteen exceed 1000. Those are the
 table-dense documents, and the excess is markdown table syntax — pipes and
 separator rows are what it costs to keep a structure that flat text loses.
 
-Glue is the smaller win. The engines tie on 872 of the 893 documents; this one
-is better on 17 and *loses* on four, the worst by 17 runs, on forms that encode
+Glue is the smaller win. The engines tie on 870 of the 885 documents; this one
+is better on 11 and *loses* on four, the worst by 17 runs, on forms that encode
 spacing with real space characters. That is a documented defect, not a rounding
 artifact.
 
