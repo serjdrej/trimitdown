@@ -12,6 +12,7 @@
 [![Latest release](https://img.shields.io/github/v/release/serjdrej/trimitdown)](https://github.com/serjdrej/trimitdown/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/serjdrej/trimitdown/total)](https://github.com/serjdrej/trimitdown/releases)
 [![macOS build](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml/badge.svg)](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml)
+[![PyPI](https://img.shields.io/pypi/v/trimitdown-pdf?label=trimitdown-pdf&color=3775A9)](https://pypi.org/project/trimitdown-pdf/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-iOS%20PWA%20·%20Windows%20·%20macOS%20·%20Docker-8A6FE8)
 

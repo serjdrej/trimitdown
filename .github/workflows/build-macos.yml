@@ -16,9 +16,9 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -51,7 +51,7 @@ jobs:
       - name: Zip .app bundle
         run: ditto -c -k --sequesterRsrc --keepParent dist/TrimItDown.app TrimItDown-macOS-${{ matrix.arch }}.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: TrimItDown-macOS-${{ matrix.arch }}
           path: TrimItDown-macOS-${{ matrix.arch }}.zip
