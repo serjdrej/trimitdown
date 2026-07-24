@@ -434,3 +434,16 @@ def gapped_words_in_cell() -> bytes:
         f"[(different) {GAP_TJ} (stationary)] TJ ET\n"
     )
     return _build_pdf(cs)
+
+
+def unspaced_lines(n: int = 55) -> bytes:
+    """A document that encodes no word spacing at all — every line is one
+    unbroken run of letters, which both converters report as glued.
+
+    Stands in for the broken-source documents the real corpus holds: scans and
+    exports where no gap is wide enough to split a word, and where the stock
+    converter's glue count runs into the hundreds. `n` is above
+    measure_corpus.BROKEN_SOURCE_GLUE on purpose, so a corpus containing this
+    file must produce a population split.
+    """
+    return _build_pdf("".join(_text(72, 720 - i * 12, "a" * 30) for i in range(n)))

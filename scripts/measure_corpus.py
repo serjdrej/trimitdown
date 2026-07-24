@@ -330,14 +330,27 @@ def main() -> int:
             return 1
 
     limit = args.max_mb * 1024 * 1024
-    # Same basename in two collections is the same document. Counting it twice
-    # inflates every total and silently weights it double in the medians.
-    by_name = {}
+    # The same document in two overlapping collections is one document.
+    # Counting it twice inflates every total and weights it double in the
+    # medians. The key is name AND size, never the name alone: a reader whose
+    # tree holds twelve different invoice.pdf files must measure twelve
+    # documents, not one, and losing eleven of them silently would be the same
+    # class of defect this de-duplication exists to prevent.
+    by_key = {}
+    dropped = 0
     for root in args.corpus:
         for q in root.rglob("*.pdf"):
-            if not limit or q.stat().st_size < limit:
-                by_name.setdefault(q.name, q)
-    paths = sorted(by_name.values())
+            size = q.stat().st_size
+            if limit and size >= limit:
+                continue
+            if (q.name, size) in by_key:
+                dropped += 1
+                continue
+            by_key[(q.name, size)] = q
+    paths = sorted(by_key.values())
+    if dropped:
+        print(f"{dropped} duplicate(s) skipped: same name and size in more than one "
+              f"root", file=sys.stderr)
     if args.limit and args.limit < len(paths):
         # A random sample, not the alphabetical head: filenames cluster by
         # source, so the first N documents are one folder's worth, not a

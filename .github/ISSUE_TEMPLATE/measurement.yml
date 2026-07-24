@@ -5,9 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. The numbers in `docs/pdf-engine.md` come from one collection of
-        ~700 documents, skewed toward Russian technical material. Results from a corpus
-        that looks nothing like that one are worth more than another run on ours.
+        Thank you. The numbers in `docs/pdf-engine.md` come from two collections,
+        891 documents in all, skewed toward Russian technical material. Results from a
+        corpus that looks nothing like those are worth more than another run on ours.
 
         **Send the summary whatever it says.** If only losses came in, the pooled data
         would be a sample made of failures: it could show where the engine breaks, never

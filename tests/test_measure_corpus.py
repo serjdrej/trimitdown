@@ -222,16 +222,98 @@ def test_aggregate_totals_one_subset_without_remeasuring():
     # Every headline figure must share one denominator. Accumulating while
     # measuring counted documents that parsed but failed to convert, so the
     # document count and the gridless count described different populations.
+    # Deliberately asymmetric in the grid counts: with one gridless document out
+    # of two, an inverted counter returns the same 1 and the assertion passes on
+    # broken code.
     rows = [
         {"file": "a.pdf", "grids": 0, "bytes": 10, "notext": 2,
          "markitdown": {"glued": 1, "s": 0.5}, "trimitdown": {"glued": 0, "s": 0.25}},
         {"file": "b.pdf", "grids": 3, "bytes": 30, "notext": 0,
          "markitdown": {"glued": 4, "s": 1.5}, "trimitdown": {"glued": 2, "s": 0.75}},
+        {"file": "c.pdf", "grids": 7, "bytes": 20, "notext": 0,
+         "markitdown": {"glued": 0, "s": 0.0}, "trimitdown": {"glued": 0, "s": 0.0}},
     ]
     totals, elapsed, n_bytes, n_gridless, n_notext = mc.aggregate(rows)
-    assert (n_bytes, n_gridless, n_notext) == (40, 1, 2)
+    assert (n_bytes, n_gridless, n_notext) == (60, 1, 2)
     assert totals["markitdown"]["glued"] == 5
     assert totals["trimitdown"]["glued"] == 2
     # Timing is not a count and must stay out of the count columns.
     assert "s" not in totals["markitdown"]
     assert elapsed == {"markitdown": 2.0, "trimitdown": 1.0}
+
+
+def test_broken_source_document_leaves_the_headline_in_a_real_run(tmp_path):
+    """Pins the split at its point of use, which a unit test cannot do.
+
+    split_by_source_quality is covered above in isolation, but nothing there
+    sees whether main() still calls it. Replacing that one call with
+    `well, broken = rows, []` leaves every other test in this file green while
+    silently folding the broken-source documents back into the headline -- the
+    exact incident the split exists to prevent, and the one that moved a
+    published glue result from 2.0x to 3.2x.
+    """
+    root = tmp_path / "pdfs"
+    root.mkdir()
+    root.joinpath("clean.pdf").write_bytes(pdf_fixtures.prose_only())
+    root.joinpath("no-spacing.pdf").write_bytes(pdf_fixtures.unspaced_lines())
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(root), "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    # The headline counts the clean document alone...
+    assert "documents: 1 " in result.stdout
+    # ...and the other one is reported, not discarded.
+    assert "Reported separately: 1 document" in result.stdout
+
+
+def test_engine_markers_stay_out_of_the_parity_rows_in_a_real_run(tmp_path):
+    """Pins without_engine_markers at its point of use.
+
+    A page with no text layer renders as a marker naming the page number, and
+    the baseline for that page is empty by definition -- so scored naively the
+    page number reads as a digit the engine invented. That produced 837 phantom
+    "duplicated digits" across the private corpora. Removing the exclusion from
+    score() passes every unit test in this file, so the guarantee is asserted
+    end to end instead.
+    """
+    root = tmp_path / "pdfs"
+    root.mkdir()
+    root.joinpath("scan.pdf").write_bytes(pdf_fixtures.image_only_page())
+    details = tmp_path / "d.jsonl"
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(root), "--details", str(details)],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+
+    rows = [json.loads(line) for line in details.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 1
+    # Without the exclusion this is 1: the "1" of "on page 1".
+    assert rows[0]["trimitdown"]["digit_excess"] == 0
+    assert rows[0]["trimitdown"]["digit_deficit"] == 0
+
+
+def test_documents_sharing_a_name_but_not_a_size_are_both_measured(tmp_path):
+    """De-duplication must not cost a reader their own documents.
+
+    The same document in two overlapping collections is one document. Two
+    different documents that happen to share a basename are two -- a reader
+    whose tree holds an invoice.pdf in every project folder must not silently
+    measure one of them.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    for root in (a, b):
+        root.mkdir()
+    a.joinpath("doc.pdf").write_bytes(pdf_fixtures.prose_only())
+    b.joinpath("doc.pdf").write_bytes(pdf_fixtures.ruled_table())
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b),
+         "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "documents: 2 " in result.stdout

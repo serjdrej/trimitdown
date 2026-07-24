@@ -352,7 +352,8 @@ engine breaks, but it could never say how often, because the runs where nothing 
 never counted. That is the same mistake as counting table candidates without inspecting them,
 which is how a page frame ended up in this project's own numbers once.
 
-The published table comes from one collection, skewed toward Russian technical documents.
+The published table comes from two collections of the same flavour, skewed toward Russian
+technical documents.
 Pooled across corpora in other languages, other layouts and other scanners, the same rows
 would mean something a single collection cannot make them mean. Wins and ties carry that
 weight as much as losses do.
