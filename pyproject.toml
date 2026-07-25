@@ -53,6 +53,9 @@ dependencies = [
 # Нужен только тому, кто поднимает HTTP-слой (Docker-образ, десктопная сборка).
 server = ["fastapi", "uvicorn", "python-multipart"]
 
+[project.scripts]
+trimitdown = "trimitdown.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/serjdrej/trimitdown"
 Repository = "https://github.com/serjdrej/trimitdown"
