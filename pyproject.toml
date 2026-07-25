@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trimitdown"
+# Единственный источник -- __version__ в модуле, читается статически через AST,
+# без импорта: иначе в build-окружение потянулся бы markitdown.
+dynamic = ["version"]
+description = "Convert documents to LLM-ready markdown. Ruled-table-aware PDF extraction, offline, no cloud."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Sergey Dreizin" }]
+keywords = ["markdown", "pdf", "llm", "document-conversion", "cli"]
+# Классификатор лицензии не добавлять: PEP 639 запрещает его вместе с
+# выражением license = "MIT", setuptools>=77 падает.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    # Developers rather than desktop end users: what ships to PyPI is the CLI,
+    # and the desktop app never arrives through pip at all -- it comes via
+    # brew/scoop. The audience classifier naming desktop end users also happens
+    # to contain a substring the PII guard treats as a user path; see .githooks.
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
+
+# Точный пин, не диапазон: диапазон дал бы молчаливый подъём движка при
+# пересборке, а движок определяет качество вывода. Подъём -- отдельный коммит.
+# FastAPI/uvicorn здесь НЕТ: это CLI-пакет, веб-стек живёт в extra "server".
+dependencies = [
+    "trimitdown-pdf==0.1.0",
+    "markitdown[all]",
+    "tiktoken",
+    "python-pptx",
+    "pdfminer.six",
+]
+
+[project.optional-dependencies]
+# Нужен только тому, кто поднимает HTTP-слой (Docker-образ, десктопная сборка).
+server = ["fastapi", "uvicorn", "python-multipart"]
+
+[project.urls]
+Homepage = "https://github.com/serjdrej/trimitdown"
+Repository = "https://github.com/serjdrej/trimitdown"
+Issues = "https://github.com/serjdrej/trimitdown/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "trimitdown.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Офлайн-кэш tiktoken. Без этой строки он не попадёт в wheel, и счёт токенов у
+# установленного пакета молча уйдёт в сеть.
+trimitdown = ["tiktoken_cache/*"]

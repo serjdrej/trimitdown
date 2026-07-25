@@ -30,6 +30,16 @@ root=$(dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)")
 #   - an email address anywhere in added content
 #   - the NAS address (192.168.1.100 and .10 are deliberate placeholders)
 #   - any Windows user path
+#
+# On the breadth of the last pattern, learned twice on 2026-07-24: it matches the
+# word Users followed by a separator ANYWHERE, including ordinary prose and even a
+# comment discussing the match. The PyPI audience classifier for desktop end users
+# contains exactly that shape, and so did the comment first written to explain
+# dropping it. Both were reworded; the pattern was left alone. That is the standing
+# decision -- this guard exists because real personal data reached a public
+# repository, so metadata and prose bend around it rather than the reverse. If you
+# are here because a legitimate line was rejected, reword the line. Narrowing the
+# pattern needs the owner's agreement, not a workaround.
 patterns='СНИЛС
 Паспорт
 ИНН

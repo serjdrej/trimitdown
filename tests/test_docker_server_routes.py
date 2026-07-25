@@ -59,7 +59,7 @@ def test_archive_zip_downloads_requested_files(client, tmp_path):
 
 
 def test_mode_endpoint_returns_server_mode_and_version(client):
-    from core.version import VERSION
+    from trimitdown import __version__ as VERSION
 
     response = client.get("/api/mode")
 

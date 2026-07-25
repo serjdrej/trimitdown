@@ -6,6 +6,7 @@ import tempfile
 import zipfile
 from collections.abc import AsyncIterator
 from datetime import datetime
+from importlib import resources
 from pathlib import Path
 
 import tiktoken
@@ -21,7 +22,12 @@ md = MarkItDown()
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
 
-os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(Path(__file__).parent / "tiktoken_cache"))
+# Кэш переехал в пакет вместе с конверсией. Строка временная: в Task 2 этот
+# модуль перестанет считать токены сам и переменную будет выставлять
+# trimitdown.convert при импорте.
+os.environ.setdefault(
+    "TIKTOKEN_CACHE_DIR", str(resources.files("trimitdown") / "tiktoken_cache")
+)
 TOKENS_PER_UNIT_ESTIMATE = 2250  # midpoint of the documented 1500-3000 tokens/page vision-estimate
                                   # range (Anthropic docs) — used for the PDF/PPTX before/after
                                   # comparison only. The frontend never renders a negative saving:
