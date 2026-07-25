@@ -39,7 +39,11 @@ classifiers = [
 # FastAPI/uvicorn здесь НЕТ: это CLI-пакет, веб-стек живёт в extra "server".
 dependencies = [
     "trimitdown-pdf==0.1.0",
-    "markitdown[all]",
+    # Same narrow extras as requirements.txt, and for the same reason recorded
+    # there: the audio-transcription and Azure extras are heavy and useless
+    # offline, which is what this package claims to be. "all" would pull an
+    # Azure client into every install.
+    "markitdown[docx,pdf,pptx,xlsx,xls,outlook]",
     "tiktoken",
     "python-pptx",
     "pdfminer.six",

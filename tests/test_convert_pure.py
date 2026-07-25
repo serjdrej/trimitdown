@@ -49,8 +49,17 @@ def test_unreadable_input_raises_conversion_error_not_http(tmp_path):
 
 
 def test_count_tokens_uses_the_offline_cache():
-    # Кэш едет в пакете как package data; если путь к нему сломан, tiktoken
-    # полезет в сеть и тест упадёт на машине без интернета.
+    # Кэш едет в пакете как package data. Проверять только count_tokens(...) > 0
+    # бесполезно: при неразрешённом пути tiktoken молча скачает BPE из сети, и
+    # тест пройдёт везде, где есть интернет -- то есть на всех раннерах CI.
+    # Поэтому утверждается сам факт, что каталог разрешился и файл на месте.
+    import os
+
+    from trimitdown import convert  # noqa: F401  -- импорт выставляет переменную
+
+    cache_dir = Path(os.environ["TIKTOKEN_CACHE_DIR"])
+    assert cache_dir.is_dir(), f"кэш не разрешился: {cache_dir}"
+    assert any(cache_dir.iterdir()), f"кэш пуст: {cache_dir}"
     assert count_tokens("hello world") > 0
 
 
