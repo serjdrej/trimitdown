@@ -98,6 +98,25 @@ class TestPdfRouting:
 
         assert result.text == "# From pdfplumber\n"
 
+    def test_uppercase_suffix_still_routes_through_pdf_extract(self, monkeypatch):
+        # Суффикс приходит с диска/имени файла как есть -- нормализация регистра
+        # это забота ядра (convert_path лоуэркейсит его перед сравнением).
+        # Каждый другой тест в этом классе передаёт литерал ".pdf" уже в нижнем
+        # регистре, так что удаление этой нормализации в convert_path останется
+        # незамеченным без этого теста: файл "отчёт.PDF" молча уйдёт в
+        # markitdown вместо нашего экстрактора.
+        class Boom:
+            def convert(self, path):
+                raise AssertionError("markitdown must not see a .PDF")
+
+        monkeypatch.setattr(pure, "md", Boom())
+        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
+
+        result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".PDF")
+
+        assert result.text == "# From pdfplumber\n"
+
     def test_non_pdf_still_routes_through_markitdown(self, monkeypatch):
         class FakeResult:
             text_content = "# From markitdown\n"

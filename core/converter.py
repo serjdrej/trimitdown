@@ -16,11 +16,18 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-# count_tokens и safe_stem -- намеренный реэкспорт, не мусор: внешние
-# вызывающие берут эти имена из core.converter, и импорт держит публичную
-# поверхность модуля неизменной. Пометка линтера "unused" здесь ложная.
-# TIKTOKEN_CACHE_DIR этот модуль больше не выставляет -- его ставит
-# trimitdown.convert при импорте, одним местом на оба слоя.
+# count_tokens и safe_stem -- намеренный реэкспорт, не мусор: это часть
+# объявленной публичной поверхности core.converter, которую пинит
+# TestPublicSurface.test_core_converter_still_exports_the_names_the_apps_import
+# в tests/test_converter.py. Причина держать их разная в зависимости от имени:
+# convert_and_save, convert_batch, delete_file, list_archive, safe_path и
+# zip_archive_files нужны здесь потому, что их берут server_app.py и
+# docker-server/app.py; count_tokens и safe_stem (а также save_unique, который
+# живёт прямо в этом модуле) нужны потому, что они часть той же объявленной
+# поверхности и тест-сьют упражняет их через core.converter, а не потому, что
+# их зовёт приложение. Пометка линтера "unused" здесь всё равно ложная --
+# удалять нечего. TIKTOKEN_CACHE_DIR этот модуль больше не выставляет -- его
+# ставит trimitdown.convert при импорте, одним местом на оба слоя.
 from trimitdown.convert import ConversionError, convert_bytes, count_tokens, safe_stem
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB

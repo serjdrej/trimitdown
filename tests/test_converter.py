@@ -269,10 +269,18 @@ class TestCountTokens:
 
 class TestPublicSurface:
     def test_core_converter_still_exports_the_names_the_apps_import(self):
-        # server_app.py и docker-server/app.py берут эти имена из core.converter
-        # и не менялись при расщеплении. count_tokens и safe_stem теперь живут в
-        # ядре и стоят здесь реэкспортом -- без этого теста «неиспользуемый
-        # импорт» однажды вычистят, и оба приложения упадут на импорте.
+        # Эти девять имён -- объявленная публичная поверхность core.converter,
+        # и она держится намеренно, но по разным причинам. convert_and_save,
+        # convert_batch, list_archive, delete_file, safe_path и
+        # zip_archive_files не менялись при расщеплении: server_app.py и
+        # docker-server/app.py берут их из core.converter, поэтому удаление
+        # сломает импорт в обоих приложениях. count_tokens и safe_stem
+        # (реэкспорт из ядра) и save_unique (определён здесь) в продакшене
+        # никто извне не зовёт -- их единственный вызывающий это тест-сьют,
+        # который упражняет их через core.converter. Без этого теста
+        # «неиспользуемый импорт» однажды вычистят -- и в первом случае оба
+        # приложения упадут на импорте, а во втором тест-сьют молча потеряет
+        # покрытие.
         for name in (
             "convert_and_save",
             "convert_batch",
@@ -291,7 +299,8 @@ class TestPublicSurface:
         # веб-слоя, иначе тест снова начнёт патчить модуль, который объектом не
         # владеет, и позеленеет над мёртвым кодом.
         for name in ("md", "pdf_to_markdown", "_estimate_before_tokens",
-                     "_count_pdf_pages", "_count_pptx_slides", "TOKENS_PER_UNIT_ESTIMATE"):
+                     "_count_pdf_pages", "_count_pptx_slides", "TOKENS_PER_UNIT_ESTIMATE",
+                     "tiktoken", "_get_encoding", "_encoding"):
             assert not hasattr(converter, name), (
                 f"core.converter всё ещё держит {name} -- вторая копия логики конверсии"
             )

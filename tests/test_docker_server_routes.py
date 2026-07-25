@@ -17,7 +17,6 @@ from trimitdown import convert as pure
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(pure, "md", pure.md)  # no-op, keeps import order explicit
     import app as docker_app
     monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
     return TestClient(docker_app.app)
