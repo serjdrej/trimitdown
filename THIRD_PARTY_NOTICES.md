@@ -67,7 +67,7 @@ THE SOFTWARE.
 
 [https://github.com/openai/tiktoken](https://github.com/openai/tiktoken) — BPE tokeniser used to
 count tokens for conversion output. Version 0.13.0. The `cl100k_base` encoding data file it
-depends on is vendored locally at `core/tiktoken_cache/` so it never needs to be fetched at
+depends on is vendored locally at `src/trimitdown/tiktoken_cache/` so it never needs to be fetched at
 runtime; that file is OpenAI's redistributed BPE data (not source code), originally downloaded
 from `https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken`.
 

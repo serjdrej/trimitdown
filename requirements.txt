@@ -8,16 +8,12 @@ markitdown[docx,pdf,pptx,xlsx,xls,outlook]
 # The pin must stay inside the range the package declares, or an install of both
 # resolves to a downgrade. docker-server/Dockerfile deliberately does NOT pin.
 pdfplumber==0.11.10
-# The PDF engine lives in packages/trimitdown-pdf and is published to PyPI as
-# trimitdown-pdf (0.1.0, 2026-07-24). This line stays a path anyway: the app
-# consumes the module from the working tree so there is exactly one copy of it
-# in this repo, and a release cannot ship an app built against a different
-# revision of the engine than the one beside it. Switching to a version range
-# is a separate decision -- it changes what PyInstaller bundles and what the
-# Docker image resolves, and it is not a documentation edit.
-# Plain path, not -e: PyInstaller bundles a normally-installed package, an
-# editable install it cannot follow.
-# For local development install it editable on top -- see DEVELOPMENT.md.
+# Приложение ставится из рабочего дерева вместе с серверным extra. Пин
+# trimitdown-pdf==0.1.0 живёт в pyproject.toml; строка ниже перекрывает его
+# локальной сборкой движка, чтобы разработка и CI проверяли НАШИ правки, а не
+# опубликованную версию. Номера совпадают, поэтому конфликта нет -- при подъёме
+# версии движка пин в pyproject.toml надо поднять тем же коммитом.
+-e .[server]
 ./packages/trimitdown-pdf
 pywebview
 requests

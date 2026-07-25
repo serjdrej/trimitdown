@@ -13,10 +13,18 @@ COPY docker-server/app.py docker-server/generate_icons.py mac-build/icon_master_
 COPY docker-server/static static
 COPY core core
 
-# core/converter.py imports trimitdown_pdf, which no longer lives under core/.
-# Without this the image builds fine and then fails at the first PDF upload.
+# Движок ставится из рабочего дерева намеренно: NAS собирает текущую ревизию,
+# это наш стенд, а не пользовательский канал.
 COPY packages/trimitdown-pdf packages/trimitdown-pdf
 RUN pip install --no-cache-dir ./packages/trimitdown-pdf
+
+# Приложение ставится ПАКЕТОМ, а не копированием src/: только так консольная
+# команда попадает на PATH, и `docker exec trimitdown-web trimitdown convert ...`
+# начинает работать. Это и есть терминальный доступ к серверу -- вместо
+# клиентского --server в pip-пакете.
+COPY pyproject.toml README.md LICENSE ./
+COPY src src
+RUN pip install --no-cache-dir --no-deps .
 
 RUN python generate_icons.py
 RUN mkdir -p /app/archive

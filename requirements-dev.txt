@@ -1,6 +1,5 @@
+# Тесты импортируют trimitdown из src/; editable-установка приложения приезжает
+# из requirements.txt (`-e .[server]`), дублировать её здесь нечем.
 -r requirements.txt
-# The tests import trimitdown, which lives in src/ and is not on sys.path
-# otherwise. Editable so a change in src/ is picked up without reinstalling.
--e .
 pytest
 httpx

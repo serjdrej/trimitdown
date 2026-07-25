@@ -41,8 +41,10 @@ WKWebView через cocoa-бэкенд). Упаковка в один файл 
 (`convert_batch()`/`zip_archive_files()` в `core/converter.py`, роуты `/api/convert-batch` и
 `/api/archive-zip`), live-preview (вендоренные `marked.js`+`DOMPurify` в `static/vendor/`),
 страница приватности (`static/privacy.html`), счётчик токенов (`count_tokens()`, вендоренный
-словарь `tiktoken` в `core/tiktoken_cache/` — оба build-таргета, `docker-server/Dockerfile` и
-`main.spec`, теперь явно тащат `tiktoken` и эту директорию).
+словарь `tiktoken` в `src/trimitdown/tiktoken_cache/`). Словарь едет внутри пакета `trimitdown`
+(`package-data` в `pyproject.toml`), поэтому в Docker-образ он попадает вместе с установкой
+пакета, а `main.spec` и `windows.spec` кладут его в бандл по пути пакета —
+`trimitdown/tiktoken_cache`, ровно туда, куда смотрит `trimitdown.convert`.
 
 ## Известная проблема — ПОЧИНЕНО (см. `main.spec`)
 
@@ -105,11 +107,19 @@ pip install -e packages/trimitdown-pdf   # см. ниже
 python main.py
 ```
 
-Вторая команда нужна только для разработки. `requirements.txt` ставит
-`./packages/trimitdown-pdf` обычной установкой — так его подхватывает PyInstaller
-при сборке, но правки в движке не видны, пока не переустановишь. Установка поверх
-с `-e` делает их видимыми сразу. Если этого не сделать, легко править движок и
-недоумевать, почему приложение работает по-старому.
+`requirements.txt` ставит само приложение (`-e .[server]`) вместе с серверными
+зависимостями и перекрывает пин движка локальной сборкой из
+`packages/trimitdown-pdf`, чтобы тесты проверяли ваши правки, а не
+опубликованную на PyPI версию.
+
+После установки доступна команда `trimitdown convert файл.pdf` — тот же CLI,
+что получает пользователь через `uvx trimitdown`.
+
+Вторая команда нужна только для разработки самого движка: `requirements.txt`
+ставит `./packages/trimitdown-pdf` обычной установкой — так его подхватывает
+PyInstaller при сборке, но правки в движке не видны, пока не переустановишь.
+Установка поверх с `-e` делает их видимыми сразу. Если этого не сделать, легко
+править движок и недоумевать, почему приложение работает по-старому.
 
 **Перед сборкой editable-установку надо снять:**
 
