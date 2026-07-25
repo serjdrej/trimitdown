@@ -67,6 +67,13 @@ def _run_convert(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Converted documents and the paths they came from carry characters the console
+    # codepage cannot encode (m³/h, ≥, Cyrillic); on a Russian Windows the first one
+    # would abort the process. stdout is written as bytes below for the document
+    # body, but error messages go through the text layer and need this.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
     args = _build_parser().parse_args(argv)
     if args.command == "convert":
         return _run_convert(args)

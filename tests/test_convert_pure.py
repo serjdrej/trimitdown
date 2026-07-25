@@ -49,6 +49,21 @@ def test_unreadable_input_raises_conversion_error_not_http(tmp_path):
         convert_path(broken)
 
 
+def test_unopenable_file_raises_conversion_error_not_the_raw_os_error(tmp_path):
+    # convert_path's header read used to happen before the try block, so a file
+    # that exists but cannot be opened (permission denied, locked, device error)
+    # raised the raw OSError straight through -- a traceback in the CLI and a 500
+    # where a 422 belonged in the web layer. A directory is the simplest portable
+    # way to trigger that: it passes as a path, but open(dir, "rb") raises
+    # PermissionError/IsADirectoryError on both Windows and POSIX. Verified on
+    # this machine (Windows): open() on a directory raises PermissionError.
+    directory = tmp_path / "not_a_file.pdf"
+    directory.mkdir()
+
+    with pytest.raises(ConversionError):
+        convert_path(directory)
+
+
 # tiktoken выводит имя файла кэша как sha1 от URL энкодинга. Значение
 # детерминированное, поэтому его можно утверждать: если blob пропал из пакета, а
 # каталог остался, tiktoken молча скачает его из сети.

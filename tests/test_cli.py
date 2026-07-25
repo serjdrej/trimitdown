@@ -55,6 +55,31 @@ def test_stdin_with_type_reports_bad_input_cleanly():
     assert "Traceback" not in result.stderr
 
 
+def test_unreadable_file_reports_cleanly(tmp_path):
+    # A directory won't do here: _run_convert's path.is_file() gate rejects it
+    # before convert_path (and its now-fixed open()-inside-try) is ever reached.
+    # To exercise that code path we need a real file that passes is_file() but
+    # still fails to open for reading. msvcrt.locking (Windows) takes an
+    # exclusive byte-range lock from this test process; the CLI subprocess then
+    # hits PermissionError on open(), same as a permission-denied or
+    # locked-by-another-process file would in the field.
+    import msvcrt
+
+    locked = tmp_path / "locked.pdf"
+    locked.write_bytes(b"%PDF-1.4 " + b"x" * 2000)
+
+    with open(locked, "r+b") as f:
+        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 2000)
+        try:
+            result = run(["convert", str(locked)])
+        finally:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 2000)
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
 def test_missing_file_reports_cleanly(tmp_path):
     result = run(["convert", str(tmp_path / "nope.pdf")])
 

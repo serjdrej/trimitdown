@@ -107,10 +107,11 @@ def convert_path(path: Path | str) -> ConversionResult:
     """Сконвертировать файл на диске. Синхронно: асинхронность -- забота веб-слоя."""
     path = Path(path)
     suffix = path.suffix.lower()
-    with open(path, "rb") as f:
-        head = f.read(1024)
 
     try:
+        with open(path, "rb") as f:
+            head = f.read(1024)
+
         # PDFs take our own extractor: markitdown's PDF converter glues words
         # together, invents tables out of prose, and drops real ones. No fallback
         # to markitdown here — both sit on pdfminer, so a file that breaks one
