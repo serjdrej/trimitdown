@@ -9,12 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "docker-server")
 import pytest
 from fastapi.testclient import TestClient
 
-from core import converter
+# Конверсию подменяем на её собственном модуле: core.converter теперь только
+# зовёт ядро и объектом markitdown не владеет. Сам docker-server/app.py при
+# расщеплении не менялся -- он берёт те же имена из core.converter.
+from trimitdown import convert as pure
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(converter, "md", converter.md)  # no-op, keeps import order explicit
+    monkeypatch.setattr(pure, "md", pure.md)  # no-op, keeps import order explicit
     import app as docker_app
     monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
     return TestClient(docker_app.app)
@@ -24,7 +27,7 @@ def test_convert_batch_streams_one_event_per_file(client, monkeypatch):
     class FakeResult:
         text_content = "converted"
 
-    monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+    monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
 
     files = [
         ("files", ("a.txt", io.BytesIO(b"one"), "text/plain")),
