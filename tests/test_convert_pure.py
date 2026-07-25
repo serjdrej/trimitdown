@@ -48,18 +48,25 @@ def test_unreadable_input_raises_conversion_error_not_http(tmp_path):
         convert_path(broken)
 
 
-def test_count_tokens_uses_the_offline_cache():
-    # Кэш едет в пакете как package data. Проверять только count_tokens(...) > 0
-    # бесполезно: при неразрешённом пути tiktoken молча скачает BPE из сети, и
-    # тест пройдёт везде, где есть интернет -- то есть на всех раннерах CI.
-    # Поэтому утверждается сам факт, что каталог разрешился и файл на месте.
-    import os
+# tiktoken выводит имя файла кэша как sha1 от URL энкодинга. Значение
+# детерминированное, поэтому его можно утверждать: если blob пропал из пакета, а
+# каталог остался, tiktoken молча скачает его из сети.
+CL100K_BLOB = "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"
 
-    from trimitdown import convert  # noqa: F401  -- импорт выставляет переменную
+
+def test_count_tokens_uses_the_offline_cache():
+    # Кэш едет в пакете как package data. Слабых проверок здесь две, и обе уже
+    # были опробованы: count_tokens(...) > 0 проходит, когда путь не разрешился
+    # вовсе (tiktoken качает BPE из сети, а сеть есть на всех раннерах CI), а
+    # "каталог непуст" проходит, когда blob потерян при упаковке, но рядом лежит
+    # README. Утверждать надо ровно тот файл, который нужен энкодингу.
+    import os
 
     cache_dir = Path(os.environ["TIKTOKEN_CACHE_DIR"])
     assert cache_dir.is_dir(), f"кэш не разрешился: {cache_dir}"
-    assert any(cache_dir.iterdir()), f"кэш пуст: {cache_dir}"
+    assert (cache_dir / CL100K_BLOB).is_file(), (
+        f"blob cl100k_base отсутствует в {cache_dir}: счёт токенов уйдёт в сеть"
+    )
     assert count_tokens("hello world") > 0
 
 
