@@ -1,80 +1,36 @@
+"""HTTP- и архивный слой над чистой конверсией.
+
+Сама конверсия живёт в trimitdown.convert и ничего не знает про HTTP. Здесь --
+только то, что про UploadFile, JSONResponse, коды ответов и файлы на диске.
+Держать их порознь обязательно: пакет trimitdown публикуется на PyPI как CLI и
+не должен тянуть веб-стек.
+"""
 import asyncio
 import io
 import os
-import re
-import tempfile
 import zipfile
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
 
-import tiktoken
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from markitdown import MarkItDown
-from pdfminer.pdfpage import PDFPage
-from pptx import Presentation
 
-from trimitdown_pdf import pdf_to_markdown
-
-md = MarkItDown()
+# count_tokens и safe_stem -- намеренный реэкспорт, не мусор: это часть
+# объявленной публичной поверхности core.converter, которую пинит
+# TestPublicSurface.test_core_converter_still_exports_the_names_the_apps_import
+# в tests/test_converter.py. Причина держать их разная в зависимости от имени:
+# convert_and_save, convert_batch, delete_file, list_archive, safe_path и
+# zip_archive_files нужны здесь потому, что их берут server_app.py и
+# docker-server/app.py; count_tokens и safe_stem (а также save_unique, который
+# живёт прямо в этом модуле) нужны потому, что они часть той же объявленной
+# поверхности и тест-сьют упражняет их через core.converter, а не потому, что
+# их зовёт приложение. Пометка линтера "unused" здесь всё равно ложная --
+# удалять нечего. TIKTOKEN_CACHE_DIR этот модуль больше не выставляет -- его
+# ставит trimitdown.convert при импорте, одним местом на оба слоя.
+from trimitdown.convert import ConversionError, convert_bytes, count_tokens, safe_stem
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
-
-os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(Path(__file__).parent / "tiktoken_cache"))
-TOKENS_PER_UNIT_ESTIMATE = 2250  # midpoint of the documented 1500-3000 tokens/page vision-estimate
-                                  # range (Anthropic docs) — used for the PDF/PPTX before/after
-                                  # comparison only. The frontend never renders a negative saving:
-                                  # if a dense page's extracted text still exceeds this estimate,
-                                  # it shows the raw result-token count with no percentage.
-_encoding = None
-
-
-def _get_encoding():
-    global _encoding
-    if _encoding is None:
-        _encoding = tiktoken.get_encoding("cl100k_base")
-    return _encoding
-
-
-def count_tokens(text: str) -> int:
-    return len(_get_encoding().encode(text))
-
-
-def _count_pdf_pages(path: Path) -> int:
-    with open(path, "rb") as f:
-        return len(list(PDFPage.get_pages(f)))
-
-
-def _count_pptx_slides(path: Path) -> int:
-    return len(Presentation(path).slides)
-
-
-def _estimate_before_tokens(suffix: str, tmp_path: str) -> tuple[int | None, str | None, int | None]:
-    try:
-        if suffix == ".pdf":
-            units = _count_pdf_pages(Path(tmp_path))
-            return units * TOKENS_PER_UNIT_ESTIMATE, "page", units
-        if suffix == ".pptx":
-            units = _count_pptx_slides(Path(tmp_path))
-            return units * TOKENS_PER_UNIT_ESTIMATE, "slide", units
-    except Exception:
-        pass
-    return None, None, None
-
-
-def safe_stem(name: str) -> str:
-    # Untrusted filenames may carry either separator regardless of host OS --
-    # this same function sanitizes uploads on the Linux-hosted Docker server
-    # and on the Windows/macOS desktop app. Path().stem's separator and root
-    # parsing differ by platform (Windows treats "\" as a separator and
-    # collapses a leading "///" into a UNC-style prefix; POSIX does neither),
-    # so a name built from Path() here would sanitize differently depending
-    # on which OS the server happens to run on. Reduce explicitly instead.
-    last = re.split(r"[/\\]", name)[-1]
-    stem = last.rsplit(".", 1)[0]
-    stem = re.sub(r"[^\w\-. ]", "_", stem, flags=re.UNICODE).strip()
-    return stem or "file"
 
 
 def _candidate_names(stem: str):
@@ -128,61 +84,28 @@ async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
             status_code=413,
             detail="Файл слишком большой (максимум 200 МБ) / File too large (200 MB max)",
         )
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(data)
-        tmp_path = tmp.name
+    # Conversion can take several seconds on large files — offload to a thread
+    # so it doesn't block the event loop for every other client. This server is
+    # meant to be hit by multiple devices at once; without this, one slow
+    # conversion would freeze even a simple archive listing for everyone.
+    #
+    # Одним вызовом вместо трёх: маршрутизация, оценка и счёт токенов теперь
+    # внутри ядра, здесь остаётся только увести их с event loop.
     try:
-        # Conversion can take several seconds on large files — offload to a thread
-        # so it doesn't block the event loop for every other client. This server is
-        # meant to be hit by multiple devices at once; without this, one slow
-        # conversion would freeze even a simple archive listing for everyone.
-        #
-        # PDFs take our own extractor: markitdown's PDF converter glues words
-        # together, invents tables out of prose, and drops real ones. No fallback
-        # to markitdown here — both sit on pdfminer, so a file that breaks one
-        # breaks the other. This is a route, not a fallback: markitdown itself
-        # dispatches by sniffing content, so an HTML/TXT file misnamed ".pdf"
-        # used to convert fine through markitdown. Checking the %PDF magic bytes
-        # (already read into `data` above) keeps real PDFs on our path and hands
-        # everything else back to markitdown's own sniffing, exactly as before.
-        #
-        # This check has now been written wrong twice. `data[:5] == b"%PDF"` was
-        # always False (5-byte slice, 4-byte literal) and made the branch a
-        # silent no-op. `data[:4] == b"%PDF"` looks right but anchors the marker
-        # at byte 0 — real PDFs can have a leading \r\n or junk before the header
-        # (measured: 2 of 719 real files, one offset by 2 bytes, one by 135) and
-        # pdfplumber parses both fine. Anchoring routed them to markitdown, which
-        # is exactly the fallback this comment forbids. pdfminer itself scans for
-        # the marker rather than anchoring, which is why those files open at all
-        # — so scan a window instead of anchoring at byte 0.
-        if suffix.lower() == ".pdf" and data[:1024].find(b"%PDF") != -1:
-            text = await asyncio.to_thread(pdf_to_markdown, tmp_path)
-        else:
-            text = (await asyncio.to_thread(md.convert, tmp_path)).text_content
-    except Exception as e:
-        Path(tmp_path).unlink(missing_ok=True)
+        result = await asyncio.to_thread(convert_bytes, data, Path(file.filename).suffix)
+    except ConversionError as e:
         raise HTTPException(status_code=422, detail=f"Не удалось сконвертировать файл: {e}")
 
-    # Page/slide counting needs the temp file to still exist on disk, so this runs
-    # before the cleanup unlink below (unlike the try/except above, which unlinks
-    # early only on the failure path).
-    before, unit, units = await asyncio.to_thread(_estimate_before_tokens, suffix.lower(), tmp_path)
-    Path(tmp_path).unlink(missing_ok=True)
-
-    filename = save_unique(archive_dir, safe_stem(file.filename), text)
-    # Token count is a non-essential stat — the converted document must always be
-    # returned. tiktoken can fail in a packaged build (e.g. the tiktoken_ext
-    # encoding-constructor plugin not bundled), and an unguarded call there turned
-    # every local-mode conversion into a 500. Degrade to a null count instead.
-    try:
-        after = count_tokens(text)
-    except Exception:
-        after = None
+    filename = save_unique(archive_dir, safe_stem(file.filename), result.text)
     return {
         "filename": filename,
-        "content": text,
-        "tokens": {"after": after, "before": before, "unit": unit, "units": units},
+        "content": result.text,
+        "tokens": {
+            "after": result.tokens_after,
+            "before": result.tokens_before,
+            "unit": result.unit,
+            "units": result.units,
+        },
     }
 
 

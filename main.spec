@@ -6,7 +6,9 @@ from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('static', 'static'), ('core/tiktoken_cache', 'core/tiktoken_cache')]
+# Кэш переехал в пакет trimitdown; в бандле он обязан лежать там, где его ищет
+# trimitdown.convert -- по пути пакета, а не в core/.
+datas = [('static', 'static'), ('src/trimitdown/tiktoken_cache', 'trimitdown/tiktoken_cache')]
 binaries = []
 hiddenimports = []
 
@@ -47,7 +49,12 @@ if Path(sysconfig.get_paths()['purelib']).resolve() not in Path(_engine.origin).
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    # src/ на пути анализа: приложение импортирует пакет trimitdown, а он лежит
+    # в src-layout и попадает в sys.path только через .pth editable-установки.
+    # Полагаться на это нельзя -- форма editable-установки зависит от версии
+    # setuptools, и в варианте с MetaPathFinder PyInstaller пакет не найдёт.
+    # Тогда сборка проходит зелёной и падает у пользователя на первой конвертации.
+    pathex=['src'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

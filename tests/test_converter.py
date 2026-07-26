@@ -10,20 +10,44 @@ from fastapi import HTTPException, UploadFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pdf_fixtures
 from core import converter
 from core.converter import (
     convert_and_save,
     delete_file,
     list_archive,
     safe_path,
-    safe_stem,
     save_unique,
 )
+from trimitdown.convert import ConversionError, ConversionResult, safe_stem
 
 
 def make_upload(filename: str, content: bytes) -> UploadFile:
     return UploadFile(io.BytesIO(content), filename=filename)
+
+
+def stub_conversion(monkeypatch, text: str, **fields):
+    """Подменить ядро на границе, которой владеет веб-слой.
+
+    Веб-слой знает про convert_bytes и больше ни про что: маршрутизация по типу
+    файла, счёт страниц и токенов проверяются в tests/test_convert_pure.py -- на
+    том модуле, который этими объектами владеет.
+    """
+    result = ConversionResult(
+        text=text,
+        tokens_after=fields.get("tokens_after"),
+        tokens_before=fields.get("tokens_before"),
+        unit=fields.get("unit"),
+        units=fields.get("units"),
+    )
+    monkeypatch.setattr(converter, "convert_bytes", lambda data, suffix: result)
+    return result
+
+
+def stub_conversion_failure(monkeypatch, message: str = "unsupported format"):
+    def fail(data, suffix):
+        raise ConversionError(message)
+
+    monkeypatch.setattr(converter, "convert_bytes", fail)
 
 
 class TestSafeStem:
@@ -124,10 +148,7 @@ class TestDeleteFile:
 
 class TestConvertAndSave:
     def test_successful_conversion(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "# Hello\n"
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        stub_conversion(monkeypatch, "# Hello\n")
         upload = make_upload("notes.docx", b"fake docx bytes")
 
         response = asyncio.run(convert_and_save(tmp_path, upload))
@@ -136,10 +157,7 @@ class TestConvertAndSave:
         assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
 
     def test_conversion_failure_raises_422(self, tmp_path, monkeypatch):
-        def boom(path):
-            raise ValueError("unsupported format")
-
-        monkeypatch.setattr(converter.md, "convert", boom)
+        stub_conversion_failure(monkeypatch)
         upload = make_upload("broken.xyz", b"garbage")
 
         with pytest.raises(HTTPException) as exc:
@@ -158,10 +176,11 @@ class TestConvertAndSave:
 
 class TestConvertOne:
     def test_returns_plain_dict(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "# Hello\n"
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        # Счёт токенов делает ядро; веб-слой обязан лишь донести его до JSON
+        # неизменным. converter.count_tokens здесь -- тот самый реэкспорт.
+        stub_conversion(
+            monkeypatch, "# Hello\n", tokens_after=converter.count_tokens("# Hello\n")
+        )
         upload = make_upload("notes.docx", b"fake docx bytes")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
@@ -176,15 +195,24 @@ class TestConvertOne:
         }
         assert (tmp_path / "notes.md").read_text(encoding="utf-8") == "# Hello\n"
 
-    def test_pdf_gets_before_estimate(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# Scanned doc\n")
-        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 4)
+    def test_token_stats_reach_the_response_unchanged(self, tmp_path, monkeypatch):
+        # Оценка before/unit/units считается в ядре, но наружу её отдаёт этот
+        # слой. Тест держит именно перекладку полей: раньше она была расчётом
+        # здесь же, теперь -- копированием из ConversionResult.
+        stub_conversion(
+            monkeypatch, "# Scanned doc\n", tokens_after=7, tokens_before=9000,
+            unit="page", units=4,
+        )
         upload = make_upload("scan.pdf", b"%PDF-1.4 fake pdf bytes")
 
         data = asyncio.run(converter._convert_one(tmp_path, upload))
 
-        assert data["tokens"]["unit"] == "page"
-        assert data["tokens"]["units"] == 4
+        assert data["tokens"] == {
+            "after": 7,
+            "before": 9000,
+            "unit": "page",
+            "units": 4,
+        }
 
     def test_oversized_upload_raises_413(self, tmp_path, monkeypatch):
         monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 10)
@@ -195,10 +223,7 @@ class TestConvertOne:
         assert exc.value.status_code == 413
 
     def test_conversion_failure_raises_422(self, tmp_path, monkeypatch):
-        def boom(path):
-            raise ValueError("unsupported format")
-
-        monkeypatch.setattr(converter.md, "convert", boom)
+        stub_conversion_failure(monkeypatch)
         upload = make_upload("broken.xyz", b"garbage")
 
         with pytest.raises(HTTPException) as exc:
@@ -206,72 +231,26 @@ class TestConvertOne:
         assert exc.value.status_code == 422
         assert not list(tmp_path.glob("*.md"))
 
-    def test_pdf_routes_through_pdf_extract(self, tmp_path, monkeypatch):
-        class Boom:
-            def convert(self, path):
-                raise AssertionError("markitdown must not see a .pdf")
+    def test_suffix_reaches_the_core_for_routing(self, tmp_path, monkeypatch):
+        # Ядро маршрутизирует по суффиксу, а взять его можно только из имени
+        # UploadFile -- это знание веб-слоя. Сама маршрутизация проверяется в
+        # tests/test_convert_pure.py::TestPdfRouting.
+        seen = {}
 
-        monkeypatch.setattr(converter, "md", Boom())
-        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
-        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
-        upload = make_upload("doc.pdf", b"%PDF-1.4 fake pdf bytes")
+        def spy(data, suffix):
+            seen["suffix"] = suffix
+            seen["data"] = data
+            return ConversionResult(
+                text="ok", tokens_after=1, tokens_before=None, unit=None, units=None
+            )
 
-        data = asyncio.run(converter._convert_one(tmp_path, upload))
+        monkeypatch.setattr(converter, "convert_bytes", spy)
+        upload = make_upload("Отчёт.PDF", b"%PDF-1.4 fake pdf bytes")
 
-        assert data["content"] == "# From pdfplumber\n"
+        asyncio.run(converter._convert_one(tmp_path, upload))
 
-    def test_non_pdf_still_routes_through_markitdown(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "# From markitdown\n"
-
-        def boom(path):
-            raise AssertionError("pdf_extract must not see a .docx")
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
-        upload = make_upload("notes.docx", b"fake docx bytes")
-
-        data = asyncio.run(converter._convert_one(tmp_path, upload))
-
-        assert data["content"] == "# From markitdown\n"
-
-    def test_pdf_named_file_without_pdf_signature_routes_to_markitdown(self, tmp_path, monkeypatch):
-        # markitdown dispatches by sniffing content, so an HTML/TXT file
-        # misnamed ".pdf" used to convert fine through markitdown. Routing on
-        # the suffix alone would silently 422 it instead; the %PDF magic-byte
-        # check must fall through to markitdown for this case.
-        class FakeResult:
-            text_content = "# From markitdown\n"
-
-        def boom(path):
-            raise AssertionError("pdf_extract must not see non-PDF content")
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(converter, "pdf_to_markdown", boom)
-        upload = make_upload("fake.pdf", b"<html>not really a pdf</html>")
-
-        data = asyncio.run(converter._convert_one(tmp_path, upload))
-
-        assert data["content"] == "# From markitdown\n"
-
-    def test_pdf_with_offset_marker_still_routes_to_pdf_extract(self, tmp_path, monkeypatch):
-        # The %PDF marker is not guaranteed to sit at byte 0 -- real PDFs can
-        # have a leading \r\n (or other junk) before the header, and
-        # pdfplumber parses them fine. A byte-0-anchored check would send
-        # these to markitdown, recreating the exact defects this extractor
-        # exists to remove. The signature check must scan a window instead.
-        class Boom:
-            def convert(self, path):
-                raise AssertionError("markitdown must not see a real PDF with an offset marker")
-
-        monkeypatch.setattr(converter, "md", Boom())
-        monkeypatch.setattr(converter, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
-        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 1)
-        upload = make_upload("doc.pdf", pdf_fixtures.offset_pdf_marker())
-
-        data = asyncio.run(converter._convert_one(tmp_path, upload))
-
-        assert data["content"] == "# From pdfplumber\n"
+        assert seen["suffix"] == ".PDF"
+        assert seen["data"] == b"%PDF-1.4 fake pdf bytes"
 
 
 class TestCountTokens:
@@ -288,44 +267,48 @@ class TestCountTokens:
         assert converter.count_tokens(text) == converter.count_tokens(text)
 
 
-class TestEstimateBeforeTokens:
-    def test_pdf_uses_real_page_count(self, monkeypatch):
-        monkeypatch.setattr(converter, "_count_pdf_pages", lambda path: 3)
+class TestPublicSurface:
+    def test_core_converter_still_exports_the_names_the_apps_import(self):
+        # Эти девять имён -- объявленная публичная поверхность core.converter,
+        # и она держится намеренно, но по разным причинам. convert_and_save,
+        # convert_batch, list_archive, delete_file, safe_path и
+        # zip_archive_files не менялись при расщеплении: server_app.py и
+        # docker-server/app.py берут их из core.converter, поэтому удаление
+        # сломает импорт в обоих приложениях. count_tokens и safe_stem
+        # (реэкспорт из ядра) и save_unique (определён здесь) в продакшене
+        # никто извне не зовёт -- их единственный вызывающий это тест-сьют,
+        # который упражняет их через core.converter. Без этого теста
+        # «неиспользуемый импорт» однажды вычистят -- и в первом случае оба
+        # приложения упадут на импорте, а во втором тест-сьют молча потеряет
+        # покрытие.
+        for name in (
+            "convert_and_save",
+            "convert_batch",
+            "list_archive",
+            "delete_file",
+            "safe_path",
+            "save_unique",
+            "zip_archive_files",
+            "safe_stem",
+            "count_tokens",
+        ):
+            assert hasattr(converter, name), f"core.converter потерял {name}"
 
-        before, unit, units = converter._estimate_before_tokens(".pdf", "dummy.pdf")
-
-        assert unit == "page"
-        assert units == 3
-        assert before == 3 * converter.TOKENS_PER_UNIT_ESTIMATE
-
-    def test_pptx_uses_real_slide_count(self, monkeypatch):
-        monkeypatch.setattr(converter, "_count_pptx_slides", lambda path: 5)
-
-        before, unit, units = converter._estimate_before_tokens(".pptx", "dummy.pptx")
-
-        assert unit == "slide"
-        assert units == 5
-        assert before == 5 * converter.TOKENS_PER_UNIT_ESTIMATE
-
-    def test_other_formats_get_no_before_estimate(self):
-        for suffix in [".docx", ".xlsx", ".xls", ".msg", ".txt"]:
-            assert converter._estimate_before_tokens(suffix, "dummy") == (None, None, None)
-
-    def test_page_count_failure_falls_back_to_none(self, monkeypatch):
-        def boom(path):
-            raise ValueError("corrupt pdf")
-
-        monkeypatch.setattr(converter, "_count_pdf_pages", boom)
-
-        assert converter._estimate_before_tokens(".pdf", "dummy.pdf") == (None, None, None)
+    def test_web_layer_no_longer_owns_conversion_internals(self):
+        # Обратная сторона того же шва: имена конверсии обязаны исчезнуть с
+        # веб-слоя, иначе тест снова начнёт патчить модуль, который объектом не
+        # владеет, и позеленеет над мёртвым кодом.
+        for name in ("md", "pdf_to_markdown", "_estimate_before_tokens",
+                     "_count_pdf_pages", "_count_pptx_slides", "TOKENS_PER_UNIT_ESTIMATE",
+                     "tiktoken", "_get_encoding", "_encoding"):
+            assert not hasattr(converter, name), (
+                f"core.converter всё ещё держит {name} -- вторая копия логики конверсии"
+            )
 
 
 class TestConvertBatch:
     def test_all_files_succeed(self, tmp_path, monkeypatch):
-        class FakeResult:
-            text_content = "converted"
-
-        monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+        stub_conversion(monkeypatch, "converted")
         files = [make_upload("a.txt", b"one"), make_upload("b.txt", b"two")]
 
         async def run():
@@ -364,6 +347,43 @@ class TestConvertBatch:
             return [event async for event in converter.convert_batch(tmp_path, [])]
 
         assert asyncio.run(run()) == []
+
+
+def test_web_layer_delegates_to_the_pure_core(tmp_path, monkeypatch):
+    # Веб-слой обязан звать ядро, а не держать вторую копию логики конверсии.
+    # Без этого теста расщепление можно откатить обратным копипастом, и ни один
+    # другой тест этого не заметит.
+    from trimitdown import convert as pure
+
+    called = {}
+
+    def fake_convert_bytes(data, suffix):
+        called["suffix"] = suffix
+        return pure.ConversionResult(
+            text="stub", tokens_after=1, tokens_before=None, unit=None, units=None
+        )
+
+    monkeypatch.setattr(converter, "convert_bytes", fake_convert_bytes)
+
+    response = asyncio.run(
+        convert_and_save(tmp_path, make_upload("x.pdf", b"%PDF-1.4"))
+    )
+
+    assert called["suffix"] == ".pdf"
+    assert b"stub" in response.body
+
+
+def test_conversion_failure_becomes_422_not_a_crash(tmp_path, monkeypatch):
+    from trimitdown.convert import ConversionError
+
+    def fail(data, suffix):
+        raise ConversionError("boom")
+
+    monkeypatch.setattr(converter, "convert_bytes", fail)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(convert_and_save(tmp_path, make_upload("x.pdf", b"%PDF-1.4")))
+    assert exc.value.status_code == 422
 
 
 class TestZipArchiveFiles:

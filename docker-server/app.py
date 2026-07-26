@@ -7,7 +7,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
-from core.version import VERSION
+# Единственный источник версии на весь проект -- пакет. Отдельный core/version.py
+# существовал до того, как приложение стало устанавливаемым, и держал второе
+# число, которое было обязано совпадать с первым, но ничем к этому не
+# принуждалось.
+from trimitdown import __version__ as VERSION
 
 # The real container already guarantees this exists: the Dockerfile creates it
 # at build time and docker-compose bind-mounts a host directory over it at

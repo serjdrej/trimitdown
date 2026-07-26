@@ -6,17 +6,25 @@ FROM python:3.12-slim
 # of the layer that is invalidated every time the package changes.
 # Deliberately unpinned, unlike requirements.txt: the image tracks current
 # pdfplumber, and the range in packages/trimitdown-pdf governs what is valid.
-RUN pip install --no-cache-dir "markitdown[all]" pdfplumber fastapi uvicorn python-multipart pillow tiktoken
+RUN pip install --no-cache-dir "markitdown[all]" pdfplumber fastapi uvicorn python-multipart pillow tiktoken python-pptx pdfminer.six
 
 WORKDIR /app
 COPY docker-server/app.py docker-server/generate_icons.py mac-build/icon_master_1024.png ./
 COPY docker-server/static static
 COPY core core
 
-# core/converter.py imports trimitdown_pdf, which no longer lives under core/.
-# Without this the image builds fine and then fails at the first PDF upload.
+# Движок ставится из рабочего дерева намеренно: NAS собирает текущую ревизию,
+# это наш стенд, а не пользовательский канал.
 COPY packages/trimitdown-pdf packages/trimitdown-pdf
 RUN pip install --no-cache-dir ./packages/trimitdown-pdf
+
+# Приложение ставится ПАКЕТОМ, а не копированием src/: только так консольная
+# команда попадает на PATH, и `docker exec trimitdown-web trimitdown convert ...`
+# начинает работать. Это и есть терминальный доступ к серверу -- вместо
+# клиентского --server в pip-пакете.
+COPY pyproject.toml README.md LICENSE ./
+COPY src src
+RUN pip install --no-cache-dir --no-deps .
 
 RUN python generate_icons.py
 RUN mkdir -p /app/archive

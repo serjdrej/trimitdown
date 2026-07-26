@@ -9,7 +9,11 @@ from fastapi.staticfiles import StaticFiles
 
 from config_store import APP_DIR
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
-from core.version import VERSION
+# Единственный источник версии на весь проект -- пакет. Отдельный core/version.py
+# существовал до того, как приложение стало устанавливаемым, и держал второе
+# число, которое было обязано совпадать с первым, но ничем к этому не
+# принуждалось.
+from trimitdown import __version__ as VERSION
 
 BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 ARCHIVE_DIR = APP_DIR / "archive"

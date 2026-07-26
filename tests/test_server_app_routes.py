@@ -8,7 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from fastapi.testclient import TestClient
 
-from core import converter
+# Конверсию подменяем на её собственном модуле: core.converter теперь только
+# зовёт ядро и объектом markitdown не владеет. Сам server_app.py при
+# расщеплении не менялся -- он берёт те же имена из core.converter.
+from trimitdown import convert as pure
 
 
 @pytest.fixture
@@ -22,7 +25,7 @@ def test_convert_batch_streams_one_event_per_file(client, monkeypatch):
     class FakeResult:
         text_content = "converted"
 
-    monkeypatch.setattr(converter.md, "convert", lambda path: FakeResult())
+    monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
 
     files = [
         ("files", ("a.txt", io.BytesIO(b"one"), "text/plain")),
@@ -56,7 +59,7 @@ def test_archive_zip_downloads_requested_files(client, tmp_path):
 
 
 def test_mode_endpoint_returns_local_mode_and_version(client):
-    from core.version import VERSION
+    from trimitdown import __version__ as VERSION
 
     response = client.get("/api/mode")
 

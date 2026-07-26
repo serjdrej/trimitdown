@@ -1,3 +1,8 @@
+# Тесты импортируют trimitdown из src/; editable-установка приложения приезжает
+# из requirements.txt (`-e .[server]`), дублировать её здесь нечем.
 -r requirements.txt
 pytest
 httpx
+# tomllib -- стандартная библиотека только с 3.11, а пакет заявляет >=3.10 и CI
+# гоняет 3.10. Без этого tests/test_packaging.py не импортируется вовсе.
+tomli; python_version < "3.11"
