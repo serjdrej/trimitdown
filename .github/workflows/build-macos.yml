@@ -18,6 +18,9 @@ jobs:
           - runner: macos-14
             arch: arm64
     runs-on: ${{ matrix.runner }}
+    # Явно, а не по умолчанию репозитория: сборке нужно только читать код.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 

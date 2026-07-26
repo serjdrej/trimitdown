@@ -13,6 +13,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    # Явно, а не по умолчанию репозитория: сборке нужно только читать код.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 

@@ -73,8 +73,30 @@ def test_the_release_refuses_a_version_the_package_does_not_declare():
     step = next((s for s in guard if "__version__" in s.get("run", "")), None)
 
     assert step is not None, "релиз не сверяет запрошенный номер с версией пакета"
-    assert "inputs.version" in step["run"]
+    # Вход обязан ехать через окружение: подстановка ${{ }} разворачивается в
+    # текст скрипта до запуска, поэтому номер вида $(...) выполнился бы шеллом
+    # раньше сверки -- и повторился бы там, где у токена есть contents: write.
+    assert step["env"]["VERSION"] == "${{ inputs.version }}"
+    assert '"$VERSION"' in step["run"]
     assert "exit 1" in step["run"]
+
+
+def test_the_release_step_knows_which_repository_it_targets():
+    # Джоба не делает checkout, .git рядом нет, а gh без GH_REPO падает с
+    # "not a git repository" -- уже после того, как всё собрано и посчитано.
+    # GITHUB_REPOSITORY он не читает: проверено вручную на gh 2.96.0.
+    create = _step("release.yml", "release", "Create the draft release")
+
+    assert create["env"]["GH_REPO"] == "${{ github.repository }}"
+
+
+def test_the_draft_is_pinned_to_the_commit_that_was_built():
+    # Без --target тег привяжется к верхушке default-ветки на момент публикации.
+    # Сборка идёт долго; приехавший тем временем коммит увёл бы тег с того кода,
+    # из которого собраны вложенные бинарники, и по релизу это уже не видно.
+    create = _step("release.yml", "release", "Create the draft release")
+
+    assert '--target "$GITHUB_SHA"' in create["run"]
 
 
 def test_only_main_can_produce_a_release():
@@ -93,6 +115,9 @@ def test_the_publish_workflow_can_publish_both_projects():
     options = publish["on"]["workflow_dispatch"]["inputs"]["package"]["options"]
 
     assert set(options) == {"trimitdown", "trimitdown-pdf"}
-    assert "inputs.package" in _step("publish-pypi.yml", "build", "Build sdist and wheel")["run"], (
+    build = _step("publish-pypi.yml", "build", "Build sdist and wheel")
+
+    assert build["env"]["PACKAGE"] == "${{ inputs.package }}"
+    assert "$PACKAGE" in build["run"], (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
     )

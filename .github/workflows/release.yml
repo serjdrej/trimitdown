@@ -17,6 +17,10 @@ on:
 jobs:
   guard:
     runs-on: ubuntu-latest
+    # Явно, а не по умолчанию репозитория: настройка по умолчанию может быть
+    # щедрой, и тогда джобе, которой нужно только читать, достанется запись.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 
@@ -28,6 +32,12 @@ jobs:
       # Версия читается из файла через AST, а не импортом: импорт trimitdown
       # тянет markitdown, которого в этой джобе нет и ставить его сюда незачем.
       - name: Refuse a version the package does not declare
+        # Вход едет через окружение, а не подстановкой ${{ }}: подстановка
+        # разворачивается в текст скрипта до его запуска, поэтому строка вида
+        # $(...) в номере версии выполнилась бы шеллом раньше любой проверки --
+        # и повторилась бы в релизной джобе, где у токена есть contents: write.
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           python - <<'PY' > declared.txt
           import ast, pathlib
@@ -36,8 +46,8 @@ jobs:
                      if isinstance(node, ast.Assign) and node.targets[0].id == "__version__"))
           PY
           declared=$(cat declared.txt)
-          test "$declared" = "${{ inputs.version }}" \
-            || { echo "release asked for ${{ inputs.version }}, the package declares $declared"; exit 1; }
+          test "$declared" = "$VERSION" \
+            || { echo "release asked for $VERSION, the package declares $declared"; exit 1; }
 
       # Выпустить сборку с непроходящими тестами -- единственная ошибка этого
       # конвейера, которую после публикации не отменить.
@@ -113,12 +123,23 @@ jobs:
       - name: Create the draft release
         if: github.ref == 'refs/heads/main'
         env:
+          # Джоба намеренно не делает checkout -- ей нужны только артефакты. Но
+          # тогда рядом нет .git, а gh без GH_REPO падает с "not a git repository":
+          # GITHUB_REPOSITORY он не читает. Проверено вручную на gh 2.96.0.
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
         run: |
           cd release
-          gh release create "v${{ inputs.version }}" \
+          # --target обязателен: без него GitHub привяжет тег к верхушке
+          # default-ветки на момент публикации черновика. Сборка идёт долго, и
+          # приехавший тем временем коммит увёл бы тег с того кода, из которого
+          # собраны вложенные бинарники -- по опубликованному релизу это уже не
+          # видно.
+          gh release create "v$VERSION" \
             --draft \
-            --title "${{ inputs.version }}" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
             --notes-file notes.md \
             $ARTIFACTS SHA256SUMS
 
