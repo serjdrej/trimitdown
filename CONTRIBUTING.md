@@ -27,8 +27,9 @@ python -m pytest -m "not corpus"
 
 [DEVELOPMENT.md](DEVELOPMENT.md) covers the desktop app internals (pywebview shell,
 PyInstaller packaging, known build gotchas). The Docker server lives in
-[`docker-server/`](docker-server/) and shares its conversion core with the desktop apps
-via [`core/`](core/).
+[`docker-server/`](docker-server/); its HTTP layer and the desktop applications call the
+conversion package in [`src/trimitdown/`](src/trimitdown/). The PDF engine is the separately
+published [`trimitdown-pdf`](packages/trimitdown-pdf) package.
 
 ## Pull requests
 

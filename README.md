@@ -126,6 +126,18 @@ binary. Every non-PDF format still goes through MarkItDown.
 The desktop apps work fully offline out of the box. Point them at your server in **Settings**
 to get the shared archive.
 
+## Command-line package
+
+Run a conversion without installing anything permanently:
+
+```bash
+uvx trimitdown convert report.pdf > report.md
+```
+
+Or install it with `pip install trimitdown` and write directly to a file with
+`trimitdown convert report.pdf -o report.md`. Without `-o`, Markdown goes to standard output.
+The CLI works fully offline.
+
 ## Self-hosting
 
 The Docker server is the source of truth: it converts, stores the shared archive, and serves
@@ -169,7 +181,9 @@ on iOS/Windows/macOS, and the API — in [`docker-server/README.en.md`](docker-s
 
 ## Repository layout
 
-- [`core/`](core/) — shared conversion logic and the custom PDF engine
+- [`src/trimitdown/`](src/trimitdown/) — published CLI package and conversion logic
+- [`core/`](core/) — HTTP-layer and archive support for the desktop and server applications
+- [`packages/trimitdown-pdf/`](packages/trimitdown-pdf/) — separately published PDF engine
 - [`docker-server/`](docker-server/) — the self-hosted service + iPhone PWA
 - [`static/`](static/), [`main.py`](main.py), [`server_app.py`](server_app.py) — desktop apps (UI, entry point, offline mode)
 - [`tests/`](tests/) — unit tests + a labeled corpus harness for the table-detection stage

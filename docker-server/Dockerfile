@@ -6,7 +6,7 @@ FROM python:3.12-slim
 # of the layer that is invalidated every time the package changes.
 # Deliberately unpinned, unlike requirements.txt: the image tracks current
 # pdfplumber, and the range in packages/trimitdown-pdf governs what is valid.
-RUN pip install --no-cache-dir "markitdown[all]" pdfplumber fastapi uvicorn python-multipart pillow tiktoken
+RUN pip install --no-cache-dir "markitdown[all]" pdfplumber fastapi uvicorn python-multipart pillow tiktoken python-pptx pdfminer.six
 
 WORKDIR /app
 COPY docker-server/app.py docker-server/generate_icons.py mac-build/icon_master_1024.png ./
