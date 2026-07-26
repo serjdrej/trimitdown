@@ -18,7 +18,7 @@ def test_tiktoken_cache_ships_with_the_package():
     # и заметит его пользователь, а не мы.
     cache = resources.files("trimitdown") / "tiktoken_cache"
     assert cache.is_dir()
-    assert any(cache.iterdir())
+    assert (cache / "9b5ad71b2ce5302211f9c61530b329a4922fc6a4").is_file()
 
     package_data = tomllib.loads(
         (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -26,6 +26,25 @@ def test_tiktoken_cache_ships_with_the_package():
     # Проверяем декларацию, а не только editable src/: без неё wheel теряет кэш,
     # хотя проверка resources.files() на машине разработчика остаётся зелёной.
     assert "tiktoken_cache/*" in package_data["trimitdown"]
+
+
+def test_package_does_not_pull_audio_dependencies():
+    # Расширения markitdown узкие намеренно: pip/uvx -- канал документов. Из-за
+    # этого pydub в пакет не приезжает, и предупреждение об отсутствующем ffmpeg
+    # пользователю CLI не показывается вовсе -- проверено установкой в чистый
+    # venv. Docker ставит markitdown[all], и там аудио заявлено; расширять
+    # extras пакета до [all] означало бы затащить ML-хвост в тот канал, который
+    # ценен лёгкостью, и вернуть шум в терминал.
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    markitdown = next(
+        requirement
+        for requirement in project["project"]["dependencies"]
+        if _distribution_key(requirement) == "markitdown"
+    )
+    extras = markitdown[markitdown.index("[") + 1 : markitdown.index("]")].split(",")
+
+    assert "all" not in extras
+    assert "audio-transcription" not in extras
 
 
 def test_declared_version_is_the_one_that_ships():
@@ -51,7 +70,9 @@ def test_version_has_exactly_one_source():
     version_literals = []
     for path in sources:
         text = path.read_text(encoding="utf-8")
-        for match in re.finditer(re.escape(__version__) + r"(?!\d)", text):
+        for match in re.finditer(
+            r"(?<![\d.])" + re.escape(__version__) + r"(?!\d)", text
+        ):
             before = text[: match.start()].rsplit("\n", 1)[-1]
             # Литерал в спецификаторе зависимости -- ограничение на чужой пакет, а
             # не второй источник нашей версии, и отличается он контекстом: перед
@@ -83,7 +104,11 @@ def test_specs_reference_the_package_cache_path():
     # datas указывали на core/tiktoken_cache, которого больше нет. PyInstaller не
     # падает на отсутствующем datas-пути -- он просто соберёт бандл без кэша.
     for spec in ("main.spec", "windows.spec"):
-        text = (REPO_ROOT / spec).read_text(encoding="utf-8")
+        text = "\n".join(
+            line
+            for line in (REPO_ROOT / spec).read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith("#")
+        )
         assert (
             "('src/trimitdown/tiktoken_cache', 'trimitdown/tiktoken_cache')" in text
         ), f"{spec} lost the package cache datas entry"
@@ -103,13 +128,21 @@ def test_docker_warms_every_runtime_package_dependency():
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     runtime_dependencies = {
         _distribution_key(requirement)
-        for requirement in project["project"]["dependencies"]
+        for requirement in [
+            *project["project"]["dependencies"],
+            *project["project"]["optional-dependencies"]["server"],
+        ]
     }
     engine = _distribution_key("trimitdown-pdf")
 
     dockerfile = (REPO_ROOT / "docker-server" / "Dockerfile").read_text(encoding="utf-8")
+    instructions = [
+        line.strip()
+        for line in dockerfile.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
     warmup_line = next(
-        line for line in dockerfile.splitlines() if line.startswith("RUN pip install ")
+        line for line in instructions if line.startswith("RUN pip install ")
     )
     warmup_packages = {
         _distribution_key(argument)
@@ -117,5 +150,6 @@ def test_docker_warms_every_runtime_package_dependency():
         if argument not in {"RUN", "pip", "install"} and not argument.startswith("-")
     }
 
-    assert "pip install --no-cache-dir ./packages/trimitdown-pdf" in dockerfile
+    assert engine in runtime_dependencies
+    assert "RUN pip install --no-cache-dir ./packages/trimitdown-pdf" in instructions
     assert runtime_dependencies - {engine} <= warmup_packages

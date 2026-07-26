@@ -24,28 +24,6 @@ def test_convert_prints_markdown_to_stdout(tmp_path):
     assert "|" in result.stdout
 
 
-def test_successful_conversion_does_not_warn_about_ffmpeg(tmp_path):
-    # markitdown тянет pydub, а тот на импорте предупреждает об отсутствии
-    # ffmpeg. Аудио мы не конвертируем, зато пользователь CLI видит это в
-    # каждом вызове и не может отличить шум от настоящей проблемы -- на NAS
-    # предупреждение и было принято за ошибку.
-    #
-    # Первая версия требовала пустой stderr целиком, и это оказалось обещанием,
-    # которого не сдержать: onnxruntime (приезжает с markitdown через magika)
-    # печатает предупреждение о PCI-шине из нативного кода прямо в fd 2, мимо
-    # модуля warnings, и зависит оно от железа -- на CI есть, на Windows нет.
-    # Гасить его пришлось бы подменой файлового дескриптора на время импорта,
-    # то есть ценой проглоченных настоящих ошибок импорта. Проверяем то, за что
-    # отвечаем.
-    pdf = tmp_path / "doc.pdf"
-    pdf.write_bytes(pdf_fixtures.ruled_table())
-
-    result = run(["convert", str(pdf), "-o", str(tmp_path / "doc.md")])
-
-    assert result.returncode == 0
-    assert "ffmpeg" not in result.stderr, f"вернулся шум pydub: {result.stderr!r}"
-
-
 def test_output_flag_writes_a_file(tmp_path):
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(pdf_fixtures.ruled_table())

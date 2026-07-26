@@ -39,7 +39,7 @@ which is why it is a test and not a comment.
 - **CI runs on `ubuntu-latest`** across Python 3.10 / 3.12 / 3.13. A
   Windows-only import in a test turns CI red. `msvcrt`, `winreg` and friends are
   out, and a `skipif` to paper over them violates the zero-skips invariant.
-- **The version literal `0.1.0` appears in exactly one file**:
+- **The package version literal appears in exactly one file**:
   `src/trimitdown/__init__.py`. Everything else imports it. A second copy will
   disagree with the first eventually.
 - **`packages/trimitdown-pdf/` is frozen.** It is published to PyPI and pinned

@@ -47,7 +47,7 @@ jobs:
         run: |
           grep -q "trimitdown_pdf" build/main/Analysis-00.toc \
             || { echo "trimitdown_pdf missing from the bundle"; exit 1; }
-          grep -Eq "'trimitdown([./']|,)" build/main/Analysis-00.toc \
+          grep -Eq "'trimitdown(\.[A-Za-z_][A-Za-z0-9_]*)?'" build/main/Analysis-00.toc \
             || { echo "trimitdown package missing from the bundle"; exit 1; }
           grep -q "tiktoken_cache" build/main/Analysis-00.toc \
             || { echo "tiktoken cache missing from the bundle"; exit 1; }
