@@ -15,6 +15,10 @@ RELEASE_ARTIFACTS = {
     "TrimItDown-windows-x64.exe",
 }
 
+# Подстановка входа workflow_dispatch. Ловит и ${{ inputs.x }}, и
+# ${{ github.event.inputs.x }} -- обе разворачиваются одинаково.
+DISPATCH_INPUT = re.compile(r"\$\{\{[^}]*\binputs\.")
+
 
 def _workflow(name):
     # PyYAML разбирает YAML 1.1, где `on:` -- булев True, а не строка. Без этой
@@ -30,8 +34,28 @@ def _step(workflow_name, job, step_name):
     return next(s for s in steps if s.get("name") == step_name)
 
 
+def _script(step):
+    # Комментарии -- не код. Проверка, которая их не отсеивает, зеленеет на
+    # закомментированной гарантии: этот проект уже ловил такую мутацию.
+    return "\n".join(
+        line
+        for line in step.get("run", "").splitlines()
+        if not line.strip().startswith("#")
+    )
+
+
+def _command(step, opening):
+    """Одна команда целиком: от её первой строки до конца продолжений через `\\`."""
+    lines = _script(step).splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip().startswith(opening))
+    command = [lines[start]]
+    while command[-1].rstrip().endswith("\\"):
+        command.append(lines[start + len(command)])
+    return "\n".join(command)
+
+
 def _bundle_checks(workflow_name):
-    run = _step(workflow_name, "build", "Verify package contents are in the bundle")["run"]
+    run = _script(_step(workflow_name, "build", "Verify package contents are in the bundle"))
     return set(re.findall(r'grep -\S+ "([^"]+)"', run))
 
 
@@ -46,21 +70,39 @@ def test_the_windows_bundle_is_verified_like_the_macos_one():
     assert "tiktoken_cache" in windows
 
 
+def test_no_dispatch_input_reaches_a_shell_or_an_action():
+    # Подстановка ${{ }} разворачивается в текст скрипта ДО его запуска, поэтому
+    # номер версии вида $(...) выполнится раньше любой проверки внутри скрипта --
+    # в том числе там, где у токена есть contents: write. Инвариант обратный:
+    # проверять наличие безопасной формы мало, старую можно вернуть, не убрав
+    # новую. Опасной формы не должно быть нигде, вход едет только через env.
+    for name in sorted(p.name for p in WORKFLOWS.glob("*.yml")):
+        for job in _workflow(name)["jobs"].values():
+            for step in job.get("steps", []):
+                assert not DISPATCH_INPUT.search(_script(step)), (
+                    f"{name}: вход workflow_dispatch подставляется прямо в скрипт"
+                )
+                for key, value in (step.get("with") or {}).items():
+                    assert not DISPATCH_INPUT.search(str(value)), (
+                        f"{name}: вход workflow_dispatch подставляется во вход действия ({key})"
+                    )
+
+
 def test_the_release_carries_every_artifact_the_manifests_will_need():
     release = _workflow("release.yml")["jobs"]["release"]
 
     assert set(release["env"]["ARTIFACTS"].split()) == RELEASE_ARTIFACTS
     # Комплектность проверяется по тому же списку. Своя копия списка в проверке
     # разошлась бы с загрузкой молча -- релиз ушёл бы неполным и зелёным.
-    assert "$ARTIFACTS" in _step(
-        "release.yml", "release", "Verify every expected artifact arrived"
-    )["run"]
+    assert "$ARTIFACTS" in _script(
+        _step("release.yml", "release", "Verify every expected artifact arrived")
+    )
 
 
 def test_checksums_cover_the_whole_release_set():
     # Артефакт без суммы -- это артефакт, который манифест brew поставить не может.
-    checksum = _step("release.yml", "release", "Checksum every artifact")["run"]
-    create = _step("release.yml", "release", "Create the draft release")["run"]
+    checksum = _script(_step("release.yml", "release", "Checksum every artifact"))
+    create = _command(_step("release.yml", "release", "Create the draft release"), "gh release create")
 
     assert "sha256sum $ARTIFACTS" in checksum
     assert "$ARTIFACTS SHA256SUMS" in create
@@ -73,12 +115,9 @@ def test_the_release_refuses_a_version_the_package_does_not_declare():
     step = next((s for s in guard if "__version__" in s.get("run", "")), None)
 
     assert step is not None, "релиз не сверяет запрошенный номер с версией пакета"
-    # Вход обязан ехать через окружение: подстановка ${{ }} разворачивается в
-    # текст скрипта до запуска, поэтому номер вида $(...) выполнился бы шеллом
-    # раньше сверки -- и повторился бы там, где у токена есть contents: write.
     assert step["env"]["VERSION"] == "${{ inputs.version }}"
-    assert '"$VERSION"' in step["run"]
-    assert "exit 1" in step["run"]
+    assert 'test "$declared" = "$VERSION"' in _script(step)
+    assert "exit 1" in _script(step)
 
 
 def test_the_release_step_knows_which_repository_it_targets():
@@ -94,9 +133,10 @@ def test_the_draft_is_pinned_to_the_commit_that_was_built():
     # Без --target тег привяжется к верхушке default-ветки на момент публикации.
     # Сборка идёт долго; приехавший тем временем коммит увёл бы тег с того кода,
     # из которого собраны вложенные бинарники, и по релизу это уже не видно.
+    # Флаг проверяется внутри самой команды: рядом с ней он ничего не значит.
     create = _step("release.yml", "release", "Create the draft release")
 
-    assert '--target "$GITHUB_SHA"' in create["run"]
+    assert '--target "$GITHUB_SHA"' in _command(create, "gh release create")
 
 
 def test_only_main_can_produce_a_release():
@@ -113,11 +153,10 @@ def test_the_publish_workflow_can_publish_both_projects():
     # первым так же, как расходились спеки.
     publish = _workflow("publish-pypi.yml")
     options = publish["on"]["workflow_dispatch"]["inputs"]["package"]["options"]
-
-    assert set(options) == {"trimitdown", "trimitdown-pdf"}
     build = _step("publish-pypi.yml", "build", "Build sdist and wheel")
 
+    assert set(options) == {"trimitdown", "trimitdown-pdf"}
     assert build["env"]["PACKAGE"] == "${{ inputs.package }}"
-    assert "$PACKAGE" in build["run"], (
+    assert 'case "$PACKAGE" in' in _script(build), (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
     )
