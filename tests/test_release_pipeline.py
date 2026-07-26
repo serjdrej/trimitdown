@@ -83,3 +83,16 @@ def test_only_main_can_produce_a_release():
     create = _step("release.yml", "release", "Create the draft release")
 
     assert create.get("if") == "github.ref == 'refs/heads/main'"
+
+
+def test_the_publish_workflow_can_publish_both_projects():
+    # Приложение и движок -- два разных проекта на PyPI. Пока workflow умеет
+    # только движок, канал uvx закрыт, а второй workflow-близнец разошёлся бы с
+    # первым так же, как расходились спеки.
+    publish = _workflow("publish-pypi.yml")
+    options = publish["on"]["workflow_dispatch"]["inputs"]["package"]["options"]
+
+    assert set(options) == {"trimitdown", "trimitdown-pdf"}
+    assert "inputs.package" in _step("publish-pypi.yml", "build", "Build sdist and wheel")["run"], (
+        "сборка игнорирует выбор и всегда публикует один и тот же проект"
+    )

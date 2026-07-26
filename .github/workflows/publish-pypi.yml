@@ -15,6 +15,14 @@ name: Publish to PyPI
 
 on:
   workflow_dispatch:
+    inputs:
+      package:
+        description: "Which project to publish"
+        required: true
+        type: choice
+        options:
+          - trimitdown
+          - trimitdown-pdf
 
 jobs:
   build:
@@ -39,8 +47,13 @@ jobs:
 
       - name: Build sdist and wheel
         run: |
+          case "${{ inputs.package }}" in
+            trimitdown)     source=. ;;
+            trimitdown-pdf) source=packages/trimitdown-pdf ;;
+            *)              echo "unknown package ${{ inputs.package }}"; exit 1 ;;
+          esac
           python -m pip install --upgrade build twine
-          python -m build --outdir dist packages/trimitdown-pdf
+          python -m build --outdir dist "$source"
           python -m twine check --strict dist/*
 
       # The required reviewer approves the *publish* job without seeing the
@@ -50,7 +63,7 @@ jobs:
       - name: Report what would be published
         run: |
           {
-            echo "### Ready to publish"
+            echo "### Ready to publish ${{ inputs.package }}"
             echo
             echo '```'
             ls -1 dist/
