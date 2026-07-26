@@ -2,9 +2,13 @@
 import re
 import shlex
 import sys
-import tomllib
 from importlib import resources
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # 3.10: tomllib -- стандартная библиотека только с 3.11
+    import tomli as tomllib
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
