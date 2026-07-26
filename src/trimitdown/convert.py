@@ -9,12 +9,25 @@
 import os
 import re
 import tempfile
+import warnings
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
 import tiktoken
-from markitdown import MarkItDown
+
+with warnings.catch_warnings():
+    # markitdown тянет pydub, а тот на импорте предупреждает об отсутствующем
+    # ffmpeg. Аудио мы не конвертируем ни в одном канале, так что для
+    # пользователя это чистый шум -- в CLI он печатается при каждом вызове и
+    # выглядит как ошибка. Фильтр узкий: гасится одно сообщение, не категория
+    # RuntimeWarning целиком, и только на время импорта. Закреплено тестом
+    # tests/test_cli.py::test_successful_conversion_keeps_stderr_clean.
+    warnings.filterwarnings(
+        "ignore", message="Couldn't find ffmpeg or avconv", category=RuntimeWarning
+    )
+    from markitdown import MarkItDown
+
 from pdfminer.pdfpage import PDFPage
 from pptx import Presentation
 
