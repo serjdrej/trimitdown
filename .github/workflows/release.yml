@@ -1,0 +1,130 @@
+# Собирает все три релизных артефакта, считает контрольные суммы и создаёт
+# ЧЕРНОВИК релиза. Публикует черновик человек: тег на GitHub появляется только в
+# момент публикации, поэтому до неё конвейер не делает ничего необратимого.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (for example 0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      # Версия читается из файла через AST, а не импортом: импорт trimitdown
+      # тянет markitdown, которого в этой джобе нет и ставить его сюда незачем.
+      - name: Refuse a version the package does not declare
+        run: |
+          python - <<'PY' > declared.txt
+          import ast, pathlib
+          tree = ast.parse(pathlib.Path("src/trimitdown/__init__.py").read_text(encoding="utf-8"))
+          print(next(node.value.value for node in tree.body
+                     if isinstance(node, ast.Assign) and node.targets[0].id == "__version__"))
+          PY
+          declared=$(cat declared.txt)
+          test "$declared" = "${{ inputs.version }}" \
+            || { echo "release asked for ${{ inputs.version }}, the package declares $declared"; exit 1; }
+
+      # Выпустить сборку с непроходящими тестами -- единственная ошибка этого
+      # конвейера, которую после публикации не отменить.
+      - name: Run the portable suite
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -m "not corpus" -q
+
+  macos:
+    needs: guard
+    uses: ./.github/workflows/build-macos.yml
+
+  windows:
+    needs: guard
+    uses: ./.github/workflows/build-windows.yml
+
+  release:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # Единственный список релизных артефактов. Из него берут и проверка
+      # комплектности, и контрольные суммы, и загрузка -- три своих копии списка
+      # разошлись бы молча, а заметно это стало бы уже на опубликованном релизе.
+      ARTIFACTS: >-
+        TrimItDown-macOS-x86_64.zip
+        TrimItDown-macOS-arm64.zip
+        TrimItDown-windows-x64.exe
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: TrimItDown-*
+          merge-multiple: true
+          path: release
+
+      - name: Verify every expected artifact arrived
+        run: |
+          cd release
+          for artifact in $ARTIFACTS; do
+            test -f "$artifact" || { echo "$artifact missing from the release set"; exit 1; }
+          done
+
+      - name: Checksum every artifact
+        run: |
+          cd release
+          sha256sum $ARTIFACTS > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Write the draft notes
+        run: |
+          cd release
+          {
+            echo "## Установка / Install"
+            echo
+            echo '```bash'
+            echo "uvx trimitdown convert file.pdf"
+            echo '```'
+            echo
+            echo "Приложение для macOS и Windows — в файлах ниже."
+            echo "The macOS and Windows apps are attached below."
+            echo
+            echo "## SHA256"
+            echo
+            echo '```'
+            cat SHA256SUMS
+            echo '```'
+          } > notes.md
+
+      # Черновик создаётся только с main. С ветки прогон доходит досюда и
+      # останавливается: конвейер проверяется целиком на живых раннерах, а
+      # релизных объектов от неслитого кода не возникает.
+      - name: Create the draft release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          gh release create "v${{ inputs.version }}" \
+            --draft \
+            --title "${{ inputs.version }}" \
+            --notes-file notes.md \
+            $ARTIFACTS SHA256SUMS
+
+      - name: Report a dry run
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Not on main: artifacts built and checksummed, no release created." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SHA256SUMS
+          path: release/SHA256SUMS

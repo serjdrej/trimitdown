@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Позволяет release.yml вызвать эту сборку вместо копии её шагов: копия
+  # разошлась бы с оригиналом молча, а расхождение спек этот проект уже проходил.
+  workflow_call:
 
 jobs:
   build:
