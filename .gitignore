@@ -1,7 +1,10 @@
 venv/
 build/
 dist/
-archive/
+# Содержимое архива не наше, а сама папка обязана существовать: docker-compose
+# монтирует её как bind mount и падает при старте, если её нет.
+archive/*
+!archive/.gitkeep
 config.json
 *.pem
 __pycache__/

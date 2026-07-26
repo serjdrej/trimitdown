@@ -117,6 +117,22 @@ def test_specs_reference_the_package_cache_path():
         )
 
 
+def test_compose_bind_mount_sources_exist_in_a_fresh_clone():
+    # Образ собирается зелёным, а контейнер не стартует: docker-compose требует,
+    # чтобы источник bind mount существовал. Git пустых каталогов не хранит,
+    # поэтому свежий клон падал на `archive does not exist` -- поймано на NAS
+    # при переустановке, а не тестом.
+    compose = (REPO_ROOT / "docker-server" / "docker-compose.yaml").read_text(
+        encoding="utf-8"
+    )
+    sources = re.findall(r"^\s*-\s+(\./[^:]+):", compose, flags=re.MULTILINE)
+
+    assert sources, "в compose не нашлось ни одного bind mount -- проверка ослепла"
+    for source in sources:
+        path = (REPO_ROOT / "docker-server" / source).resolve()
+        assert path.is_dir(), f"{source} нет в репозитории: контейнер не запустится"
+
+
 def _distribution_key(requirement: str) -> str:
     name = re.split(r"[<>=!~\[]", requirement, maxsplit=1)[0]
     return re.sub(r"[._-]+", "-", name).lower()
