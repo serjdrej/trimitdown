@@ -1,4 +1,5 @@
-# Publishes packages/trimitdown-pdf to PyPI via Trusted Publishing (OIDC).
+# Publishes either project in this repository -- the application (trimitdown) or
+# the engine (trimitdown-pdf) -- to PyPI via Trusted Publishing (OIDC).
 #
 # There is no API token anywhere in this repository, and there should never be
 # one: PyPI hands this workflow a short-lived credential only when the OIDC
@@ -15,6 +16,14 @@ name: Publish to PyPI
 
 on:
   workflow_dispatch:
+    inputs:
+      package:
+        description: "Which project to publish"
+        required: true
+        type: choice
+        options:
+          - trimitdown
+          - trimitdown-pdf
 
 jobs:
   build:
@@ -38,9 +47,19 @@ jobs:
           python -m pytest -m "not corpus" -q
 
       - name: Build sdist and wheel
+        # Через окружение, а не подстановкой ${{ }}: подстановка разворачивается
+        # в текст скрипта до запуска, то есть раньше, чем case успеет отвергнуть
+        # неизвестное значение.
+        env:
+          PACKAGE: ${{ inputs.package }}
         run: |
+          case "$PACKAGE" in
+            trimitdown)     source=. ;;
+            trimitdown-pdf) source=packages/trimitdown-pdf ;;
+            *)              echo "unknown package $PACKAGE"; exit 1 ;;
+          esac
           python -m pip install --upgrade build twine
-          python -m build --outdir dist packages/trimitdown-pdf
+          python -m build --outdir dist "$source"
           python -m twine check --strict dist/*
 
       # The required reviewer approves the *publish* job without seeing the
@@ -48,9 +67,11 @@ jobs:
       # version already on PyPI cannot be replaced, so a wrong number needs to
       # be caught at this line and not after the upload.
       - name: Report what would be published
+        env:
+          PACKAGE: ${{ inputs.package }}
         run: |
           {
-            echo "### Ready to publish"
+            echo "### Ready to publish $PACKAGE"
             echo
             echo '```'
             ls -1 dist/
