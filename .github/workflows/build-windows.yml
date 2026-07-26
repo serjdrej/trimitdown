@@ -1,0 +1,48 @@
+# Зеркало build-macos.yml для windows.spec. Сборка обязана жить в CI, а не только
+# на машине разработчика: манифест scoop ссылается на артефакт по URL и сверяет
+# контрольную сумму, а сумма от ручной сборки ничем не подтверждена.
+name: Build Windows app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Позволяет release.yml вызвать эту сборку вместо копии её шагов.
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # requirements.txt ставит движок НЕ editable -- windows.spec на это
+      # рассчитывает и падает на editable-установке, потому что PyInstaller за
+      # ней не ходит и собрал бы .exe без движка.
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Build app with PyInstaller
+        run: pyinstaller windows.spec
+
+      # Зелёная сборка ничего не говорит о содержимом: пропавший модуль даёт .exe,
+      # который запускается и падает на первом PDF. Набор проверок тот же, что в
+      # macOS-джобе, и тест держит их равными.
+      - name: Verify package contents are in the bundle
+        shell: bash
+        run: |
+          grep -q "trimitdown_pdf" build/windows/Analysis-00.toc \
+            || { echo "trimitdown_pdf missing from the bundle"; exit 1; }
+          grep -Eq "'trimitdown(\.[A-Za-z_][A-Za-z0-9_]*)?'" build/windows/Analysis-00.toc \
+            || { echo "trimitdown package missing from the bundle"; exit 1; }
+          grep -q "tiktoken_cache" build/windows/Analysis-00.toc \
+            || { echo "tiktoken cache missing from the bundle"; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: TrimItDown-windows-x64
+          path: dist/TrimItDown-windows-x64.exe
