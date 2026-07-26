@@ -224,6 +224,9 @@ grep -c trimitdown_pdf build/main/Analysis-00.toc          # > 0 — движо�
 x86_64) и кладёт `.zip` с `.app` в Artifacts запуска. `macos-13` использовать нельзя — лейбл
 выведен из эксплуатации GitHub в декабре 2025.
 
+Windows-сборка (`windows.spec`) собирается тем же способом в `build-windows.yml`. Порядок выпуска
+релиза целиком — в [RELEASING.md](RELEASING.md).
+
 ## Известные особенности pywebview, уже учтённые в коде
 
 - Скачивание файлов из архива по умолчанию заблокировано pywebview

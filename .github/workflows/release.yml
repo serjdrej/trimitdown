@@ -7,7 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, without the leading v (for example 0.1.0)"
+        # Пример намеренно не настоящий номер: literal версии в этом файле стал бы
+        # её вторым источником, а test_version_has_exactly_one_source этого не
+        # допускает -- и правильно делает, при подъёме версии пример бы поехал.
+        description: "Version to release, without the leading v (for example 1.2.3)"
         required: true
         type: string
 
