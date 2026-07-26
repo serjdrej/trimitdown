@@ -18,8 +18,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: Shown on the Settings screen, or `trimitdown --version` (e.g. 0.1.0)
-      placeholder: "0.1.0"
+      description: Shown on the Settings screen, or run `trimitdown --version`
+      placeholder: The version you see there
     validations:
       required: true
   - type: textarea
