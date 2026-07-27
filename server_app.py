@@ -7,7 +7,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config_store import APP_DIR
+from config_store import ARCHIVE_DIR
 from core.converter import convert_and_save, convert_batch, delete_file, list_archive, safe_path, zip_archive_files
 # Единственный источник версии на весь проект -- пакет. Отдельный core/version.py
 # существовал до того, как приложение стало устанавливаемым, и держал второе
@@ -16,7 +16,6 @@ from core.converter import convert_and_save, convert_batch, delete_file, list_ar
 from trimitdown import __version__ as VERSION
 
 BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
-ARCHIVE_DIR = APP_DIR / "archive"
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
