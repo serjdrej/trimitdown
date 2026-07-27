@@ -54,6 +54,19 @@ def test_fatal_error_names_the_cause(monkeypatch):
     assert "Symbol not found: _SSL_get0_group_name" in shown[0]
 
 
+def test_unexpected_pre_window_failure_shows_cause_and_exits(monkeypatch):
+    shown: list[str] = []
+    monkeypatch.setattr(main, "ensure_config_exists", lambda: (_ for _ in ()).throw(
+        OSError("read-only application bundle")))
+    monkeypatch.setattr(main, "show_fatal_error", lambda message: shown.append(message))
+
+    with pytest.raises(SystemExit) as exit_info:
+        main.main()
+
+    assert exit_info.value.code == 1
+    assert "read-only application bundle" in shown[0]
+
+
 class _Response:
     def __init__(self, payload, status_code=200):
         self._payload = payload

@@ -161,35 +161,46 @@ def main():
     if smoke_document:
         sys.exit(smoke(smoke_document))
 
-    ensure_config_exists()
-    server_url = get_server_url()
+    try:
+        ensure_config_exists()
+        server_url = get_server_url()
 
-    if server_url and server_reachable(server_url):
-        target = server_url
-    else:
-        port, failure = start_server_thread()
-        if not wait_port(port):
-            # The last line of the traceback is the diagnosis -- for the 0.1.0
-            # bundles it was the dlopen error naming the missing symbol. The
-            # whole traceback would not fit an alert box; that line does.
-            detail = failure[0].strip().splitlines()[-1] if failure else ""
-            show_fatal_error(
-                "Не удалось запустить локальный сервер. Попробуйте перезапустить приложение.\n\n"
-                "Local server failed to start. Try restarting the app."
-                + (f"\n\n{detail}" if detail else "")
-            )
-            sys.exit(1)
-        target = f"http://127.0.0.1:{port}"
+        if server_url and server_reachable(server_url):
+            target = server_url
+        else:
+            port, failure = start_server_thread()
+            if not wait_port(port):
+                # The last line of the traceback is the diagnosis -- for the 0.1.0
+                # bundles it was the dlopen error naming the missing symbol. The
+                # whole traceback would not fit an alert box; that line does.
+                detail = failure[0].strip().splitlines()[-1] if failure else ""
+                show_fatal_error(
+                    "Не удалось запустить локальный сервер. Попробуйте перезапустить приложение.\n\n"
+                    "Local server failed to start. Try restarting the app."
+                    + (f"\n\n{detail}" if detail else "")
+                )
+                sys.exit(1)
+            target = f"http://127.0.0.1:{port}"
 
-    # Imported here, not at module scope: the GUI toolkit is the one dependency
-    # smoke mode has no use for, and on a headless runner importing it is at
-    # best pointless. It also keeps this module importable by the test suite,
-    # which runs on Linux without a display.
-    import webview
+        # Imported here, not at module scope: the GUI toolkit is the one dependency
+        # smoke mode has no use for, and on a headless runner importing it is at
+        # best pointless. It also keeps this module importable by the test suite,
+        # which runs on Linux without a display.
+        import webview
 
-    webview.settings['ALLOW_DOWNLOADS'] = True
-    webview.create_window("TrimItDown", target, width=440, height=820, resizable=True, min_size=(360, 600), js_api=Api())
-    webview.start()
+        webview.settings['ALLOW_DOWNLOADS'] = True
+        webview.create_window("TrimItDown", target, width=440, height=820, resizable=True, min_size=(360, 600), js_api=Api())
+        webview.start()
+    except SystemExit:
+        raise
+    except BaseException:
+        detail = traceback.format_exc().strip().splitlines()[-1]
+        show_fatal_error(
+            "Не удалось запустить приложение. Попробуйте перезапустить приложение.\n\n"
+            "TrimItDown could not start. Try restarting the app.\n\n"
+            + detail
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
