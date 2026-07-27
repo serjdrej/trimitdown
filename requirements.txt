@@ -2,6 +2,28 @@ fastapi
 uvicorn
 python-multipart
 markitdown[docx,pdf,pptx,xlsx,xls,outlook]
+# cryptography приезжает транзитивно через pdfminer и в бандл попадает всегда.
+# Начиная с 49.0.0 апстрим публикует колёса для macOS ТОЛЬКО под arm64 -- на
+# Intel pip молча собирал пакет из исходников и линковал его с той OpenSSL,
+# которая случилась в Homebrew на машине сборки. В бандле оказывались две разные
+# OpenSSL под одним базовым именем libssl.3.dylib, PyInstaller оставлял одну --
+# ту, что пришла с самим Python, 3.0.16 -- и переписывал на неё ссылку
+# _rust.abi3.so. Символа _SSL_get0_group_name в ней нет, dlopen падал, и
+# приложение под macOS не запускалось НИ РАЗУ за всю историю проекта.
+#
+# 48.x публикует universal2: обе архитектуры в одном колесе, OpenSSL внутри
+# слинкован статически, схлопываться нечему. Диапазон, а не точный пин, чтобы
+# исправления безопасности внутри 48.x доезжали сами.
+#
+# --only-binary -- несущая часть, а не подстраховка: пин устареет, а запрет
+# сборки из исходников нет. Он превращает исчезнувшее колесо в громкий отказ
+# установки вместо тихо собранного бандла, который не стартует у пользователя.
+#
+# Это отсрочка, а не решение: когда 48.x перестанет получать исправления,
+# Intel-артефакт потребует настоящего выбора -- отказаться от него или собирать
+# cryptography самим с контролируемой OpenSSL.
+--only-binary=cryptography
+cryptography>=48.0.1,<49
 # Transitive now -- the app imports pdfplumber only through trimitdown-pdf, which
 # declares >=0.11.10,<1.0. Pinned here anyway so the PyInstaller bundle is
 # reproducible: a desktop release should ship the version it was tested with.
