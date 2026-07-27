@@ -63,31 +63,6 @@ jobs:
           grep -q "tiktoken_cache" build/main/Analysis-00.toc \
             || { echo "tiktoken cache missing from the bundle"; exit 1; }
 
-      # ВРЕМЕННО, снять после починки: измерение до правки. Гипотеза -- в бандл
-      # приезжают две разные OpenSSL под одним базовым именем libssl.3.dylib
-      # (одна от Python, другая от cryptography), PyInstaller оставляет одну и
-      # переписывает ссылку _rust.abi3.so на неё. Чинить наугад дешевле только
-      # на вид: неверный диагноз даёт правку, которая закрывает симптом здесь и
-      # оставляет его на другой версии раннера.
-      - name: Diagnose the OpenSSL pair (temporary)
-        run: |
-          echo "=== interpreter and its OpenSSL ==="
-          python -c "import ssl, sys; print(sys.version); print(ssl.OPENSSL_VERSION)"
-          echo "=== cryptography as installed ==="
-          python -c "import cryptography; print(cryptography.__version__)"
-          rust_so=$(python -c "import cryptography.hazmat.bindings._rust as m; print(m.__file__)")
-          otool -L "$rust_so"
-          echo "=== every libssl/libcrypto inside the bundle ==="
-          find dist/TrimItDown.app -name 'libssl*' -o -name 'libcrypto*' | while read -r lib; do
-            echo "-- $lib"
-            otool -L "$lib" | sed -n '2,3p'
-            echo "   defines _SSL_get0_group_name: $(nm -gU "$lib" 2>/dev/null | grep -c 'SSL_get0_group_name')"
-          done
-          echo "=== _rust.abi3.so inside the bundle ==="
-          find dist/TrimItDown.app -name '_rust.abi3.so' -exec otool -L {} \;
-          echo "=== resolved dependency versions ==="
-          python -m pip freeze
-
       # Дымовой документ строится тем же генератором, что и фикстуры сюиты:
       # проза плюс настоящая таблица, то есть движок обязан отработать. Модуль
       # чистый, без импортов -- сборочной джобе не нужны dev-зависимости.
