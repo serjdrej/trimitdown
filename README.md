@@ -199,7 +199,9 @@ Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - The server's self-signed HTTPS certificate needs a one-time manual trust on each device
   (iOS: profile + full trust; Windows: import into `CurrentUser\Root`; macOS: Keychain).
 - The binaries aren't code-signed (no Apple/Microsoft developer certificate) — first launch
-  needs a one-time override (macOS: right-click → Open; Windows: SmartScreen).
+  needs a one-time override. On macOS that is System Settings → Privacy & Security →
+  "Open Anyway"; the older right-click → Open route no longer works. On Windows it is the
+  SmartScreen prompt: More info → Run anyway.
 
 ## License and credits
 
