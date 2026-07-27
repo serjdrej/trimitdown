@@ -169,3 +169,27 @@ def test_docker_warms_every_runtime_package_dependency():
     assert engine in runtime_dependencies
     assert "RUN pip install --no-cache-dir ./packages/trimitdown-pdf" in instructions
     assert runtime_dependencies - {engine} <= warmup_packages
+
+
+def test_the_pii_hook_offers_no_bypass():
+    """The guard must not hand out the key to itself.
+
+    The hook printed `git commit --no-verify` twice as its own advice, in the
+    two places a contributor reads only when they are already blocked and in a
+    hurry -- while AGENTS.md forbids the bypass in as many words. Personal data
+    reached this repository in public once; the cost of that is not
+    hypothetical, and a documented escape hatch is how it happens twice.
+
+    Scanning only the hook is deliberate. A repo-wide scan for the flag would
+    fail on AGENTS.md, which has to be able to name the thing it forbids -- the
+    same trap as a version scanner that cannot tell a source from a mention.
+    """
+    hook = (REPO_ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+    assert "--no-verify" not in hook, \
+        "the PII hook mentions its own bypass; reword the message instead"
+
+    # Weak on purpose, and the only part that can be: it catches the rule being
+    # deleted, not the rule being restated badly.
+    rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "--no-verify" in rules, \
+        "AGENTS.md no longer forbids the bypass -- the prohibition was the point"

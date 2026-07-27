@@ -11,7 +11,12 @@
 # re-introduces none of the data the migration removed.
 #
 # Install once per clone:      git config core.hooksPath .githooks
-# Emergency bypass (avoid):    git commit --no-verify
+#
+# There is no bypass. AGENTS.md forbids one in as many words, and this file used
+# to print the bypass command twice as its own advice -- a guard that hands out
+# the key is a guard the next person under time pressure will not have. A false
+# positive is fixed by rewording the offending line; narrowing a pattern needs
+# the owner's agreement.
 
 set -eu
 
@@ -85,8 +90,9 @@ if [ -n "$hit" ]; then
     echo "pre-commit: staged changes look like they contain personal data:" >&2
     printf '%s\n' "$hit" | head -20 >&2
     echo "" >&2
-    echo "Review carefully. If it is genuinely a false positive:" >&2
-    echo "    git commit --no-verify" >&2
+    echo "Review carefully. If it is genuinely a false positive, reword the" >&2
+    echo "line so it stops matching. Narrowing a pattern instead needs the" >&2
+    echo "owner's agreement -- see AGENTS.md. This hook has no bypass." >&2
     exit 1
 fi
 
@@ -105,8 +111,9 @@ if [ -n "$new_binary" ]; then
     echo "" >&2
     echo "Binary content cannot be scanned for personal data. Measurement" >&2
     echo "dumps and corpus data must not enter this repository at all." >&2
-    echo "If this really belongs here:" >&2
-    echo "    git commit --no-verify" >&2
+    echo "If a file of this type genuinely belongs here, add its extension to" >&2
+    echo "the allowlist in this hook, in a commit that says why. This hook has" >&2
+    echo "no bypass." >&2
     exit 1
 fi
 
