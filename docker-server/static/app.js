@@ -296,9 +296,21 @@ function showSource() {
 }
 
 function renderTokenInfo(tokens) {
+  // Конверсия может пройти, а токенизатор — нет: бэкенд тогда отдаёт
+  // tokens.after === null, и файл к этому моменту уже сохранён. Раньше здесь
+  // падал toLocaleString у null, исключение ловил catch в convertFile, карточка
+  // результата оставалась скрытой, и пользователь получал сообщение об ошибке
+  // конверсии, которой не было. Счётчик — украшение; отсутствие счётчика не
+  // повод прятать результат.
+  const after = tokens && typeof tokens.after === "number" ? tokens.after : null;
+  if (after === null) {
+    tokenInfoEl.hidden = true;
+    tokenRingEl.hidden = true;
+    return;
+  }
   tokenInfoEl.hidden = false;
-  const pct = tokens.before != null ? Math.round((1 - tokens.after / tokens.before) * 100) : 0;
-  tokenDetailEl.textContent = tokens.after.toLocaleString(DATE_LOCALE);
+  const pct = tokens.before != null ? Math.round((1 - after / tokens.before) * 100) : 0;
+  tokenDetailEl.textContent = after.toLocaleString(DATE_LOCALE);
   if (pct > 0) {
     const capped = Math.min(100, pct);
     tokenSavingsEl.textContent = capped + "%";
