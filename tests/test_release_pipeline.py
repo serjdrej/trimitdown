@@ -1,5 +1,6 @@
 """Релизный конвейер: то, что ломается ровно один раз и уже необратимо."""
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -160,3 +161,57 @@ def test_the_publish_workflow_can_publish_both_projects():
     assert 'case "$PACKAGE" in' in _script(build), (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
     )
+
+
+# Инвариант «ноль скипов» стоял только в tests.yml, то есть ровно там, где
+# ошибка обратима, и был снят в release.yml и publish-pypi.yml, где она уже нет.
+# Проверка держит его на всех прогонах сюиты сразу, а не перечисляет workflow
+# поимённо: новый workflow с той же дырой должен ронять этот тест, а не
+# проходить мимо списка.
+PORTABLE_SUITE = re.compile(r'pytest\s+-m\s+"not corpus"')
+
+
+def _run_blocks(document):
+    for job in (document.get("jobs") or {}).values():
+        for step in job.get("steps") or []:
+            if isinstance(step.get("run"), str):
+                yield step.get("name", "<unnamed>"), step["run"]
+
+
+def test_every_portable_suite_run_asserts_zero_skips():
+    """`pytest` exits 0 on a run that skipped everything it was meant to check.
+
+    Weakened to "tests.yml contains check_no_skips", this passes with the
+    release and publish workflows back on a bare `pytest -q` -- the state that
+    let a green gate stand immediately before creating a release and before
+    burning a PyPI version number.
+    """
+    offenders = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        for name, block in _run_blocks(_workflow(path.name)):
+            if PORTABLE_SUITE.search(block) and "check_no_skips.py" not in block:
+                offenders.append(f"{path.name}::{name}")
+    assert not offenders, \
+        f"these run the portable suite without asserting zero skips: {offenders}"
+
+
+def test_the_skip_check_is_not_a_no_op(tmp_path):
+    """The guard itself has to fail on the three states it exists to catch."""
+    import subprocess
+
+    def verdict(xml: str) -> int:
+        report = tmp_path / "report.xml"
+        report.write_text(xml, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "check_no_skips.py"), str(report)],
+            capture_output=True).returncode
+
+    clean = '<testsuites><testsuite tests="2"><testcase classname="a" name="b"/>' \
+            '<testcase classname="a" name="c"/></testsuite></testsuites>'
+    skipped = '<testsuites><testsuite tests="2"><testcase classname="a" name="b"/>' \
+              '<testcase classname="a" name="c"><skipped/></testcase></testsuite></testsuites>'
+    empty = '<testsuites><testsuite tests="0"></testsuite></testsuites>'
+
+    assert verdict(clean) == 0
+    assert verdict(skipped) == 1, "a skipped test passed the skip check"
+    assert verdict(empty) == 1, "a run of zero tests passed the skip check"
