@@ -504,3 +504,45 @@ def test_a_re_cut_draft_carries_no_asset_from_an_earlier_cut():
 
     assert "gh release delete-asset" in script
     assert 'expected=" $ARTIFACTS SHA256SUMS "' in script
+
+
+def test_the_package_is_installed_and_run_before_it_can_be_published():
+    """Deleting the launch step leaves the CLI unproven until after publication.
+
+    This was the one artifact nobody installed before the irreversible step:
+    publish-pypi.yml built it at the moment of publication, and the first person
+    to run that build was a stranger. Both distributions are exercised, because a
+    wheel is built from the working tree and cannot show a file missing from the
+    sdist.
+    """
+    steps = _workflow("release.yml")["jobs"]["package"]["steps"]
+    scripts = "\n".join(_script(step) for step in steps if step.get("run"))
+
+    assert "python -m build" in scripts
+    assert "twine check --strict" in scripts
+    assert "trimitdown" in scripts and "convert smoke.pdf" in scripts
+    # Both kinds. A loop over the two extensions counts; a wheel-only check does
+    # not, and the sdist is the one that can be missing a file.
+    assert "whl" in scripts and "tar.gz" in scripts
+    # Output that contains a table, not merely a zero exit status: the fallback
+    # converter returns loose lines for the same document, silently.
+    assert 'grep -q "|"' in scripts
+
+
+def test_the_distributions_join_the_one_release_list():
+    # Their names carry the version, so they cannot live in the static list.
+    # Read from the files that were built rather than composed from the version,
+    # and appended to $ARTIFACTS so the completeness check, the checksums, the
+    # upload and the pruning keep reading a single list.
+    script = _script(
+        _step("release.yml", "release", "Add the built distributions to the release set")
+    )
+
+    assert "ls trimitdown-*.whl trimitdown-*.tar.gz" in script
+    assert 'echo "ARTIFACTS=$ARTIFACTS' in script
+
+
+def test_the_release_waits_for_the_package_job():
+    # Without this the draft can be cut while the CLI has never been installed,
+    # and the distributions would simply be absent from it.
+    assert "package" in _workflow("release.yml")["jobs"]["release"]["needs"]

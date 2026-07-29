@@ -1,0 +1,6 @@
+# Tooling that turns the tree into the two files uploaded to PyPI, and checks
+# them. Separate from requirements-dev.txt: a developer running the suite has no
+# use for an uploader, and separate from requirements.txt: none of this ships.
+# Locked because it produces an artifact people install.
+build
+twine

@@ -87,6 +87,66 @@ jobs:
           python -m pytest -m "not corpus" -rs --junitxml=report.xml
           python scripts/check_no_skips.py report.xml
 
+  # The CLI is the one artifact nobody used to install before the irreversible
+  # step: publish-pypi.yml built it at publication time, from a checkout, and the
+  # first person to run that build was a stranger. The desktop bundles taught
+  # this project what that costs three times in one day.
+  package:
+    needs: guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build the distributions
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock
+          python -m build
+
+      - name: Refuse metadata the index would not render
+        # The one cheap part of "how the page will look". A README the index
+        # rejects is found here rather than by a failed upload after the release
+        # is already published.
+        run: twine check --strict dist/*
+
+      # Same generator as the suite's fixtures and the desktop smoke documents:
+      # prose plus a real table, so the engine has to do its work.
+      - name: Build the smoke document
+        run: python -c "from tests.pdf_fixtures import ruled_table; open('smoke.pdf','wb').write(ruled_table())"
+
+      # Both distributions, not just the wheel. A wheel is built from the working
+      # tree, so a file missing from the sdist -- the tiktoken cache, package
+      # data -- is invisible to a wheel-only check and breaks for whoever
+      # installs from source. Each goes into its own clean environment: the
+      # checkout's own dependencies are not allowed to stand in for the ones the
+      # package declares.
+      - name: Launch the CLI installed from each distribution
+        run: |
+          for kind in whl tar.gz; do
+            rm -rf "smoke-env-$kind"
+            python -m venv "smoke-env-$kind"
+            "smoke-env-$kind/bin/python" -m pip install --quiet dist/*."$kind"
+            "smoke-env-$kind/bin/trimitdown" convert smoke.pdf -o "smoke-$kind.md"
+            test -s "smoke-$kind.md" \
+              || { echo "the $kind install produced no markdown at all"; exit 1; }
+            # A table, not merely output. The fallback converter returns loose
+            # lines for the same document, and that is the failure this product
+            # exists to avoid -- a silent one.
+            grep -q "|" "smoke-$kind.md" \
+              || { echo "the $kind install produced no table"; exit 1; }
+            head -20 "smoke-$kind.md"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions
+          path: dist
+
   macos:
     needs: guard
     uses: ./.github/workflows/build-macos.yml
@@ -96,7 +156,7 @@ jobs:
     uses: ./.github/workflows/build-windows.yml
 
   release:
-    needs: [macos, windows]
+    needs: [macos, windows, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,8 +177,26 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          name: distributions
+          path: release
+
+      - uses: actions/download-artifact@v8
+        with:
           name: changelog-section
           path: notes
+
+      # The two distribution names carry the version, so they cannot sit in the
+      # static list above. They are read from the files that were actually built
+      # rather than composed from the version and an assumed naming convention:
+      # if the convention ever changes, this finds out instead of attaching
+      # nothing and reporting success. They join $ARTIFACTS, so the completeness
+      # check, the checksums, the upload and the stale-asset pruning all keep
+      # reading one list.
+      - name: Add the built distributions to the release set
+        run: |
+          cd release
+          names=$(ls trimitdown-*.whl trimitdown-*.tar.gz)
+          echo "ARTIFACTS=$ARTIFACTS $(echo $names)" >> "$GITHUB_ENV"
 
       - name: Verify every expected artifact arrived
         run: |
