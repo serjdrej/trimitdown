@@ -72,6 +72,21 @@ def test_the_windows_bundle_is_verified_like_the_macos_one():
     assert "tiktoken_cache" in windows
 
 
+def test_bundle_verification_greps_cannot_be_neutered_by_or_true():
+    # _bundle_checks only extracts WHAT each grep searches for -- it says
+    # nothing about whether the grep can still fail the build. `grep -q "x"
+    # file || true` always exits 0, so `... || true || { exit 1; }` never
+    # takes the failure branch: the pattern is still found by the regex above
+    # and the two workflows still compare equal, while the check itself has
+    # become a silent no-op.
+    for workflow in ("build-windows.yml", "build-macos.yml"):
+        run = _script(_step(workflow, "build", "Verify package contents are in the bundle"))
+        assert "|| true" not in run, (
+            f"{workflow}: a grep in the bundle-contents check is followed by "
+            "`|| true`, which always succeeds and swallows a real failure"
+        )
+
+
 def test_the_macos_release_is_a_verified_drag_to_install_image():
     """Removing either image check must make this test fail.
 
@@ -162,6 +177,17 @@ def test_checksums_cover_the_whole_release_set():
 
     assert "sha256sum $ARTIFACTS" in checksum
     assert "$ARTIFACTS SHA256SUMS" in create
+    # "sha256sum $ARTIFACTS" as a substring says nothing about what happens
+    # to SHA256SUMS afterward -- a step that computes real hashes and then
+    # rewrites or zeroes the file still contains that exact substring and
+    # passes the assertion above. The legitimate script touches the name
+    # SHA256SUMS exactly twice: once to create it (the redirect), once to
+    # display it (cat). Anything else touching the file adds a third mention.
+    assert checksum.count("SHA256SUMS") == 2, (
+        f"SHA256SUMS is referenced an unexpected number of times in the "
+        f"checksum step -- something besides create-then-display touches "
+        f"it:\n{checksum}"
+    )
 
 
 def test_the_release_refuses_a_version_the_package_does_not_declare():
@@ -203,6 +229,22 @@ def test_only_main_can_produce_a_release():
     assert create.get("if") == "github.ref == 'refs/heads/main'"
 
 
+def test_exactly_one_step_can_create_a_release():
+    # _step() returns the FIRST step matching a name -- every test above that
+    # reads "Create the draft release" (the main-only guard, GH_REPO, the
+    # --target pin) only ever sees that one step. A second step added later in
+    # the same job that also invokes `gh release create`, without the
+    # main-only guard, would create an unreviewed release from any branch and
+    # none of the tests above would notice: they never look past the first
+    # match.
+    steps = _workflow("release.yml")["jobs"]["release"]["steps"]
+    release_creating = [s for s in steps if "gh release create" in _script(s)]
+    assert len(release_creating) == 1, (
+        f"expected exactly one step invoking `gh release create`, found "
+        f"{len(release_creating)}: {[s.get('name') for s in release_creating]}"
+    )
+
+
 def test_the_publish_workflow_can_publish_both_projects():
     # Приложение и движок -- два разных проекта на PyPI. Пока workflow умеет
     # только движок, канал uvx закрыт, а второй workflow-близнец разошёлся бы с
@@ -215,6 +257,15 @@ def test_the_publish_workflow_can_publish_both_projects():
     assert build["env"]["PACKAGE"] == "${{ inputs.package }}"
     assert 'case "$PACKAGE" in' in _script(build), (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
+    )
+    # The case statement's mere presence doesn't say the two branches build
+    # different things -- both arms could set the same `source=` and publish
+    # the app's own tree under the engine's name (or vice versa) while this
+    # assertion stays green. Pull out each branch's source and require they
+    # differ, one per declared option.
+    sources = dict(re.findall(r'(\S+)\)\s+source=(\S+)\s*;;', _script(build)))
+    assert sources == {"trimitdown": ".", "trimitdown-pdf": "packages/trimitdown-pdf"}, (
+        f"the two package branches must build from different source trees: {sources}"
     )
 
 
