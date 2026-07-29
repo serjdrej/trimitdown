@@ -41,8 +41,15 @@ def _run_convert(args) -> int:
                 file=sys.stderr,
             )
             return 2
+        # Routing happens on the extension, and the PDF engine is selected by
+        # ".pdf" exactly. A bare "pdf" names a temp file with no extension at
+        # all, so the document silently falls through to the stock converter --
+        # measured on the ruled-table fixture, the whole table came back as
+        # loose lines. Silent worse output is the one failure this project
+        # exists to prevent, so accept both spellings rather than reject one.
+        suffix = args.suffix if args.suffix.startswith(".") else f".{args.suffix}"
         try:
-            result = convert_bytes(sys.stdin.buffer.read(), args.suffix)
+            result = convert_bytes(sys.stdin.buffer.read(), suffix)
         except ConversionError as e:
             print(f"could not convert stdin: {e}", file=sys.stderr)
             return 1

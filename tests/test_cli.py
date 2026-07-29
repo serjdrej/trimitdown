@@ -103,3 +103,31 @@ def test_cli_has_no_network_flags():
     # отказы в инструмент, который ценен именно локальностью.
     help_text = run(["convert", "--help"]).stdout
     assert "--server" not in help_text
+
+
+def test_type_without_a_leading_dot_still_reaches_the_pdf_engine(tmp_path):
+    """A missing dot must not silently downgrade the conversion.
+
+    Routing is by extension, and the PDF engine answers to ".pdf" exactly.
+    Before this was normalised, `--type pdf` wrote a temp file with no
+    extension, fell through to the stock converter, and returned the ruled
+    table as loose lines -- no error, no warning, just the defect the engine
+    exists to remove. Asserting on the table is the point: a weaker check that
+    the command exited 0, or that some markdown came out, passes on exactly the
+    broken behaviour this test was written for.
+    """
+    pdf = pdf_fixtures.ruled_table()
+
+    def convert(type_argument):
+        # subprocess.run directly, not the helper above: the document goes in as
+        # bytes on stdin, and the helper fixes the streams to text.
+        return subprocess.run(CLI + ["convert", "-", "--type", type_argument],
+                              input=pdf, capture_output=True)
+
+    dotted = convert(".pdf")
+    bare = convert("pdf")
+
+    assert dotted.returncode == 0 and bare.returncode == 0
+    assert b"| Header A | Header B |" in dotted.stdout
+    assert bare.stdout == dotted.stdout, \
+        "the spelling of --type changed the conversion, not just the argument"
