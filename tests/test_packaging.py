@@ -226,7 +226,11 @@ def test_docker_installs_the_hashed_lock_before_local_projects():
 
     assert "COPY requirements.lock ./" in instructions
     assert "RUN pip install --no-cache-dir --require-hashes -r requirements.lock" in instructions
-    assert "RUN pip install --no-cache-dir --no-deps -e . ./packages/trimitdown-pdf" in instructions
+    # Not editable. An editable install leaves a .pth pointing at /app/src, so
+    # the image would depend on the source tree still sitting where it was
+    # copied; the console entry point is the whole reason the app is installed
+    # as a package here rather than copied in.
+    assert "RUN pip install --no-cache-dir --no-deps . ./packages/trimitdown-pdf" in instructions
     assert runtime_dependencies - {engine} <= locked_packages
 
 
