@@ -78,8 +78,8 @@ jobs:
       # комплектности, и контрольные суммы, и загрузка -- три своих копии списка
       # разошлись бы молча, а заметно это стало бы уже на опубликованном релизе.
       ARTIFACTS: >-
-        TrimItDown-macOS-x86_64.zip
-        TrimItDown-macOS-arm64.zip
+        TrimItDown-macOS-x86_64.dmg
+        TrimItDown-macOS-arm64.dmg
         TrimItDown-windows-x64.exe
     steps:
       - uses: actions/download-artifact@v8

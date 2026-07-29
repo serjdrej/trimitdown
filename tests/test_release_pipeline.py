@@ -11,8 +11,8 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # Имена, на которые сошлются манифесты brew/scoop/winget. Каждое обязано приехать
 # в релиз с контрольной суммой, иначе манифест не из чего писать.
 RELEASE_ARTIFACTS = {
-    "TrimItDown-macOS-x86_64.zip",
-    "TrimItDown-macOS-arm64.zip",
+    "TrimItDown-macOS-x86_64.dmg",
+    "TrimItDown-macOS-arm64.dmg",
     "TrimItDown-windows-x64.exe",
 }
 
@@ -69,6 +69,41 @@ def test_the_windows_bundle_is_verified_like_the_macos_one():
     assert windows == _bundle_checks("build-macos.yml")
     assert "trimitdown_pdf" in windows
     assert "tiktoken_cache" in windows
+
+
+def test_the_macos_release_is_a_verified_drag_to_install_image():
+    """Removing either image check must make this test fail.
+
+    A DMG that merely has the expected filename can omit the application, and
+    an application that works from ``dist`` can still write beside itself and
+    fail on the read-only mounted image. Both regressions reach users only
+    after release, so the workflow must retain both checks.
+    """
+    image = _step("build-macos.yml", "build", "Build drag-to-install image")
+    contents = _step("build-macos.yml", "build", "Verify image contents")
+    smoke = _step("build-macos.yml", "build", "Smoke-launch the mounted image")
+
+    image_run = _script(image)
+    contents_run = _script(contents)
+    smoke_run = _script(smoke)
+
+    assert "hdiutil create" in image_run
+    assert "-format UDZO" in image_run
+    assert "ln -s /Applications" in image_run
+    # ditto copies an .app faithfully and leaves its signature intact; cp -R
+    # yields a bundle that looks complete and can be refused at launch. The
+    # image checks below would not notice the difference.
+    assert "ditto dist/TrimItDown.app" in image_run
+    assert "cp -R dist/TrimItDown.app" not in image_run
+    assert "hdiutil attach" in contents_run
+    assert 'test -d "$mount_dir/TrimItDown.app"' in contents_run
+    assert 'test -L "$mount_dir/Applications"' in contents_run
+    assert 'readlink "$mount_dir/Applications"' in contents_run
+    assert "hdiutil attach" in smoke_run
+    assert "-readonly" in smoke_run
+    assert "TrimItDown.app/Contents/MacOS/TrimItDown" in smoke_run
+    assert "TRIMITDOWN_SMOKE=smoke.pdf" in smoke_run
+    assert "tail -1 smoke-mounted.log | grep -q '^smoke ok:'" in smoke_run
 
 
 def test_no_dispatch_input_reaches_a_shell_or_an_action():

@@ -95,10 +95,63 @@ jobs:
           tail -1 smoke.log | grep -q '^smoke ok:' \
             || { echo "the bundle did not complete a conversion"; exit 1; }
 
-      - name: Zip .app bundle
-        run: ditto -c -k --sequesterRsrc --keepParent dist/TrimItDown.app TrimItDown-macOS-${{ matrix.arch }}.zip
+      - name: Build drag-to-install image
+        run: |
+          staging=$(mktemp -d)
+          trap 'rm -rf "$staging"' EXIT
+          # ditto, not cp -R: it is the tool that copies an .app faithfully --
+          # symlinks, extended attributes, resource forks -- and leaves the
+          # ad-hoc signature intact. cp -R produces a bundle that looks complete
+          # and can fail signature validation at launch, which is the shape of
+          # failure this pipeline exists to stop shipping.
+          ditto dist/TrimItDown.app "$staging/TrimItDown.app"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create \
+            -volname "TrimItDown" \
+            -srcfolder "$staging" \
+            -format UDZO \
+            -ov \
+            TrimItDown-macOS-${{ matrix.arch }}.dmg
+
+      - name: Verify image contents
+        run: |
+          mount_dir=$(mktemp -d)
+          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
+          hdiutil attach \
+            -readonly \
+            -nobrowse \
+            -mountpoint "$mount_dir" \
+            TrimItDown-macOS-${{ matrix.arch }}.dmg
+          test -d "$mount_dir/TrimItDown.app" \
+            || { echo "the image does not contain TrimItDown.app"; exit 1; }
+          test -L "$mount_dir/Applications" \
+            || { echo "the image does not contain an Applications link"; exit 1; }
+          test "$(readlink "$mount_dir/Applications")" = "/Applications" \
+            || { echo "the Applications link points somewhere else"; exit 1; }
+
+      - name: Smoke-launch the mounted image
+        env:
+          TRIMITDOWN_SMOKE_LOG: smoke-mounted.log
+        run: |
+          mount_dir=$(mktemp -d)
+          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
+          hdiutil attach \
+            -readonly \
+            -nobrowse \
+            -mountpoint "$mount_dir" \
+            TrimItDown-macOS-${{ matrix.arch }}.dmg
+          set +e
+          TRIMITDOWN_SMOKE=smoke.pdf "$mount_dir/TrimItDown.app/Contents/MacOS/TrimItDown"
+          status=$?
+          set -e
+          echo "exit status: $status"
+          test -s smoke-mounted.log \
+            || { echo "the mounted image produced no smoke log at all"; exit 1; }
+          cat smoke-mounted.log
+          tail -1 smoke-mounted.log | grep -q '^smoke ok:' \
+            || { echo "the mounted image did not complete a conversion"; exit 1; }
 
       - uses: actions/upload-artifact@v7
         with:
           name: TrimItDown-macOS-${{ matrix.arch }}
-          path: TrimItDown-macOS-${{ matrix.arch }}.zip
+          path: TrimItDown-macOS-${{ matrix.arch }}.dmg
