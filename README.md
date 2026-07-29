@@ -26,7 +26,7 @@
 TrimItDown turns PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) and Outlook (.msg)
 files into clean, readable Markdown — ready to paste into Claude/ChatGPT, Obsidian, Notion,
 or any markdown vault. It runs as an iPhone/iPad app (installed straight from Safari, no App
-Store), a portable Windows program, a macOS app, and a self-hosted Docker server — with one
+Store), a single-file Windows program, a macOS app, and a self-hosted Docker server — with one
 shared archive of conversions across all your devices.
 
 ## The PDF engine
@@ -112,13 +112,14 @@ binary. Every non-PDF format still goes through MarkItDown.
 - **One archive, every device.** Convert on your phone — the result is already on your
   computer, and vice versa. Searchable, with batch conversion and ZIP export.
 - **A real app experience everywhere.** iPhone PWA installed from Safari (no App Store), a
-  portable Windows exe, a macOS app. Russian and English UI, light/dark, two color themes.
+  single-file Windows exe, a macOS app. Russian and English UI, light/dark, two color themes.
 
 ## Get it
 
 | Platform | How |
 |---|---|
-| **Windows** | Download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — portable, no install |
+| **Terminal** (any OS) | `uv tool install trimitdown` — no GUI, no system prompts, see [Command-line package](#command-line-package) |
+| **Windows** | Download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
 | **macOS** (Apple Silicon / Intel) | `.dmg` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
 | **iPhone / iPad** | Served by your own Docker server — open it in Safari → Share → *Add to Home Screen* |
 | **Docker server** | See [Self-hosting](#self-hosting) below |
@@ -142,15 +143,20 @@ of a signature.
 
 ## Command-line package
 
-Run a conversion without installing anything permanently:
+To install it for good: `uv tool install trimitdown`, or `pipx install trimitdown`. A plain
+`pip install` into the system Python is refused on many distributions and on Homebrew
+(PEP 668), which is why both commands above put the package in an isolated environment.
 
 ```bash
-uvx trimitdown convert report.pdf > report.md
+trimitdown convert report.pdf -o report.md
 ```
 
-Or install it with `pip install trimitdown` and write directly to a file with
-`trimitdown convert report.pdf -o report.md`. Without `-o`, Markdown goes to standard output.
-The CLI works fully offline.
+Without `-o`, Markdown goes to standard output; input can arrive as a stream:
+`trimitdown convert - --type pdf`. The CLI works fully offline.
+
+To try it once without installing: `uvx trimitdown convert report.pdf`. Note that the first
+run still downloads the whole dependency graph — "without installing" means "without a trace
+on the system", not "without a download".
 
 ## Self-hosting
 

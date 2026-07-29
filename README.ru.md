@@ -26,7 +26,7 @@
 TrimItDown превращает PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) и письма Outlook
 (.msg) в чистый, читаемый Markdown — чтобы вставить в Claude/ChatGPT, Obsidian, Notion или
 любую markdown-базу. Работает как приложение для iPhone/iPad (устанавливается прямо из Safari,
-без App Store), портативная программа для Windows, приложение для macOS и self-hosted
+без App Store), программа для Windows одним файлом, приложение для macOS и self-hosted
 Docker-сервер — с одним общим архивом конвертаций на всех устройствах.
 
 ## PDF-движок
@@ -116,14 +116,15 @@ ML-моделей, без облака, достаточно компактно,
 - **Один архив на все устройства.** Конвертировали на телефоне — результат уже на компьютере,
   и наоборот. С поиском, батч-конвертацией и выгрузкой в ZIP.
 - **Настоящее приложение на каждой платформе.** iPhone PWA из Safari (без App Store),
-  портативный exe для Windows, приложение для macOS. Интерфейс на русском и английском,
+  exe для Windows одним файлом, приложение для macOS. Интерфейс на русском и английском,
   светлая/тёмная тема, две цветовые схемы.
 
 ## Как получить
 
 | Платформа | Как |
 |---|---|
-| **Windows** | Скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — portable, без установки |
+| **Терминал** (любая ОС) | `uv tool install trimitdown` — без GUI и без подтверждений системы, см. [Пакет командной строки](#пакет-командной-строки) |
+| **Windows** | Скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — один файл, без установщика |
 | **macOS** (Apple Silicon / Intel) | `.dmg` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — смонтировать, перетащить в Applications, затем [Первый запуск](#первый-запуск) |
 | **iPhone / iPad** | Отдаётся вашим Docker-сервером — открыть в Safari → «Поделиться» → *На экран «Домой»* |
 | **Docker-сервер** | См. [Свой сервер](#свой-сервер) ниже |
@@ -147,15 +148,20 @@ ML-моделей, без облака, достаточно компактно,
 
 ## Пакет командной строки
 
-Конвертацию можно запустить без постоянной установки:
+Постоянная установка — `uv tool install trimitdown`, либо `pipx install trimitdown`.
+Прямой `pip install` в системный Python на многих дистрибутивах и в Homebrew отклоняется
+(PEP 668), поэтому оба варианта выше ставят пакет в изолированное окружение.
 
 ```bash
-uvx trimitdown convert report.pdf > report.md
+trimitdown convert report.pdf -o report.md
 ```
 
-Либо установите пакет командой `pip install trimitdown` и запишите результат сразу в файл:
-`trimitdown convert report.pdf -o report.md`. Без `-o` Markdown выводится в стандартный вывод.
-CLI полностью работает офлайн.
+Без `-o` Markdown уходит в стандартный вывод; вход можно подать потоком:
+`trimitdown convert - --type pdf`. CLI полностью работает офлайн.
+
+Попробовать разово, не устанавливая: `uvx trimitdown convert report.pdf`. Учтите, что
+первый запуск всё равно скачивает весь граф зависимостей — «без установки» означает
+«без следа в системе», а не «без загрузки».
 
 ## Свой сервер
 
