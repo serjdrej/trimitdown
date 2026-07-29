@@ -356,6 +356,56 @@ def test_documents_sharing_a_name_but_not_a_size_are_both_measured(tmp_path):
     assert "documents: 2 " in result.stdout
 
 
+def test_documents_sharing_a_name_and_a_size_are_both_measured(tmp_path):
+    """KNOWN DEFECT, currently shipping -- this test is expected to FAIL.
+
+    main()'s de-duplication key is (filename, byte size) alone, never
+    content (see the `by_key` loop in scripts/measure_corpus.py, around
+    line 339-350). Two genuinely different documents that happen to share
+    both a basename and a byte count collide on that key, and the second
+    one is dropped silently: not converted, not counted, not in any total
+    or median, with no warning distinguishing it from a real duplicate.
+
+    The sibling test above (test_documents_sharing_a_name_but_not_a_size_are_
+    both_measured) only varies the size, so it never exercises this
+    collision -- that is precisely how the defect ships unnoticed.
+
+    Per the project brief this defect is NOT to be fixed as part of this
+    audit; this test documents it and must be left red, not skipped or
+    deleted, until someone decides what to do about production code.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    for root in (a, b):
+        root.mkdir()
+
+    text_a = "Just a paragraph, no ruling lines anywhere."
+    text_b = text_a.swapcase()  # different content, same length -> same file size
+    assert text_a != text_b
+    assert len(text_a) == len(text_b)
+
+    content_a = pdf_fixtures._build_pdf(pdf_fixtures._text(72, 700, text_a))
+    content_b = pdf_fixtures._build_pdf(pdf_fixtures._text(72, 700, text_b))
+    assert content_a != content_b
+    assert len(content_a) == len(content_b), (
+        "fixture no longer collides on (name, size) -- this test would stop "
+        "exercising the defect it documents"
+    )
+
+    a.joinpath("doc.pdf").write_bytes(content_a)
+    b.joinpath("doc.pdf").write_bytes(content_b)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b),
+         "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    # Two distinct documents share this name and size, so both must be
+    # measured -- but the shipping de-dup key cannot tell them apart from a
+    # real duplicate, and silently reports "documents: 1 " instead.
+    assert "documents: 2 " in result.stdout
+
+
 def test_skipped_duplicates_are_announced(tmp_path):
     """De-duplication that goes silent costs the reader a signal, not data.
 
