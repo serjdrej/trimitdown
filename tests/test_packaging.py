@@ -98,13 +98,18 @@ def test_changelog_has_a_section_for_the_declared_version():
     draft was recreated. The section in CHANGELOG.md is what the notes are built
     from: a missing section has to stop the build rather than quietly produce
     notes that say nothing.
+
+    Uses the parser the pipeline itself calls rather than a second regex of its
+    own: two readers of one file drift apart, and then the suite is green about
+    a section the release job cannot find.
     """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from changelog_section import section
+
     from trimitdown import __version__
 
-    changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert re.search(
-        rf"^## {re.escape(__version__)}\s*$", changelog, re.MULTILINE
-    ), f"CHANGELOG.md has no section for {__version__}"
+    body = section((REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), __version__)
+    assert body, f"CHANGELOG.md has no section describing {__version__}"
 
 
 def test_api_mode_reports_the_package_version():
