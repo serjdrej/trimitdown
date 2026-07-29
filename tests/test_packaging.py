@@ -90,6 +90,23 @@ def test_version_has_exactly_one_source():
     )
 
 
+def test_changelog_has_a_section_for_the_declared_version():
+    """Notes with no description of the changes are notes we have already shipped.
+
+    The pipeline builds release notes from a template that has no place for one,
+    so the description was typed in by hand -- twice -- and lost once when the
+    draft was recreated. The section in CHANGELOG.md is what the notes are built
+    from: a missing section has to stop the build rather than quietly produce
+    notes that say nothing.
+    """
+    from trimitdown import __version__
+
+    changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert re.search(
+        rf"^## {re.escape(__version__)}\s*$", changelog, re.MULTILINE
+    ), f"CHANGELOG.md has no section for {__version__}"
+
+
 def test_api_mode_reports_the_package_version():
     # То, что видит пользователь в UI, обязано быть тем же числом, что публикуется
     # на PyPI, -- в этом весь смысл унификации.
