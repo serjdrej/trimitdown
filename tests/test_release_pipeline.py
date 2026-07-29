@@ -243,6 +243,13 @@ def test_artifact_workflows_install_runtime_graph_from_hashed_lock():
         # takes them from the lock built out of requirements-dev.txt rather than
         # from a second list typed in beside it.
         ("release.yml", "guard"): "requirements-dev.lock",
+        # And the gate before the most irreversible step of all. This workflow
+        # has already been the place where a guarantee was quietly weaker than
+        # the comment above it claimed: it ran the suite without the zero-skips
+        # check while calling it "the same portable suite". Measured -- with this
+        # entry absent, reverting its install to an unpinned requirements-dev.txt
+        # left the whole file green.
+        ("publish-pypi.yml", "build"): "requirements-dev.lock",
     }
 
     missing = []
@@ -317,22 +324,38 @@ def test_the_publish_workflow_can_publish_both_projects():
     # первым так же, как расходились спеки.
     publish = _workflow("publish-pypi.yml")
     options = publish["on"]["workflow_dispatch"]["inputs"]["package"]["options"]
-    build = _step("publish-pypi.yml", "build", "Build sdist and wheel")
+    assemble = _step("publish-pypi.yml", "build", "Assemble the distributions to publish")
+    script = _script(assemble)
 
     assert set(options) == {"trimitdown", "trimitdown-pdf"}
-    assert build["env"]["PACKAGE"] == "${{ inputs.package }}"
-    assert 'case "$PACKAGE" in' in _script(build), (
+    assert assemble["env"]["PACKAGE"] == "${{ inputs.package }}"
+    assert 'case "$PACKAGE" in' in script, (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
     )
-    # The case statement's mere presence doesn't say the two branches build
-    # different things -- both arms could set the same `source=` and publish
-    # the app's own tree under the engine's name (or vice versa) while this
-    # assertion stays green. Pull out each branch's source and require they
-    # differ, one per declared option.
-    sources = dict(re.findall(r'(\S+)\)\s+source=(\S+)\s*;;', _script(build)))
-    assert sources == {"trimitdown": ".", "trimitdown-pdf": "packages/trimitdown-pdf"}, (
-        f"the two package branches must build from different source trees: {sources}"
+
+    # The case statement's mere presence does not say the two branches do
+    # different things -- both arms could produce the application's tree and
+    # publish it under the engine's name while this assertion stayed green. Each
+    # branch is pulled out and required to do its own thing.
+    app_branch, engine_branch = re.split(
+        r"\n\s*trimitdown-pdf\)\n",
+        re.split(r"\n\s*trimitdown\)\n", script, maxsplit=1)[1],
+        maxsplit=1,
     )
+
+    # The application is published from the files the release run installed and
+    # ran, and that were attached to the draft a human approved. Rebuilding here
+    # would upload bytes nobody has ever executed.
+    assert "gh release download" in app_branch
+    assert "sha256sum -c" in app_branch
+    assert "python -m build" not in app_branch, (
+        "the application would be rebuilt at publication time"
+    )
+
+    # The engine has no draft of its own: the release pipeline cuts drafts for
+    # the application only. It is built here, and that gap is deliberate.
+    assert "python -m build --outdir dist packages/trimitdown-pdf" in engine_branch
+    assert "gh release download" not in engine_branch
 
 
 # Инвариант «ноль скипов» стоял только в tests.yml, то есть ровно там, где

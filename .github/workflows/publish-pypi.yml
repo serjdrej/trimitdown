@@ -45,24 +45,66 @@ jobs:
       # version number on PyPI burns forever.
       - name: Run the portable suite
         run: |
-          python -m pip install -r requirements-dev.txt
+          # From the lock, not from requirements-dev.txt: this is the gate before
+          # the one step that cannot be undone, and a freely resolved graph here
+          # means the tests that pass are not the tests that will run next time.
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-deps -e . ./packages/trimitdown-pdf
           python -m pytest -m "not corpus" -rs --junitxml=report.xml
           python scripts/check_no_skips.py report.xml
 
-      - name: Build sdist and wheel
+      - name: Assemble the distributions to publish
         # Through the environment rather than a ${{ }} substitution: the substitution
         # expands into the script text before it runs, that is, before `case` gets a
         # chance to reject an unknown value.
         env:
           PACKAGE: ${{ inputs.package }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          python -m pip install --require-hashes -r requirements-build.lock
           case "$PACKAGE" in
-            trimitdown)     source=. ;;
-            trimitdown-pdf) source=packages/trimitdown-pdf ;;
-            *)              echo "unknown package $PACKAGE"; exit 1 ;;
+            trimitdown)
+              # Taken from the release, not rebuilt. The release run installed
+              # these exact files into clean environments and converted a
+              # document with them, and they were attached to the draft a human
+              # then approved. Rebuilding here would publish bytes nobody has
+              # ever run -- which is the whole thing being repaired.
+              #
+              # The checksums travelled beside the files, so verifying against
+              # them catches a damaged download and nothing more. The chain that
+              # matters is simply that these are the files, not new ones.
+              version=$(python - <<'PY'
+          import ast, pathlib
+          tree = ast.parse(pathlib.Path("src/trimitdown/__init__.py").read_text(encoding="utf-8"))
+          print(next(node.value.value for node in tree.body
+                     if isinstance(node, ast.Assign) and node.targets[0].id == "__version__"))
+          PY
+              )
+              mkdir -p dist
+              gh release download "v$version" --dir dist \
+                --pattern 'trimitdown-*.whl' \
+                --pattern 'trimitdown-*.tar.gz' \
+                --pattern 'SHA256SUMS'
+              cd dist
+              grep -E 'trimitdown-[0-9].*(\.whl|\.tar\.gz)$' SHA256SUMS > distributions.sha256
+              test -s distributions.sha256 \
+                || { echo "the release carries no distributions for v$version"; exit 1; }
+              sha256sum -c distributions.sha256
+              rm SHA256SUMS distributions.sha256
+              cd ..
+              ;;
+            trimitdown-pdf)
+              # Built here, and this is the exception rather than the rule: the
+              # engine is a separate project on PyPI with its own version, and the
+              # release pipeline cuts drafts for the application only. Nothing has
+              # run these bytes before the upload. Named plainly so it is a known
+              # gap rather than an oversight.
+              python -m build --outdir dist packages/trimitdown-pdf
+              ;;
+            *)
+              echo "unknown package $PACKAGE"; exit 1
+              ;;
           esac
-          python -m pip install --upgrade build twine
-          python -m build --outdir dist "$source"
           python -m twine check --strict dist/*
 
       # The required reviewer approves the *publish* job without seeing the
@@ -75,6 +117,15 @@ jobs:
         run: |
           {
             echo "### Ready to publish $PACKAGE"
+            echo
+            if [ "$PACKAGE" = "trimitdown" ]; then
+              echo "These files come from the GitHub release. They were installed"
+              echo "into clean environments and used to convert a document before"
+              echo "the draft was attached, and they are the files you approved."
+            else
+              echo "These files were built in this run. The engine has no release"
+              echo "draft of its own, so nothing has executed them yet."
+            fi
             echo
             echo '```'
             ls -1 dist/
