@@ -119,12 +119,26 @@ binary. Every non-PDF format still goes through MarkItDown.
 | Platform | How |
 |---|---|
 | **Windows** | Download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — portable, no install |
-| **macOS** (Apple Silicon / Intel) | Download the matching `.zip` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest), unzip, right-click → Open |
+| **macOS** (Apple Silicon / Intel) | `.dmg` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
 | **iPhone / iPad** | Served by your own Docker server — open it in Safari → Share → *Add to Home Screen* |
 | **Docker server** | See [Self-hosting](#self-hosting) below |
 
 The desktop apps work fully offline out of the box. Point them at your server in **Settings**
 to get the shared archive.
+
+### First launch
+
+The apps are not signed with a developer certificate, so each platform asks once
+before it will run a program it does not recognise. This happens once per
+downloaded copy, not on every launch.
+
+- **macOS** — the first launch is refused; dismiss the warning, allow the app
+  under **System Settings → Privacy & Security → Open Anyway**, then launch it
+  again.
+- **Windows** — SmartScreen → **More info → Run anyway**.
+
+Every release publishes SHA-256 checksums — that is what you can verify in place
+of a signature.
 
 ## Command-line package
 
@@ -198,10 +212,8 @@ Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - The server's self-signed HTTPS certificate needs a one-time manual trust on each device
   (iOS: profile + full trust; Windows: import into `CurrentUser\Root`; macOS: Keychain).
-- The binaries aren't code-signed (no Apple/Microsoft developer certificate) — first launch
-  needs a one-time override. On macOS that is System Settings → Privacy & Security →
-  "Open Anyway"; the older right-click → Open route no longer works. On Windows it is the
-  SmartScreen prompt: More info → Run anyway.
+- Unsigned binaries: one manual approval per downloaded copy — see
+  [First launch](#first-launch).
 
 ## License and credits
 
