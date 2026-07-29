@@ -21,6 +21,27 @@ def client(tmp_path, monkeypatch):
     return TestClient(server_app.app)
 
 
+def test_convert_endpoint_converts_and_saves_a_single_file(client, monkeypatch):
+    # The primary path: one file, one synchronous request. Nothing else in this
+    # module ever calls TestClient against plain /api/convert -- every other
+    # test here goes through /api/convert-batch, so a deleted or broken
+    # single-file route would not fail a single test in this suite.
+    class FakeResult:
+        text_content = "converted"
+
+    monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
+
+    response = client.post(
+        "/api/convert",
+        files={"file": ("a.txt", io.BytesIO(b"hello"), "text/plain")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["content"] == "converted"
+    assert body["filename"] == "a.md"
+
+
 def test_convert_batch_streams_one_event_per_file(client, monkeypatch):
     class FakeResult:
         text_content = "converted"
