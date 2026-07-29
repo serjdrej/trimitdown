@@ -103,6 +103,10 @@ class TestSaveUnique:
         assert len(set(results)) == 10
         saved = {p.name: p.read_text(encoding="utf-8") for p in tmp_path.glob("*.md")}
         assert len(saved) == 10
+        # Ten distinct names with the same payload written into every one of
+        # them would still satisfy both counts above -- "no data loss" means
+        # each thread's own content survived, not merely that ten files exist.
+        assert set(saved.values()) == {f"content-{i}" for i in range(10)}
 
 
 class TestSafePath:
