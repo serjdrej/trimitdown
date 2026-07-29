@@ -173,7 +173,7 @@ def test_the_release_carries_every_artifact_the_manifests_will_need():
 def test_checksums_cover_the_whole_release_set():
     # Артефакт без суммы -- это артефакт, который манифест brew поставить не может.
     checksum = _script(_step("release.yml", "release", "Checksum every artifact"))
-    create = _command(_step("release.yml", "release", "Create the draft release"), "gh release create")
+    create = _command(_step("release.yml", "release", "Create or update the draft release"), "gh release create")
 
     assert "sha256sum $ARTIFACTS" in checksum
     assert "$ARTIFACTS SHA256SUMS" in create
@@ -206,7 +206,7 @@ def test_the_release_step_knows_which_repository_it_targets():
     # Джоба не делает checkout, .git рядом нет, а gh без GH_REPO падает с
     # "not a git repository" -- уже после того, как всё собрано и посчитано.
     # GITHUB_REPOSITORY он не читает: проверено вручную на gh 2.96.0.
-    create = _step("release.yml", "release", "Create the draft release")
+    create = _step("release.yml", "release", "Create or update the draft release")
 
     assert create["env"]["GH_REPO"] == "${{ github.repository }}"
 
@@ -216,7 +216,7 @@ def test_the_draft_is_pinned_to_the_commit_that_was_built():
     # Сборка идёт долго; приехавший тем временем коммит увёл бы тег с того кода,
     # из которого собраны вложенные бинарники, и по релизу это уже не видно.
     # Флаг проверяется внутри самой команды: рядом с ней он ничего не значит.
-    create = _step("release.yml", "release", "Create the draft release")
+    create = _step("release.yml", "release", "Create or update the draft release")
 
     assert '--target "$GITHUB_SHA"' in _command(create, "gh release create")
 
@@ -224,7 +224,7 @@ def test_the_draft_is_pinned_to_the_commit_that_was_built():
 def test_only_main_can_produce_a_release():
     # Даёт прогнать весь конвейер с ветки на живых раннерах, не создавая релизных
     # объектов от неслитого кода.
-    create = _step("release.yml", "release", "Create the draft release")
+    create = _step("release.yml", "release", "Create or update the draft release")
 
     assert create.get("if") == "github.ref == 'refs/heads/main'"
 
@@ -297,7 +297,7 @@ def test_the_image_installs_its_dependencies_from_the_hashed_lock():
 
 def test_exactly_one_step_can_create_a_release():
     # _step() returns the FIRST step matching a name -- every test above that
-    # reads "Create the draft release" (the main-only guard, GH_REPO, the
+    # reads "Create or update the draft release" (the main-only guard, GH_REPO, the
     # --target pin) only ever sees that one step. A second step added later in
     # the same job that also invokes `gh release create`, without the
     # main-only guard, would create an unreviewed release from any branch and
@@ -453,3 +453,54 @@ def test_the_draft_notes_carry_the_description_of_the_changes():
     script = _script(_step("release.yml", "release", "Write the draft notes"))
 
     assert "changelog-section.md" in script
+
+
+def _draft_step():
+    return _step("release.yml", "release", "Create or update the draft release")
+
+
+def test_a_published_release_is_never_overwritten():
+    """Removing the refusal lets a re-cut replace a release people already have.
+
+    A release accumulates here: the draft is cut, checked by hand, re-cut as
+    work lands. Every one of those steps is meant to be undoable. Publication is
+    the single irreversible direction, and it is the line this refuses to cross.
+    """
+    script = _script(_draft_step())
+
+    assert 'gh release view "v$VERSION" --json isDraft' in script
+    assert '[ "$state" = "false" ]' in script, (
+        "nothing distinguishes a published release from a draft"
+    )
+    assert "exit 1" in script, "the published case does not stop the step"
+
+
+def test_updating_a_draft_pins_the_tag_to_the_commit_that_was_built():
+    # Same reason the create path passes --target: without it the tag binds to
+    # the tip of the default branch at publication, which on a draft that lives
+    # across several cuts is a different commit from the one these binaries came
+    # from.
+    edit = _command(_draft_step(), "gh release edit")
+
+    assert '--target "$GITHUB_SHA"' in edit
+    assert "--notes-file notes.md" in edit
+
+
+def test_updating_a_draft_replaces_the_files_already_attached():
+    # Without --clobber the upload fails on an existing asset, and re-cutting a
+    # draft goes back to deleting it -- which is how the notes were lost.
+    upload = _command(_draft_step(), "gh release upload")
+
+    assert "--clobber" in upload
+
+
+def test_a_re_cut_draft_carries_no_asset_from_an_earlier_cut():
+    # --clobber replaces same-named files and nothing else. An asset whose name
+    # changed between cuts stays attached, and someone approving the draft
+    # cannot tell it from the rest. The expected set must be $ARTIFACTS: a second
+    # list written here would drift from the one the completeness check and the
+    # checksums read, and the drift would surface on a published release.
+    script = _script(_draft_step())
+
+    assert "gh release delete-asset" in script
+    assert 'expected=" $ARTIFACTS SHA256SUMS "' in script

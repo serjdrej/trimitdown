@@ -163,7 +163,7 @@ jobs:
       # A draft is created only from main. From a branch the run reaches this point
       # and stops: the pipeline gets exercised end to end on live runners without
       # producing release objects from unmerged code.
-      - name: Create the draft release
+      - name: Create or update the draft release
         if: github.ref == 'refs/heads/main'
         env:
           # The job deliberately skips checkout -- it needs only the artifacts. But
@@ -175,17 +175,55 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           cd release
-          # --target is required: without it GitHub binds the tag to the tip of the
-          # default branch at the moment the draft is published. The build takes a
-          # while, and a commit landing meanwhile would drag the tag off the code the
-          # attached binaries were built from -- which a published release no longer
-          # shows.
-          gh release create "v$VERSION" \
-            --draft \
-            --target "$GITHUB_SHA" \
-            --title "$VERSION" \
-            --notes-file notes.md \
-            $ARTIFACTS SHA256SUMS
+          # A release accumulates: the draft is cut, the artifacts are checked by
+          # hand, work lands, the draft is cut again. `gh release create` fails on
+          # an existing tag, so re-cutting used to mean deleting the draft first --
+          # and that is exactly how the description of the changes was lost once.
+          state=$(gh release view "v$VERSION" --json isDraft -q .isDraft 2>/dev/null || echo absent)
+
+          if [ "$state" = "false" ]; then
+            echo "v$VERSION is already published. Publication is the one"
+            echo "irreversible direction here, so this refuses rather than"
+            echo "overwriting it. Raise the version."
+            exit 1
+          fi
+
+          # --target is required in both branches: without it GitHub binds the tag
+          # to the tip of the default branch at the moment the draft is published.
+          # The build takes a while, and a commit landing meanwhile would drag the
+          # tag off the code the attached binaries were built from -- which a
+          # published release no longer shows.
+          if [ "$state" = "absent" ]; then
+            gh release create "v$VERSION" \
+              --draft \
+              --target "$GITHUB_SHA" \
+              --title "$VERSION" \
+              --notes-file notes.md \
+              $ARTIFACTS SHA256SUMS
+          else
+            gh release edit "v$VERSION" \
+              --target "$GITHUB_SHA" \
+              --title "$VERSION" \
+              --notes-file notes.md
+            gh release upload "v$VERSION" $ARTIFACTS SHA256SUMS --clobber
+
+            # --clobber replaces same-named files and nothing else. An asset from
+            # an earlier cut whose name has since changed -- a dropped
+            # architecture, a renamed image -- would stay attached and ship with
+            # the draft, and a human approving the draft would have no way to tell
+            # it apart from the rest. The expected set is $ARTIFACTS, the same list
+            # the completeness check and the checksums read.
+            expected=" $ARTIFACTS SHA256SUMS "
+            for asset in $(gh release view "v$VERSION" --json assets -q '.assets[].name'); do
+              case "$expected" in
+                *" $asset "*) ;;
+                *)
+                  echo "removing stale asset from an earlier cut: $asset"
+                  gh release delete-asset "v$VERSION" "$asset" --yes
+                  ;;
+              esac
+            done
+          fi
 
       - name: Report a dry run
         if: github.ref != 'refs/heads/main'
