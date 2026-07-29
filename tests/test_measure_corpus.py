@@ -218,6 +218,43 @@ class TestBrokenSourceSplit:
         assert [r["markitdown"]["glued"] for r in broken] == [51]
 
 
+def test_report_prints_each_engines_own_column_not_one_column_twice():
+    # aggregate() is checked in isolation above, but nothing exercises report()
+    # itself: a `line()` that prints totals["markitdown"][key] into BOTH the
+    # markitdown and the TrimItDown column would still leave every test in
+    # this file green, because none of them look at the actual numbers in the
+    # rendered table -- the real-run tests below only grep for substrings like
+    # "documents: 1 " or the header row. Give the two engines totals that
+    # cannot be confused for one another and read the two columns back out of
+    # the rendered text.
+    rows = [
+        {"markitdown": {"glued": 1, "mojibake_doc": 0, "s": 0.5, "digit_deficit": 0},
+         "trimitdown": {"glued": 0, "mojibake_doc": 0, "s": 0.25, "digit_deficit": 0}},
+    ]
+    totals = {
+        "markitdown": {
+            "glued": 5, "mojibake": 3, "phantom_rows": 2,
+            "digit_excess": 1, "digit_deficit": 4, "tokens": 100,
+        },
+        "trimitdown": {
+            "glued": 0, "mojibake": 0, "phantom_rows": 0,
+            "digit_excess": 0, "digit_deficit": 0, "tokens": 90,
+        },
+    }
+    failures = {"markitdown": 0, "trimitdown": 0}
+    elapsed = {"markitdown": 2.0, "trimitdown": 1.0}
+
+    text = mc.report(rows, totals, failures, elapsed,
+                      n_docs=1, n_bytes=10, n_gridless=0, n_notext=0)
+
+    assert "| glued word runs | 5 | 0 |" in text
+    assert "| mojibake characters (U+00C0-U+00FF) | 3 | 0 |" in text
+    assert "| table rows on grid-less documents | 2 | 0 |" in text
+    assert "| digits duplicated vs page text | 1 | 0 |" in text
+    assert "| digits lost vs page text | 4 | 0 |" in text
+    assert "| output tokens | 100 | 90 |" in text
+
+
 def test_aggregate_totals_one_subset_without_remeasuring():
     # Every headline figure must share one denominator. Accumulating while
     # measuring counted documents that parsed but failed to convert, so the
