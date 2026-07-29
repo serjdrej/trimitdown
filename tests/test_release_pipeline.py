@@ -403,3 +403,53 @@ def test_unmounting_the_image_cannot_overrule_a_passing_check():
         run = _script(_step("build-macos.yml", "build", step_name))
         detach = next(line for line in run.splitlines() if "hdiutil detach" in line)
         assert "|| true" in detach, f"{step_name}: teardown can fail the step"
+
+
+def test_the_guard_refuses_a_version_the_changelog_does_not_describe():
+    """Deleting this step lets a release be built with notes that say nothing.
+
+    The same step also produces the text the notes are made of, so the check and
+    the content cannot come apart. A guard that passes while the notes are built
+    from somewhere else is the failure being repaired here, not a smaller
+    version of it.
+    """
+    step = _step(
+        "release.yml", "guard", "Take the description of the changes from the changelog"
+    )
+    script = _script(step)
+
+    assert "scripts/changelog_section.py" in script
+    # Through the environment, never through a substitution: a ${{ }} expands
+    # into the script text before the shell sees it, and this pipeline hands a
+    # token with contents: write to a later job.
+    assert step["env"]["VERSION"] == "${{ inputs.version }}"
+    assert not DISPATCH_INPUT.search(script)
+
+
+def test_the_changelog_text_reaches_the_job_that_writes_the_notes():
+    # The release job has no checkout on purpose, so the description has to
+    # travel as an artifact. Two different names here would leave the notes step
+    # reading a file that never arrives -- and the loss would show only on a
+    # draft a human is already looking at.
+    workflow = _workflow("release.yml")
+    uploaded = {
+        step["with"]["name"]
+        for step in workflow["jobs"]["guard"]["steps"]
+        if str(step.get("uses", "")).startswith("actions/upload-artifact")
+    }
+    downloaded = {
+        step["with"].get("name")
+        for step in workflow["jobs"]["release"]["steps"]
+        if str(step.get("uses", "")).startswith("actions/download-artifact")
+    }
+
+    assert "changelog-section" in uploaded
+    assert "changelog-section" in downloaded
+
+
+def test_the_draft_notes_carry_the_description_of_the_changes():
+    # Notes made of an install block and checksums are notes that do not say what
+    # changed. That description was typed in by hand twice and lost once.
+    script = _script(_step("release.yml", "release", "Write the draft notes"))
+
+    assert "changelog-section.md" in script

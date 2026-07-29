@@ -49,6 +49,27 @@ jobs:
           test "$declared" = "$VERSION" \
             || { echo "release asked for $VERSION, the package declares $declared"; exit 1; }
 
+      # This both refuses the build and produces the text. One step rather than a
+      # check here and a copy of the same parsing in the notes step: with two,
+      # the guard can pass while the notes are built from something else, which
+      # is the failure this whole mechanism exists to prevent. It runs before the
+      # suite because it costs nothing and the suite costs minutes.
+      #
+      # The version travels through the environment, not through a ${{ }}
+      # substitution -- same reason as the step above, and the same token with
+      # contents: write waiting downstream.
+      - name: Take the description of the changes from the changelog
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python scripts/changelog_section.py "$VERSION" > changelog-section.md
+
+      # The release job deliberately has no checkout, so the text has to travel
+      # to it as an artifact rather than be read from the tree again.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: changelog-section
+          path: changelog-section.md
+
       # Releasing a build whose tests do not pass is the one mistake this pipeline
       # cannot undo after publication. The gate is the same one tests.yml runs, not a
       # weakened copy: `pytest` returns 0 on a run where something was skipped, so the
@@ -94,6 +115,11 @@ jobs:
           merge-multiple: true
           path: release
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: changelog-section
+          path: notes
+
       - name: Verify every expected artifact arrived
         run: |
           cd release
@@ -121,6 +147,11 @@ jobs:
             echo "и перетащить TrimItDown в «Программы»."
             echo "The macOS and Windows apps are attached below. On macOS: open the disk"
             echo "image and drag TrimItDown into Applications."
+            echo
+            # The description of the changes, taken from CHANGELOG.md by the guard
+            # job. It used to be typed in by hand here and was lost once when the
+            # draft was recreated; a re-cut draft now reproduces it instead.
+            cat ../notes/changelog-section.md
             echo
             echo "## SHA256"
             echo
