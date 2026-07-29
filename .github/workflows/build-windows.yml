@@ -45,6 +45,34 @@ jobs:
           grep -q "tiktoken_cache" build/windows/Analysis-00.toc \
             || { echo "tiktoken cache missing from the bundle"; exit 1; }
 
+      # Дымовой документ строится тем же генератором, что и фикстуры сюиты:
+      # проза плюс настоящая таблица, то есть движок обязан отработать. Модуль
+      # чистый, без импортов -- сборочной джобе не нужны dev-зависимости.
+      - name: Build the smoke document
+        run: python -c "from tests.pdf_fixtures import ruled_table; open('smoke.pdf','wb').write(ruled_table())"
+
+      # То же, что в macOS-джобе, и по той же причине: проверка содержимого выше
+      # смотрит на имена файлов и не видит, что процесс не стартует. Здесь
+      # запускается сам .exe и делает настоящую конверсию.
+      #
+      # Вердикт берётся из лога, а не из кода возврата: .exe собран
+      # console=False, у него sys.stdout и sys.stderr равны None, а
+      # GUI-подсистемный процесс не всегда отдаёт код возврата шеллу.
+      - name: Smoke-launch the bundle
+        shell: bash
+        env:
+          TRIMITDOWN_SMOKE_LOG: smoke.log
+        run: |
+          set +e
+          TRIMITDOWN_SMOKE=smoke.pdf ./dist/TrimItDown-windows-x64.exe
+          status=$?
+          set -e
+          echo "exit status: $status"
+          test -s smoke.log || { echo "the bundle produced no smoke log at all"; exit 1; }
+          cat smoke.log
+          tail -1 smoke.log | grep -q '^smoke ok:' \
+            || { echo "the bundle did not complete a conversion"; exit 1; }
+
       - uses: actions/upload-artifact@v7
         with:
           name: TrimItDown-windows-x64

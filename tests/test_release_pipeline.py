@@ -1,5 +1,6 @@
 """Релизный конвейер: то, что ломается ровно один раз и уже необратимо."""
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -10,8 +11,8 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # Имена, на которые сошлются манифесты brew/scoop/winget. Каждое обязано приехать
 # в релиз с контрольной суммой, иначе манифест не из чего писать.
 RELEASE_ARTIFACTS = {
-    "TrimItDown-macOS-x86_64.zip",
-    "TrimItDown-macOS-arm64.zip",
+    "TrimItDown-macOS-x86_64.dmg",
+    "TrimItDown-macOS-arm64.dmg",
     "TrimItDown-windows-x64.exe",
 }
 
@@ -68,6 +69,41 @@ def test_the_windows_bundle_is_verified_like_the_macos_one():
     assert windows == _bundle_checks("build-macos.yml")
     assert "trimitdown_pdf" in windows
     assert "tiktoken_cache" in windows
+
+
+def test_the_macos_release_is_a_verified_drag_to_install_image():
+    """Removing either image check must make this test fail.
+
+    A DMG that merely has the expected filename can omit the application, and
+    an application that works from ``dist`` can still write beside itself and
+    fail on the read-only mounted image. Both regressions reach users only
+    after release, so the workflow must retain both checks.
+    """
+    image = _step("build-macos.yml", "build", "Build drag-to-install image")
+    contents = _step("build-macos.yml", "build", "Verify image contents")
+    smoke = _step("build-macos.yml", "build", "Smoke-launch the mounted image")
+
+    image_run = _script(image)
+    contents_run = _script(contents)
+    smoke_run = _script(smoke)
+
+    assert "hdiutil create" in image_run
+    assert "-format UDZO" in image_run
+    assert "ln -s /Applications" in image_run
+    # ditto copies an .app faithfully and leaves its signature intact; cp -R
+    # yields a bundle that looks complete and can be refused at launch. The
+    # image checks below would not notice the difference.
+    assert "ditto dist/TrimItDown.app" in image_run
+    assert "cp -R dist/TrimItDown.app" not in image_run
+    assert "hdiutil attach" in contents_run
+    assert 'test -d "$mount_dir/TrimItDown.app"' in contents_run
+    assert 'test -L "$mount_dir/Applications"' in contents_run
+    assert 'readlink "$mount_dir/Applications"' in contents_run
+    assert "hdiutil attach" in smoke_run
+    assert "-readonly" in smoke_run
+    assert "TrimItDown.app/Contents/MacOS/TrimItDown" in smoke_run
+    assert "TRIMITDOWN_SMOKE=smoke.pdf" in smoke_run
+    assert "tail -1 smoke-mounted.log | grep -q '^smoke ok:'" in smoke_run
 
 
 def test_no_dispatch_input_reaches_a_shell_or_an_action():
@@ -160,3 +196,57 @@ def test_the_publish_workflow_can_publish_both_projects():
     assert 'case "$PACKAGE" in' in _script(build), (
         "сборка игнорирует выбор и всегда публикует один и тот же проект"
     )
+
+
+# Инвариант «ноль скипов» стоял только в tests.yml, то есть ровно там, где
+# ошибка обратима, и был снят в release.yml и publish-pypi.yml, где она уже нет.
+# Проверка держит его на всех прогонах сюиты сразу, а не перечисляет workflow
+# поимённо: новый workflow с той же дырой должен ронять этот тест, а не
+# проходить мимо списка.
+PORTABLE_SUITE = re.compile(r'pytest\s+-m\s+"not corpus"')
+
+
+def _run_blocks(document):
+    for job in (document.get("jobs") or {}).values():
+        for step in job.get("steps") or []:
+            if isinstance(step.get("run"), str):
+                yield step.get("name", "<unnamed>"), step["run"]
+
+
+def test_every_portable_suite_run_asserts_zero_skips():
+    """`pytest` exits 0 on a run that skipped everything it was meant to check.
+
+    Weakened to "tests.yml contains check_no_skips", this passes with the
+    release and publish workflows back on a bare `pytest -q` -- the state that
+    let a green gate stand immediately before creating a release and before
+    burning a PyPI version number.
+    """
+    offenders = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        for name, block in _run_blocks(_workflow(path.name)):
+            if PORTABLE_SUITE.search(block) and "check_no_skips.py" not in block:
+                offenders.append(f"{path.name}::{name}")
+    assert not offenders, \
+        f"these run the portable suite without asserting zero skips: {offenders}"
+
+
+def test_the_skip_check_is_not_a_no_op(tmp_path):
+    """The guard itself has to fail on the three states it exists to catch."""
+    import subprocess
+
+    def verdict(xml: str) -> int:
+        report = tmp_path / "report.xml"
+        report.write_text(xml, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "check_no_skips.py"), str(report)],
+            capture_output=True).returncode
+
+    clean = '<testsuites><testsuite tests="2"><testcase classname="a" name="b"/>' \
+            '<testcase classname="a" name="c"/></testsuite></testsuites>'
+    skipped = '<testsuites><testsuite tests="2"><testcase classname="a" name="b"/>' \
+              '<testcase classname="a" name="c"><skipped/></testcase></testsuite></testsuites>'
+    empty = '<testsuites><testsuite tests="0"></testsuite></testsuites>'
+
+    assert verdict(clean) == 0
+    assert verdict(skipped) == 1, "a skipped test passed the skip check"
+    assert verdict(empty) == 1, "a run of zero tests passed the skip check"

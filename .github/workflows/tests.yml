@@ -34,16 +34,7 @@ jobs:
       - name: Run the portable suite
         run: |
           python -m pytest -m "not corpus" -rs --junitxml=report.xml
-          python - <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          suite = ET.parse("report.xml").getroot().find("testsuite")
-          skipped = int(suite.get("skipped", 0))
-          if skipped:
-              names = [f'{c.get("classname")}::{c.get("name")}'
-                       for c in suite.iter("testcase") if c.find("skipped") is not None]
-              sys.exit(f"{skipped} test(s) skipped in the portable suite: {names}")
-          print(f'{suite.get("tests")} tests, no skips')
-          PY
+          python scripts/check_no_skips.py report.xml
 
       # The corpus tests must be deselected by the marker, not silently absent.
       - name: Check the corpus gate is wired up

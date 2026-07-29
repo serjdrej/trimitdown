@@ -50,7 +50,7 @@ def test_package_does_not_pull_audio_dependencies():
 def test_declared_version_is_the_one_that_ships():
     from trimitdown import __version__
 
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.1.1"
 
 
 def test_version_has_exactly_one_source():
@@ -97,7 +97,7 @@ def test_api_mode_reports_the_package_version():
     from server_app import VERSION
     from trimitdown import __version__
 
-    assert VERSION == __version__ == "0.1.0"
+    assert VERSION == __version__ == "0.1.1"
 
 
 def test_specs_reference_the_package_cache_path():
@@ -169,3 +169,71 @@ def test_docker_warms_every_runtime_package_dependency():
     assert engine in runtime_dependencies
     assert "RUN pip install --no-cache-dir ./packages/trimitdown-pdf" in instructions
     assert runtime_dependencies - {engine} <= warmup_packages
+
+
+def test_the_pii_hook_offers_no_bypass():
+    """The guard must not hand out the key to itself.
+
+    The hook printed `git commit --no-verify` twice as its own advice, in the
+    two places a contributor reads only when they are already blocked and in a
+    hurry -- while AGENTS.md forbids the bypass in as many words. Personal data
+    reached this repository in public once; the cost of that is not
+    hypothetical, and a documented escape hatch is how it happens twice.
+
+    Scanning only the hook is deliberate. A repo-wide scan for the flag would
+    fail on AGENTS.md, which has to be able to name the thing it forbids -- the
+    same trap as a version scanner that cannot tell a source from a mention.
+    """
+    hook = (REPO_ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+    assert "--no-verify" not in hook, \
+        "the PII hook mentions its own bypass; reword the message instead"
+
+    # Weak on purpose, and the only part that can be: it catches the rule being
+    # deleted, not the rule being restated badly.
+    rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "--no-verify" in rules, \
+        "AGENTS.md no longer forbids the bypass -- the prohibition was the point"
+
+
+def test_the_bundle_cannot_silently_build_cryptography_from_source():
+    """The macOS app died for its whole life on a package pip built on the fly.
+
+    cryptography 49.0.0 dropped macOS x86_64 wheels upstream, so on the Intel
+    runner pip fetched the sdist and linked it against whatever OpenSSL Homebrew
+    happened to have. Two different OpenSSL builds then entered the bundle under
+    one basename, PyInstaller kept the older one, and dlopen failed on a symbol
+    that only the newer one defines.
+
+    Two independent assertions, because the two failures are different: the
+    range going stale, and the source build coming back. Neither is the real
+    guarantee -- the smoke launch in CI is, and it goes red if this regresses.
+    This one is the early warning that fires in the portable suite, seconds
+    after the edit instead of minutes into a macOS build.
+    """
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    text = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+    lines = [line.strip() for line in text.splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+
+    def named(line):
+        # Path installs (./packages/..., -e .[server]) are not PEP 508 and are
+        # not what this test is about.
+        try:
+            return Requirement(line)
+        except Exception:
+            return None
+
+    pins = [req for req in map(named, lines)
+            if req is not None and req.name == "cryptography"]
+    assert pins, "cryptography is unconstrained: the bundle takes whatever resolves"
+    # The property, not the text: any release without a macOS x86_64 wheel must
+    # be excluded. Asserting the literal "<49" would pass on ">=49".
+    assert not pins[0].specifier.contains(Version("49.0.0")), \
+        "cryptography 49.0.0 publishes no macOS x86_64 wheel; the Intel bundle " \
+        "would be built from source against an OpenSSL nobody chose"
+
+    assert "--only-binary=cryptography" in lines, \
+        "without --only-binary a vanished wheel becomes a silent source build " \
+        "instead of a failed install"
