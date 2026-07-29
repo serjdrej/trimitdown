@@ -39,6 +39,32 @@ def test_convert_bytes_matches_convert_path(tmp_path):
     assert convert_bytes(data, ".pdf").text == convert_path(pdf).text
 
 
+def test_convert_bytes_cleans_up_its_temp_file(monkeypatch):
+    # convert_bytes writes the caller's bytes into a NamedTemporaryFile(delete=False)
+    # because both markitdown and our own PDF engine read from a path, not bytes.
+    # Nothing else ever references that path once convert_path returns, so if the
+    # cleanup is ever dropped, every conversion silently leaves a copy of the
+    # uploaded document behind in the system temp directory -- a privacy leak that
+    # does not change the returned text at all. Capture the exact path tempfile
+    # hands back and assert it is gone once convert_bytes returns.
+    created_paths = []
+    real_named_temp_file = pure.tempfile.NamedTemporaryFile
+
+    def spying_named_temp_file(*args, **kwargs):
+        tmp = real_named_temp_file(*args, **kwargs)
+        created_paths.append(tmp.name)
+        return tmp
+
+    monkeypatch.setattr(pure.tempfile, "NamedTemporaryFile", spying_named_temp_file)
+
+    convert_bytes(pdf_fixtures.prose_only(), ".pdf")
+
+    assert created_paths, "convert_bytes never created a temp file -- fixture is not exercising cleanup"
+    assert not Path(created_paths[0]).exists(), (
+        f"convert_bytes left its temp file behind: {created_paths[0]}"
+    )
+
+
 def test_unreadable_input_raises_conversion_error_not_http(tmp_path):
     # Чистый слой обязан бросать своё исключение: HTTPException здесь означал бы,
     # что FastAPI просочился обратно в ядро.
