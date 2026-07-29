@@ -42,6 +42,11 @@ def test_convert_batch_streams_one_event_per_file(client, monkeypatch):
     ]
     assert len(events) == 2
     assert {e["status"] for e in events} == {"ok"}
+    # Each event must name the upload it actually converted, not the same file
+    # replayed len(files) times. A batch that silently substitutes files[0]
+    # into every slot still produces the right count and an "ok" status for
+    # each, so filename identity is the only thing that catches it.
+    assert [e["filename"] for e in events] == ["a.txt", "b.txt"]
 
 
 def test_convert_batch_rejects_more_than_10_files(client):
@@ -58,6 +63,16 @@ def test_archive_zip_downloads_requested_files(client, tmp_path):
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
+
+    # Status code and MIME type alone are true for an empty archive too --
+    # a ZIP with zero entries is still a valid application/zip response. The
+    # only way to catch a handler that forgets to actually write the files in
+    # is to open the archive and check what is inside it.
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        assert set(zf.namelist()) == {"a.md", "b.md"}
+        assert zf.read("a.md").decode("utf-8") == "content A"
+        assert zf.read("b.md").decode("utf-8") == "content B"
 
 
 def test_mode_endpoint_returns_server_mode_and_version(client):
