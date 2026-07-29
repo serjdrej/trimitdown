@@ -172,6 +172,14 @@ def test_specs_reference_the_package_cache_path():
         assert re.search(r"pathex\s*=\s*\[[^\]]*['\"]src['\"]", text), (
             f"{spec} no longer puts src on PyInstaller's import path"
         )
+        # Same silent-omission failure mode as the cache path above, but for the
+        # web UI: PyInstaller does not fail the build when a datas source is
+        # missing or was simply never listed -- it just ships a bundle without
+        # it. Drop ('static', 'static') and the app builds clean, then dies at
+        # startup mounting StaticFiles("static"), a failure only a user sees.
+        assert "('static', 'static')" in text, (
+            f"{spec} lost the static/ datas entry -- the packaged app has no UI"
+        )
 
 
 def test_compose_bind_mount_sources_exist_in_a_fresh_clone():

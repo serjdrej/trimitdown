@@ -20,6 +20,21 @@ def test_save_server_url_persists_value(isolated_config):
     assert api.get_server_url() == "https://192.168.1.10:8002"
 
 
+def test_save_server_url_persists_across_a_new_api_instance(isolated_config):
+    # Read-after-write on the same Api object only proves in-memory state
+    # round-trips -- an Api that just kept the URL on self would pass that
+    # check without ever touching disk. The setting exists so it survives an
+    # app restart, which recreates the Api object from scratch, so a second,
+    # fresh instance (and the config file itself) is the only way to prove
+    # the write actually reached storage.
+    api = desktop_api.Api()
+    api.save_server_url("https://192.168.1.10:8002")
+
+    restarted = desktop_api.Api()
+    assert restarted.get_server_url() == "https://192.168.1.10:8002"
+    assert config_store.load_config()["server_url"] == "https://192.168.1.10:8002"
+
+
 def test_save_server_url_empty_string_resets_to_none(isolated_config):
     api = desktop_api.Api()
     api.save_server_url("https://192.168.1.10:8002")

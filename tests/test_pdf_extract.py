@@ -205,6 +205,12 @@ class TestCellBboxFiltering:
         # filtering (the old behaviour) would treat every character on the
         # page as "inside the table" and drop the prose; cell-based filtering
         # only excludes the tiny corner, so the prose survives.
+        #
+        # The fake grid's extract() must return content that clears
+        # is_real_table (>=2 rows, >=2 filled columns) -- a 1x1 grid like
+        # [["x"]] is discarded by is_real_table before boxes are ever built
+        # from it, and the tiny-corner-vs-hull distinction below is never
+        # reached. Two fully-filled 2-cell rows clears that bar.
         path = _write(tmp_path, "ruled", pdf_fixtures.ruled_table())
         with pdfplumber.open(path) as pdf:
             page = pdf.pages[0]
@@ -214,13 +220,17 @@ class TestCellBboxFiltering:
 
                 @staticmethod
                 def extract(**kwargs):
-                    return [["x"]]
+                    return [["a", "b"], ["c", "d"]]
 
                 rows = [SimpleNamespace(cells=[(0, 0, 10, 10)])]
 
             monkeypatch.setattr(page, "find_tables", lambda settings: [FakeTable()])
             result = pdf_extract._render_page(page)
 
+        # Self-check: the fake grid must actually survive is_real_table and
+        # get rendered, or neither the cell bboxes nor the hull bbox below it
+        # are ever computed and this test cannot distinguish the two.
+        assert "| a | b |" in result
         assert "Intro prose above the table." in result
 
 

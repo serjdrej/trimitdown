@@ -39,6 +39,32 @@ def test_convert_bytes_matches_convert_path(tmp_path):
     assert convert_bytes(data, ".pdf").text == convert_path(pdf).text
 
 
+def test_convert_bytes_cleans_up_its_temp_file(monkeypatch):
+    # convert_bytes writes the caller's bytes into a NamedTemporaryFile(delete=False)
+    # because both markitdown and our own PDF engine read from a path, not bytes.
+    # Nothing else ever references that path once convert_path returns, so if the
+    # cleanup is ever dropped, every conversion silently leaves a copy of the
+    # uploaded document behind in the system temp directory -- a privacy leak that
+    # does not change the returned text at all. Capture the exact path tempfile
+    # hands back and assert it is gone once convert_bytes returns.
+    created_paths = []
+    real_named_temp_file = pure.tempfile.NamedTemporaryFile
+
+    def spying_named_temp_file(*args, **kwargs):
+        tmp = real_named_temp_file(*args, **kwargs)
+        created_paths.append(tmp.name)
+        return tmp
+
+    monkeypatch.setattr(pure.tempfile, "NamedTemporaryFile", spying_named_temp_file)
+
+    convert_bytes(pdf_fixtures.prose_only(), ".pdf")
+
+    assert created_paths, "convert_bytes never created a temp file -- fixture is not exercising cleanup"
+    assert not Path(created_paths[0]).exists(), (
+        f"convert_bytes left its temp file behind: {created_paths[0]}"
+    )
+
+
 def test_unreadable_input_raises_conversion_error_not_http(tmp_path):
     # Чистый слой обязан бросать своё исключение: HTTPException здесь означал бы,
     # что FastAPI просочился обратно в ядро.
@@ -91,6 +117,26 @@ def test_pure_module_does_not_import_fastapi():
     # CLI-пакет утяжелится на весь веб-стек, ничего при этом не сломав внешне.
     code = (
         "import sys, trimitdown.convert; "
+        "sys.exit(1 if 'fastapi' in sys.modules else 0)"
+    )
+    assert subprocess.run([sys.executable, "-c", code]).returncode == 0
+
+
+def test_convert_path_does_not_import_fastapi():
+    # Merely importing the module (the check above) never exercises a lazy
+    # `import fastapi` hidden inside a function body -- that only lands in
+    # sys.modules once the function actually runs. The plain pip/uvx package
+    # has no FastAPI installed at all, so a lazy import here would not just
+    # bloat the CLI, it would crash it outright the first time convert_path
+    # is called. Actually calling convert_path is the only way to catch that.
+    code = (
+        "import sys, tempfile, os; "
+        "from trimitdown.convert import convert_path; "
+        "fd, path = tempfile.mkstemp(suffix='.txt'); "
+        "os.close(fd); "
+        "open(path, 'w', encoding='utf-8').write('hello world'); "
+        "convert_path(path); "
+        "os.unlink(path); "
         "sys.exit(1 if 'fastapi' in sys.modules else 0)"
     )
     assert subprocess.run([sys.executable, "-c", code]).returncode == 0

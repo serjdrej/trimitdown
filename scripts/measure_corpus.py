@@ -18,6 +18,7 @@ engine loses to markitdown on any row of it.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -30,6 +31,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+
+
+def _digest(path):
+    """Content identity, read in chunks so a large document is not held whole."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 # Per-document rows carry corpus filenames, so they are written outside the repo
 # tree (a sibling dir), where they cannot be committed. See tests/conftest.py.
@@ -332,10 +342,14 @@ def main() -> int:
     limit = args.max_mb * 1024 * 1024
     # The same document in two overlapping collections is one document.
     # Counting it twice inflates every total and weights it double in the
-    # medians. The key is name AND size, never the name alone: a reader whose
-    # tree holds twelve different invoice.pdf files must measure twelve
-    # documents, not one, and losing eleven of them silently would be the same
-    # class of defect this de-duplication exists to prevent.
+    # medians. But name and size are not identity: two genuinely different
+    # documents can agree on both, and this key used to drop one of them --
+    # out of every total and every median, without a word. That is the very
+    # class of defect the de-duplication exists to prevent, arriving through
+    # the de-duplication itself.
+    #
+    # So the cheap key only decides whether the question is worth asking. On a
+    # collision the contents settle it, and hashing stays off the common path.
     by_key = {}
     dropped = 0
     for root in args.corpus:
@@ -343,14 +357,22 @@ def main() -> int:
             size = q.stat().st_size
             if limit and size >= limit:
                 continue
-            if (q.name, size) in by_key:
+            group = by_key.setdefault((q.name, size), {})
+            if not group:
+                group[None] = q
+                continue
+            if None in group:
+                first = group.pop(None)
+                group[_digest(first)] = first
+            digest = _digest(q)
+            if digest in group:
                 dropped += 1
                 continue
-            by_key[(q.name, size)] = q
-    paths = sorted(by_key.values())
+            group[digest] = q
+    paths = sorted(q for group in by_key.values() for q in group.values())
     if dropped:
-        print(f"{dropped} duplicate(s) skipped: same name and size in more than one "
-              f"root", file=sys.stderr)
+        print(f"{dropped} duplicate(s) skipped: identical contents in more than "
+              f"one root", file=sys.stderr)
     if args.limit and args.limit < len(paths):
         # A random sample, not the alphabetical head: filenames cluster by
         # source, so the first N documents are one folder's worth, not a

@@ -218,6 +218,43 @@ class TestBrokenSourceSplit:
         assert [r["markitdown"]["glued"] for r in broken] == [51]
 
 
+def test_report_prints_each_engines_own_column_not_one_column_twice():
+    # aggregate() is checked in isolation above, but nothing exercises report()
+    # itself: a `line()` that prints totals["markitdown"][key] into BOTH the
+    # markitdown and the TrimItDown column would still leave every test in
+    # this file green, because none of them look at the actual numbers in the
+    # rendered table -- the real-run tests below only grep for substrings like
+    # "documents: 1 " or the header row. Give the two engines totals that
+    # cannot be confused for one another and read the two columns back out of
+    # the rendered text.
+    rows = [
+        {"markitdown": {"glued": 1, "mojibake_doc": 0, "s": 0.5, "digit_deficit": 0},
+         "trimitdown": {"glued": 0, "mojibake_doc": 0, "s": 0.25, "digit_deficit": 0}},
+    ]
+    totals = {
+        "markitdown": {
+            "glued": 5, "mojibake": 3, "phantom_rows": 2,
+            "digit_excess": 1, "digit_deficit": 4, "tokens": 100,
+        },
+        "trimitdown": {
+            "glued": 0, "mojibake": 0, "phantom_rows": 0,
+            "digit_excess": 0, "digit_deficit": 0, "tokens": 90,
+        },
+    }
+    failures = {"markitdown": 0, "trimitdown": 0}
+    elapsed = {"markitdown": 2.0, "trimitdown": 1.0}
+
+    text = mc.report(rows, totals, failures, elapsed,
+                      n_docs=1, n_bytes=10, n_gridless=0, n_notext=0)
+
+    assert "| glued word runs | 5 | 0 |" in text
+    assert "| mojibake characters (U+00C0-U+00FF) | 3 | 0 |" in text
+    assert "| table rows on grid-less documents | 2 | 0 |" in text
+    assert "| digits duplicated vs page text | 1 | 0 |" in text
+    assert "| digits lost vs page text | 4 | 0 |" in text
+    assert "| output tokens | 100 | 90 |" in text
+
+
 def test_aggregate_totals_one_subset_without_remeasuring():
     # Every headline figure must share one denominator. Accumulating while
     # measuring counted documents that parsed but failed to convert, so the
@@ -316,6 +353,56 @@ def test_documents_sharing_a_name_but_not_a_size_are_both_measured(tmp_path):
         capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
     )
     assert result.returncode == 0, result.stderr
+    assert "documents: 2 " in result.stdout
+
+
+def test_documents_sharing_a_name_and_a_size_are_both_measured(tmp_path):
+    """KNOWN DEFECT, currently shipping -- this test is expected to FAIL.
+
+    main()'s de-duplication key is (filename, byte size) alone, never
+    content (see the `by_key` loop in scripts/measure_corpus.py, around
+    line 339-350). Two genuinely different documents that happen to share
+    both a basename and a byte count collide on that key, and the second
+    one is dropped silently: not converted, not counted, not in any total
+    or median, with no warning distinguishing it from a real duplicate.
+
+    The sibling test above (test_documents_sharing_a_name_but_not_a_size_are_
+    both_measured) only varies the size, so it never exercises this
+    collision -- that is precisely how the defect ships unnoticed.
+
+    Per the project brief this defect is NOT to be fixed as part of this
+    audit; this test documents it and must be left red, not skipped or
+    deleted, until someone decides what to do about production code.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    for root in (a, b):
+        root.mkdir()
+
+    text_a = "Just a paragraph, no ruling lines anywhere."
+    text_b = text_a.swapcase()  # different content, same length -> same file size
+    assert text_a != text_b
+    assert len(text_a) == len(text_b)
+
+    content_a = pdf_fixtures._build_pdf(pdf_fixtures._text(72, 700, text_a))
+    content_b = pdf_fixtures._build_pdf(pdf_fixtures._text(72, 700, text_b))
+    assert content_a != content_b
+    assert len(content_a) == len(content_b), (
+        "fixture no longer collides on (name, size) -- this test would stop "
+        "exercising the defect it documents"
+    )
+
+    a.joinpath("doc.pdf").write_bytes(content_a)
+    b.joinpath("doc.pdf").write_bytes(content_b)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b),
+         "--details", str(tmp_path / "d.jsonl")],
+        capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    # Two distinct documents share this name and size, so both must be
+    # measured -- but the shipping de-dup key cannot tell them apart from a
+    # real duplicate, and silently reports "documents: 1 " instead.
     assert "documents: 2 " in result.stdout
 
 
