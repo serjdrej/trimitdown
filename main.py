@@ -7,7 +7,7 @@ import threading
 import time
 import traceback
 
-from config_store import ensure_config_exists, get_server_url
+from config_store import DATA_DIR, ensure_config_exists, get_server_url
 from desktop_api import Api, server_reachable
 from trimitdown import __version__ as VERSION
 
@@ -56,6 +56,36 @@ def start_server_thread() -> tuple[int, list[str]]:
     failure: list[str] = []
     threading.Thread(target=start_local_server, args=(port, failure), daemon=True).start()
     return port, failure
+
+
+def ensure_streams() -> None:
+    """A build launched by double-click has no stdout and no stderr at all.
+
+    This app is built console=False, so Explorer and Finder give the process no
+    console and Python leaves sys.stdout and sys.stderr set to None. Libraries
+    do not expect that. uvicorn configures logging through dictConfig with a
+    handler writing to sys.stderr, and on None it raises "Unable to configure
+    formatter 'default'" -- the server thread dies before it binds a port, and
+    the user is told only that the local server did not start.
+
+    The same binary run from a terminal works, because it inherits that
+    terminal's handles. That difference is exactly why CI could not see this:
+    the check launched the executable from a shell, which is not how anyone
+    runs it. Point the missing streams at a log file instead, so the assumption
+    holds and the next diagnosis has somewhere to land.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        stream = open(DATA_DIR / "app.log", "a", encoding="utf-8", buffering=1)
+    except OSError:
+        # Losing the log is survivable; starting without stdio is not.
+        stream = open(os.devnull, "w", encoding="utf-8")
+    if sys.stdout is None:
+        sys.stdout = stream
+    if sys.stderr is None:
+        sys.stderr = stream
 
 
 def _smoke_report(message: str) -> None:
@@ -157,6 +187,10 @@ def show_fatal_error(message: str) -> None:
 
 
 def main():
+    # First, before anything can try to write or configure logging: the smoke
+    # path starts the same server and needs this just as much as the real one.
+    ensure_streams()
+
     smoke_document = os.environ.get(SMOKE_ENV)
     if smoke_document:
         sys.exit(smoke(smoke_document))
