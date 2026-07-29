@@ -24,11 +24,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      # requirements.txt installs the engine NOT editable -- windows.spec relies on
-      # that and fails on an editable install, because PyInstaller does not follow one
-      # and would emit an .exe without the engine.
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install --require-hashes -r requirements.lock
+          # --no-deps is load-bearing: resolving again here would bypass the lock.
+          # The engine remains non-editable because PyInstaller cannot follow it.
+          python -m pip install --no-deps -e . ./packages/trimitdown-pdf
 
       - name: Build app with PyInstaller
         run: pyinstaller windows.spec

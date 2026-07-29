@@ -203,6 +203,72 @@ def test_only_main_can_produce_a_release():
     assert create.get("if") == "github.ref == 'refs/heads/main'"
 
 
+def test_artifact_workflows_install_runtime_graph_from_hashed_lock():
+    """Replacing ``--require-hashes`` with a plain requirements install fails here.
+
+    This is only a text-level workflow guard. It does not prove a universal
+    resolution is installable on every runner; dispatching release.yml from the
+    branch provides that evidence by building each artifact on its real runner.
+    """
+    artifact_jobs = {
+        ("build-macos.yml", "build"): "requirements.lock",
+        ("build-windows.yml", "build"): "requirements.lock",
+        # The gate before an irreversible step needs the test tools too, and it
+        # takes them from the lock built out of requirements-dev.txt rather than
+        # from a second list typed in beside it.
+        ("release.yml", "guard"): "requirements-dev.lock",
+    }
+
+    missing = []
+    unpinned = []
+    for (workflow_name, job_name), lock in artifact_jobs.items():
+        steps = _workflow(workflow_name)["jobs"][job_name]["steps"]
+        scripts = [
+            _script(step) for step in steps if isinstance(step.get("run"), str)
+        ]
+        if not any(f"--require-hashes -r {lock}" in script for script in scripts):
+            missing.append(f"{workflow_name}::{job_name}")
+        # Finding the safe form is not enough: the dangerous form can sit right
+        # beside it, which is how an unpinned `pip install pytest httpx pyyaml`
+        # got into the job that gates the release. Every install in these jobs is
+        # either hash-checked or explicitly resolution-free.
+        for script in scripts:
+            for line in script.splitlines():
+                if "pip install" not in line:
+                    continue
+                if "--require-hashes" in line or "--no-deps" in line:
+                    continue
+                unpinned.append(f"{workflow_name}::{job_name}: {line.strip()}")
+
+    assert not missing, f"artifact jobs bypass the hash-pinned lock: {missing}"
+    assert not unpinned, f"artifact jobs resolve dependencies freely: {unpinned}"
+
+
+def test_the_image_installs_its_dependencies_from_the_hashed_lock():
+    """The image is an artifact a user runs, so it is pinned like the bundles.
+
+    It used to install a hand-written list on purpose, so that it tracked
+    current pdfplumber. Two builds of one commit resolving different versions is
+    the mechanism that shipped a desktop bundle which could not start, and an
+    image is no less shipped for being built at home.
+    """
+    dockerfile = (REPO_ROOT / "docker-server" / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    installs = [
+        line
+        for line in dockerfile.splitlines()
+        if "pip install" in line and not line.strip().startswith("#")
+    ]
+    assert installs, "the image installs nothing at all -- read this test again"
+    assert any("--require-hashes -r requirements.lock" in line for line in installs)
+    assert not [
+        line
+        for line in installs
+        if "--require-hashes" not in line and "--no-deps" not in line
+    ], "the image resolves some dependencies freely"
+
+
 def test_the_publish_workflow_can_publish_both_projects():
     # Приложение и движок -- два разных проекта на PyPI. Пока workflow умеет
     # только движок, канал uvx закрыт, а второй workflow-близнец разошёлся бы с
