@@ -4,8 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Позволяет release.yml вызвать эту сборку вместо копии её шагов: копия
-  # разошлась бы с оригиналом молча, а расхождение спек этот проект уже проходил.
+  # Lets release.yml call this build instead of copying its steps: a copy would
+  # drift from the original in silence, and this project has already lived through
+  # spec files drifting apart.
   workflow_call:
 
 jobs:
@@ -23,7 +24,7 @@ jobs:
           - runner: macos-15
             arch: arm64
     runs-on: ${{ matrix.runner }}
-    # Явно, а не по умолчанию репозитория: сборке нужно только читать код.
+    # Explicit rather than the repository default: this build only needs to read code.
     permissions:
       contents: read
     steps:
@@ -63,26 +64,25 @@ jobs:
           grep -q "tiktoken_cache" build/main/Analysis-00.toc \
             || { echo "tiktoken cache missing from the bundle"; exit 1; }
 
-      # Дымовой документ строится тем же генератором, что и фикстуры сюиты:
-      # проза плюс настоящая таблица, то есть движок обязан отработать. Модуль
-      # чистый, без импортов -- сборочной джобе не нужны dev-зависимости.
+      # The smoke document is built by the same generator as the suite's fixtures:
+      # prose plus a real table, so the engine has to do its work. The module is
+      # import-free -- a build job needs no dev dependencies.
       - name: Build the smoke document
         run: python -c "from tests.pdf_fixtures import ruled_table; open('smoke.pdf','wb').write(ruled_table())"
 
-      # ЭТО главная проверка сборки, а не соседняя проверка содержимого. Греп по
-      # Analysis-00.toc смотрит на имена файлов и не видит, что процесс умирает
-      # на первом dlopen -- ровно так каждый macOS-бандл прошлых релизов уезжал
-      # к пользователям неработающим. Здесь запускается сам артефакт и делает
-      # настоящую конверсию.
+      # THIS is the check that matters, not the contents check beside it. Grepping
+      # Analysis-00.toc looks at file names and cannot see the process dying on the
+      # first dlopen -- which is exactly how every macOS bundle of earlier releases
+      # reached users broken. Here the artifact itself runs and converts a document.
       #
-      # Вердикт берётся из лога, а не из кода возврата: у windowed-процесса он
-      # доходит до шелла не на всякой платформе, и проверка обязана быть одной и
-      # той же в обеих джобах. Код возврата печатается рядом как сведение.
+      # The verdict comes from the log rather than the exit status: a windowed process
+      # does not deliver that status to the shell on every platform, and the check has
+      # to be identical in both jobs. The status is printed beside it as information.
       - name: Smoke-launch the bundle
         env:
-          # Относительные пути намеренно: на Windows-раннере $PWD в bash это
-          # /d/a/..., чего интерпретатор внутри бандла открыть не может, а
-          # проверка обязана быть буквально одинаковой в обеих джобах.
+          # Relative paths on purpose: on the Windows runner $PWD in bash is
+          # /d/a/..., which the interpreter inside the bundle cannot open, and the
+          # check has to be literally the same in both jobs.
           TRIMITDOWN_SMOKE_LOG: smoke.log
         run: |
           set +e

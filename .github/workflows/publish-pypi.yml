@@ -38,12 +38,11 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      # Publishing from a tree whose tests do not pass is the one mistake that
-      # cannot be undone afterwards. This is the same portable suite tests.yml
-      # runs; it needs no corpus and takes seconds.
-      # Тот же гейт, что в tests.yml, включая проверку на ноль скипов. Комментарий
-      # выше обещал «тот же portable suite» и был неправдой в единственном месте,
-      # где она стоит дорого: номер версии на PyPI сгорает навсегда.
+      # Publishing from a tree whose tests do not pass is the one mistake that cannot
+      # be undone afterwards, so this is the same gate tests.yml runs -- including the
+      # zero-skips check, which used to be missing here while the comment claimed "the
+      # same portable suite". It was untrue in the one place where it is expensive: a
+      # version number on PyPI burns forever.
       - name: Run the portable suite
         run: |
           python -m pip install -r requirements-dev.txt
@@ -51,9 +50,9 @@ jobs:
           python scripts/check_no_skips.py report.xml
 
       - name: Build sdist and wheel
-        # Через окружение, а не подстановкой ${{ }}: подстановка разворачивается
-        # в текст скрипта до запуска, то есть раньше, чем case успеет отвергнуть
-        # неизвестное значение.
+        # Through the environment rather than a ${{ }} substitution: the substitution
+        # expands into the script text before it runs, that is, before `case` gets a
+        # chance to reject an unknown value.
         env:
           PACKAGE: ${{ inputs.package }}
         run: |

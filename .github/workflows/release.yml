@@ -1,15 +1,15 @@
-# Собирает все три релизных артефакта, считает контрольные суммы и создаёт
-# ЧЕРНОВИК релиза. Публикует черновик человек: тег на GitHub появляется только в
-# момент публикации, поэтому до неё конвейер не делает ничего необратимого.
+# Builds all three release artifacts, checksums them and creates a DRAFT
+# release. A human publishes the draft: the tag appears on GitHub only at that
+# moment, so nothing this pipeline does before then is irreversible.
 name: Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        # Пример намеренно не настоящий номер: literal версии в этом файле стал бы
-        # её вторым источником, а test_version_has_exactly_one_source этого не
-        # допускает -- и правильно делает, при подъёме версии пример бы поехал.
+        # The example is deliberately not a real number: a version literal in this
+        # file would become its second source, and test_version_has_exactly_one_source
+        # forbids that -- rightly, since the example would drift on the next bump.
         description: "Version to release, without the leading v (for example 1.2.3)"
         required: true
         type: string
@@ -17,8 +17,8 @@ on:
 jobs:
   guard:
     runs-on: ubuntu-latest
-    # Явно, а не по умолчанию репозитория: настройка по умолчанию может быть
-    # щедрой, и тогда джобе, которой нужно только читать, достанется запись.
+    # Explicit rather than the repository default: the default can be generous,
+    # and then a job that only needs to read would be handed write access.
     permissions:
       contents: read
     steps:
@@ -29,13 +29,13 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      # Версия читается из файла через AST, а не импортом: импорт trimitdown
-      # тянет markitdown, которого в этой джобе нет и ставить его сюда незачем.
+      # The version is read from the file through the AST rather than by importing:
+      # importing trimitdown drags in markitdown, which this job neither has nor needs.
       - name: Refuse a version the package does not declare
-        # Вход едет через окружение, а не подстановкой ${{ }}: подстановка
-        # разворачивается в текст скрипта до его запуска, поэтому строка вида
-        # $(...) в номере версии выполнилась бы шеллом раньше любой проверки --
-        # и повторилась бы в релизной джобе, где у токена есть contents: write.
+        # The input travels through the environment, not through a ${{ }} substitution:
+        # substitution expands into the script text before it runs, so a $(...) inside a
+        # version number would execute in the shell ahead of any check -- and would do it
+        # again in the release job, where the token has contents: write.
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -49,11 +49,11 @@ jobs:
           test "$declared" = "$VERSION" \
             || { echo "release asked for $VERSION, the package declares $declared"; exit 1; }
 
-      # Выпустить сборку с непроходящими тестами -- единственная ошибка этого
-      # конвейера, которую после публикации не отменить. Гейт тот же, что в
-      # tests.yml, а не его ослабленная копия: `pytest` возвращает 0 и на
-      # прогоне, где что-то скипнулось, поэтому инвариант «ноль скипов» стоял
-      # ровно там, где ошибка обратима, и был снят там, где она необратима.
+      # Releasing a build whose tests do not pass is the one mistake this pipeline
+      # cannot undo after publication. The gate is the same one tests.yml runs, not a
+      # weakened copy: `pytest` returns 0 on a run where something was skipped, so the
+      # zero-skips invariant used to stand exactly where the mistake is reversible and
+      # was dropped where it is not.
       - name: Run the portable suite
         run: |
           python -m pip install -r requirements-dev.txt
@@ -74,9 +74,9 @@ jobs:
     permissions:
       contents: write
     env:
-      # Единственный список релизных артефактов. Из него берут и проверка
-      # комплектности, и контрольные суммы, и загрузка -- три своих копии списка
-      # разошлись бы молча, а заметно это стало бы уже на опубликованном релизе.
+      # The single list of release artifacts. The completeness check, the checksums
+      # and the upload all read it -- three private copies would drift apart in
+      # silence, and it would only show on a published release.
       ARTIFACTS: >-
         TrimItDown-macOS-x86_64.dmg
         TrimItDown-macOS-arm64.dmg
@@ -123,25 +123,26 @@ jobs:
             echo '```'
           } > notes.md
 
-      # Черновик создаётся только с main. С ветки прогон доходит досюда и
-      # останавливается: конвейер проверяется целиком на живых раннерах, а
-      # релизных объектов от неслитого кода не возникает.
+      # A draft is created only from main. From a branch the run reaches this point
+      # and stops: the pipeline gets exercised end to end on live runners without
+      # producing release objects from unmerged code.
       - name: Create the draft release
         if: github.ref == 'refs/heads/main'
         env:
-          # Джоба намеренно не делает checkout -- ей нужны только артефакты. Но
-          # тогда рядом нет .git, а gh без GH_REPO падает с "not a git repository":
-          # GITHUB_REPOSITORY он не читает. Проверено вручную на gh 2.96.0.
+          # The job deliberately skips checkout -- it needs only the artifacts. But
+          # then there is no .git beside it, and gh without GH_REPO fails with "not a
+          # git repository": it does not read GITHUB_REPOSITORY. Verified by hand on
+          # gh 2.96.0.
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
           cd release
-          # --target обязателен: без него GitHub привяжет тег к верхушке
-          # default-ветки на момент публикации черновика. Сборка идёт долго, и
-          # приехавший тем временем коммит увёл бы тег с того кода, из которого
-          # собраны вложенные бинарники -- по опубликованному релизу это уже не
-          # видно.
+          # --target is required: without it GitHub binds the tag to the tip of the
+          # default branch at the moment the draft is published. The build takes a
+          # while, and a commit landing meanwhile would drag the tag off the code the
+          # attached binaries were built from -- which a published release no longer
+          # shows.
           gh release create "v$VERSION" \
             --draft \
             --target "$GITHUB_SHA" \

@@ -1,19 +1,20 @@
-# Зеркало build-macos.yml для windows.spec. Сборка обязана жить в CI, а не только
-# на машине разработчика: манифест scoop ссылается на артефакт по URL и сверяет
-# контрольную сумму, а сумма от ручной сборки ничем не подтверждена.
+# Mirror of build-macos.yml for windows.spec. The build has to live in CI and not
+# only on a developer's machine: a scoop manifest points at the artifact by URL and
+# verifies its checksum, and a checksum from a hand-made build is vouched for by
+# nothing.
 name: Build Windows app
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Позволяет release.yml вызвать эту сборку вместо копии её шагов.
+  # Lets release.yml call this build instead of copying its steps.
   workflow_call:
 
 jobs:
   build:
     runs-on: windows-latest
-    # Явно, а не по умолчанию репозитория: сборке нужно только читать код.
+    # Explicit rather than the repository default: this build only needs to read code.
     permissions:
       contents: read
     steps:
@@ -23,18 +24,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      # requirements.txt ставит движок НЕ editable -- windows.spec на это
-      # рассчитывает и падает на editable-установке, потому что PyInstaller за
-      # ней не ходит и собрал бы .exe без движка.
+      # requirements.txt installs the engine NOT editable -- windows.spec relies on
+      # that and fails on an editable install, because PyInstaller does not follow one
+      # and would emit an .exe without the engine.
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
       - name: Build app with PyInstaller
         run: pyinstaller windows.spec
 
-      # Зелёная сборка ничего не говорит о содержимом: пропавший модуль даёт .exe,
-      # который запускается и падает на первом PDF. Набор проверок тот же, что в
-      # macOS-джобе, и тест держит их равными.
+      # A green build says nothing about the contents: a missing module gives an .exe
+      # that starts and dies on the first PDF. The same set of checks as the macOS
+      # job, and a test keeps the two equal.
       - name: Verify package contents are in the bundle
         shell: bash
         run: |
@@ -45,29 +46,25 @@ jobs:
           grep -q "tiktoken_cache" build/windows/Analysis-00.toc \
             || { echo "tiktoken cache missing from the bundle"; exit 1; }
 
-      # Дымовой документ строится тем же генератором, что и фикстуры сюиты:
-      # проза плюс настоящая таблица, то есть движок обязан отработать. Модуль
-      # чистый, без импортов -- сборочной джобе не нужны dev-зависимости.
+      # The smoke document is built by the same generator as the suite's fixtures:
+      # prose plus a real table, so the engine has to do its work. The module is
+      # import-free -- a build job needs no dev dependencies.
       - name: Build the smoke document
         run: python -c "from tests.pdf_fixtures import ruled_table; open('smoke.pdf','wb').write(ruled_table())"
 
-      # То же, что в macOS-джобе, и по той же причине: проверка содержимого выше
-      # смотрит на имена файлов и не видит, что процесс не стартует. Здесь
-      # запускается сам .exe и делает настоящую конверсию.
+      # Same as the macOS job and for the same reason: the contents check above looks
+      # at file names and cannot see that the process fails to start. Here the .exe
+      # itself runs and converts a document.
       #
-      # Вердикт берётся из лога, а не из кода возврата: .exe собран
-      # console=False, у него sys.stdout и sys.stderr равны None, а
-      # GUI-подсистемный процесс не всегда отдаёт код возврата шеллу.
-      # Start-Process, а не запуск из шелла напрямую, и это несущая деталь.
-      # Собранный console=False .exe, запущенный ИЗ КОНСОЛИ, наследует её
-      # дескрипторы, и sys.stdout со sys.stderr у него живые. Пользователь
-      # запускает двойным кликом, консоли нет, оба равны None -- и uvicorn
-      # падает на конфигурации логирования, потому что обработчик пишет в
-      # stderr. Проверка, запускающая .exe из bash, эту разницу не видит: она
-      # проверяла условия, в которых пользователь приложение не запускает.
+      # Start-Process rather than running it straight from the shell, and that is
+      # load-bearing. A console=False .exe started FROM A CONSOLE inherits its handles,
+      # so sys.stdout and sys.stderr are alive. A user double-clicks it: no console,
+      # both are None, and uvicorn dies configuring logging because its handler writes
+      # to stderr. A check that launches the .exe from bash cannot see the difference --
+      # it was measuring conditions nobody runs the app in.
       #
-      # Вердикт берётся из файла, а не из вывода, именно поэтому: у процесса
-      # без консоли выводу деваться некуда.
+      # The verdict comes from a file rather than from output for the same reason: a
+      # process without a console has nowhere to write.
       - name: Smoke-launch the bundle the way a user does
         shell: pwsh
         env:

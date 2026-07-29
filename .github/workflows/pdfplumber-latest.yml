@@ -42,9 +42,9 @@ jobs:
           python -m pip install -U pdfplumber
           python -c "import pdfplumber; print('pdfplumber', pdfplumber.__version__)"
 
-      # Канарейка тоже обязана проверять ноль скипов: если новый pdfplumber
-      # ломает импорт, из-за которого тест скипается, а не падает, канарейка
-      # молчит ровно тогда, когда должна кричать.
+      # The canary has to assert zero skips too: if a new pdfplumber breaks an import
+      # in a way that makes a test skip rather than fail, the canary goes quiet exactly
+      # when it should be shouting.
       - name: Run the portable suite
         run: |
           python -m pytest -m "not corpus" -rs --junitxml=report.xml
