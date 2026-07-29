@@ -413,3 +413,61 @@ class TestZipArchiveFiles:
         with pytest.raises(HTTPException) as exc:
             converter.zip_archive_files(tmp_path, ["missing.md"])
         assert exc.value.status_code == 404
+
+
+def test_a_conversion_does_not_hold_the_event_loop(tmp_path, monkeypatch):
+    """Removing ``asyncio.to_thread`` freezes the loop here instead of slowing it.
+
+    The existing delegation test uses an instant fake, which cannot notice the
+    loop being blocked -- the mutation that takes the conversion off its worker
+    thread leaves it green. This fake blocks a real thread on an Event instead of
+    sleeping for a while, and that is what makes the check a verdict rather than
+    a stopwatch: with the conversion on a worker thread the loop keeps running
+    and releases it at once; with the conversion on the loop, nothing else runs
+    at all -- not late, never. A loaded runner cannot turn one into the other.
+
+    What is at stake is not this server's speed. One heavy conversion holding the
+    loop freezes every other client, down to listing the archive, and the product
+    is meant to be used from several devices at once.
+    """
+    import threading
+
+    from trimitdown import convert as pure
+
+    started = threading.Event()
+    released = threading.Event()
+    outcome = {}
+
+    def fake_convert_bytes(data, suffix):
+        started.set()
+        # If this is running on the event loop, the loop is now inside a blocking
+        # call and cannot reach the line that would release it.
+        outcome["released_by_the_loop"] = released.wait(timeout=5)
+        return pure.ConversionResult(
+            text="stub", tokens_after=1, tokens_before=None, unit=None, units=None
+        )
+
+    monkeypatch.setattr(converter, "convert_bytes", fake_convert_bytes)
+
+    async def run():
+        conversion = asyncio.create_task(
+            convert_and_save(tmp_path, make_upload("x.pdf", b"%PDF-1.4"))
+        )
+
+        async def until_started():
+            while not started.is_set():
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(until_started(), timeout=10)
+        # The loop reached this line while a conversion was in flight. That is
+        # the whole guarantee; releasing the worker is just cleanup.
+        released.set()
+        return await conversion
+
+    asyncio.run(run())
+
+    assert outcome["released_by_the_loop"], (
+        "the event loop never got back to the conversion while it was running, "
+        "which means the conversion was running on the loop -- every other "
+        "client is frozen for its whole duration"
+    )
