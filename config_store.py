@@ -81,14 +81,40 @@ def load_config() -> dict:
     if CONFIG_PATH.exists():
         try:
             return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError:
+            # Falling back to the offline default silently is how a server
+            # address disappears without anyone learning why. Keep the file:
+            # it is the only copy of an address the user typed by hand, and a
+            # human can read it even when json cannot.
+            try:
+                CONFIG_PATH.replace(CONFIG_PATH.with_suffix(".json.broken"))
+            except OSError:
+                pass
+        except OSError:
             pass
     return {"server_url": None}
 
 
 def save_config(config: dict) -> None:
+    """Write via a temporary file in the same directory, then replace.
+
+    A direct write truncates first and fills after, so an interrupted save --
+    a crash, a full disk, two windows saving at once -- leaves valid JSON
+    replaced by half of it. os.replace is atomic within one filesystem, which
+    is why the temporary file has to be a sibling rather than somewhere tidy.
+    """
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    payload = json.dumps(config, indent=2, ensure_ascii=False)
+    temporary = CONFIG_PATH.with_name(CONFIG_PATH.name + f".{os.getpid()}.tmp")
+    try:
+        with open(temporary, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, CONFIG_PATH)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def get_server_url() -> str | None:

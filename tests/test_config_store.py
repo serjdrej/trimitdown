@@ -98,3 +98,58 @@ def test_unreadable_legacy_data_does_not_block_start(monkeypatch, tmp_path):
     monkeypatch.setattr(store.shutil, "copy2", fail_copy)
     store.ensure_config_exists()
     assert store.CONFIG_PATH.exists()
+
+
+def test_a_failed_save_leaves_the_previous_config_intact(monkeypatch, tmp_path):
+    """An interrupted write must not replace valid settings with half of them.
+
+    A direct write truncates before it fills, so a crash mid-save leaves the
+    file unreadable and the server address gone. Weakened to "save_config
+    raises", this passes on the truncating version -- the assertion that
+    matters is what is on disk afterwards.
+    """
+    store = _reload(monkeypatch, "darwin", tmp_path / "home", tmp_path / "app")
+    destination = tmp_path / "user-data"
+    destination.mkdir()
+    monkeypatch.setattr(store, "DATA_DIR", destination)
+    monkeypatch.setattr(store, "CONFIG_PATH", destination / "config.json")
+    store.save_config({"server_url": "https://kept.example"})
+
+    real_open = open
+
+    def fail_midway(path, *args, **kwargs):
+        if str(path).endswith(".tmp"):
+            raise OSError("no space left on device")
+        return real_open(path, *args, **kwargs)
+
+    # Scoped, not undo(): undo() would also revert the path patches above and
+    # send the assertion below at the developer's real config file.
+    with monkeypatch.context() as patched:
+        patched.setattr("builtins.open", fail_midway)
+        try:
+            store.save_config({"server_url": "https://never-written.example"})
+        except OSError:
+            pass
+
+    assert store.load_config()["server_url"] == "https://kept.example"
+    assert not list(destination.glob("*.tmp")), "a temporary file was left behind"
+
+
+def test_unreadable_config_is_kept_rather_than_silently_dropped(monkeypatch, tmp_path):
+    """Corrupt settings become a .broken file, not a shrug.
+
+    The address in there was typed by a human and exists nowhere else. Without
+    this the app quietly reverts to offline and never says why.
+    """
+    store = _reload(monkeypatch, "darwin", tmp_path / "home", tmp_path / "app")
+    destination = tmp_path / "user-data"
+    destination.mkdir()
+    monkeypatch.setattr(store, "DATA_DIR", destination)
+    monkeypatch.setattr(store, "CONFIG_PATH", destination / "config.json")
+    (destination / "config.json").write_text('{"server_url": "https://trunc',
+                                             encoding="utf-8")
+
+    assert store.load_config() == {"server_url": None}
+    assert (destination / "config.json.broken").exists(), \
+        "the unreadable settings were discarded instead of kept"
+    assert not (destination / "config.json").exists()
