@@ -96,6 +96,26 @@ def test_pure_module_does_not_import_fastapi():
     assert subprocess.run([sys.executable, "-c", code]).returncode == 0
 
 
+def test_convert_path_does_not_import_fastapi():
+    # Merely importing the module (the check above) never exercises a lazy
+    # `import fastapi` hidden inside a function body -- that only lands in
+    # sys.modules once the function actually runs. The plain pip/uvx package
+    # has no FastAPI installed at all, so a lazy import here would not just
+    # bloat the CLI, it would crash it outright the first time convert_path
+    # is called. Actually calling convert_path is the only way to catch that.
+    code = (
+        "import sys, tempfile, os; "
+        "from trimitdown.convert import convert_path; "
+        "fd, path = tempfile.mkstemp(suffix='.txt'); "
+        "os.close(fd); "
+        "open(path, 'w', encoding='utf-8').write('hello world'); "
+        "convert_path(path); "
+        "os.unlink(path); "
+        "sys.exit(1 if 'fastapi' in sys.modules else 0)"
+    )
+    assert subprocess.run([sys.executable, "-c", code]).returncode == 0
+
+
 # Маршрутизация и оценка приехали сюда из tests/test_converter.py вместе с самой
 # логикой: они проверяют ядро, а не HTTP. Держать их на веб-слое значило бы
 # патчить имена на модуле, который этими объектами больше не владеет.
