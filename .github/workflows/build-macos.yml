@@ -35,7 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt dmgbuild
 
       # The iconset is derived from mac-build/icon_master_1024.png and is not
       # committed; Pillow arrives transitively with pdfplumber.
@@ -97,20 +97,10 @@ jobs:
 
       - name: Build drag-to-install image
         run: |
-          staging=$(mktemp -d)
-          trap 'rm -rf "$staging"' EXIT
-          # ditto, not cp -R: it is the tool that copies an .app faithfully --
-          # symlinks, extended attributes, resource forks -- and leaves the
-          # ad-hoc signature intact. cp -R produces a bundle that looks complete
-          # and can fail signature validation at launch, which is the shape of
-          # failure this pipeline exists to stop shipping.
-          ditto dist/TrimItDown.app "$staging/TrimItDown.app"
-          ln -s /Applications "$staging/Applications"
-          hdiutil create \
-            -volname "TrimItDown" \
-            -srcfolder "$staging" \
-            -format UDZO \
-            -ov \
+          dmgbuild \
+            -s mac-build/dmgbuild_settings.py \
+            -D app=dist/TrimItDown.app \
+            "TrimItDown" \
             TrimItDown-macOS-${{ matrix.arch }}.dmg
 
       - name: Verify image contents
