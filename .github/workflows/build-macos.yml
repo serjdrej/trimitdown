@@ -116,7 +116,12 @@ jobs:
       - name: Verify image contents
         run: |
           mount_dir=$(mktemp -d)
-          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
+          # Tolerant teardown on purpose. The app we launch from the volume can
+          # still hold it for a moment after it exits, and a bare detach under
+          # `set -e` then returns 16 from the EXIT trap and becomes the step's
+          # verdict -- letting cleanup overrule a check that passed. What this
+          # step guarantees is asserted explicitly below; unmounting is not it.
+          trap 'hdiutil detach "$mount_dir" -force >/dev/null 2>&1 || true; rmdir "$mount_dir" 2>/dev/null || true' EXIT
           hdiutil attach \
             -readonly \
             -nobrowse \
@@ -134,7 +139,12 @@ jobs:
           TRIMITDOWN_SMOKE_LOG: smoke-mounted.log
         run: |
           mount_dir=$(mktemp -d)
-          trap 'hdiutil detach "$mount_dir"; rmdir "$mount_dir"' EXIT
+          # Tolerant teardown on purpose. The app we launch from the volume can
+          # still hold it for a moment after it exits, and a bare detach under
+          # `set -e` then returns 16 from the EXIT trap and becomes the step's
+          # verdict -- letting cleanup overrule a check that passed. What this
+          # step guarantees is asserted explicitly below; unmounting is not it.
+          trap 'hdiutil detach "$mount_dir" -force >/dev/null 2>&1 || true; rmdir "$mount_dir" 2>/dev/null || true' EXIT
           hdiutil attach \
             -readonly \
             -nobrowse \

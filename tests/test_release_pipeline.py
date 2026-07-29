@@ -250,3 +250,19 @@ def test_the_skip_check_is_not_a_no_op(tmp_path):
     assert verdict(clean) == 0
     assert verdict(skipped) == 1, "a skipped test passed the skip check"
     assert verdict(empty) == 1, "a run of zero tests passed the skip check"
+
+
+def test_unmounting_the_image_cannot_overrule_a_passing_check():
+    """Cleanup must not decide the verdict.
+
+    The release run failed with `hdiutil: couldn't eject "disk2" - Resource
+    busy` after the smoke check had already printed `smoke ok`: the app can
+    still hold the volume for a moment after it exits, and a bare detach inside
+    an EXIT trap under `set -e` returns 16 as the step's status. Remove the
+    tolerance and this test fails; the check it guards would go red for a reason
+    that has nothing to do with the artifact.
+    """
+    for step_name in ("Verify image contents", "Smoke-launch the mounted image"):
+        run = _script(_step("build-macos.yml", "build", step_name))
+        detach = next(line for line in run.splitlines() if "hdiutil detach" in line)
+        assert "|| true" in detach, f"{step_name}: teardown can fail the step"
