@@ -164,3 +164,63 @@ def test_webview_is_not_imported_at_module_scope():
     assert not hasattr(main, "webview"), (
         "pywebview imported at module scope: it makes main.py unimportable "
         "without a display and drags the GUI toolkit into smoke mode")
+
+
+def test_uvicorn_logging_survives_a_launch_without_a_console(monkeypatch, tmp_path):
+    """The exact failure a double-clicked Windows build produced.
+
+    console=False leaves sys.stdout and sys.stderr as None, and uvicorn's
+    dictConfig then raises ValueError: Unable to configure formatter 'default'.
+    The server thread died before binding a port and the user saw only that the
+    local server had not started.
+
+    Weakened to "ensure_streams sets sys.stderr to something", this passes on a
+    fix that assigns an unusable object. Configuring uvicorn's real logging
+    config is the assertion, because configuring it is what died.
+    """
+    import logging.config
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+
+    main.ensure_streams()
+
+    assert sys.stdout is not None and sys.stderr is not None
+    logging.config.dictConfig(LOGGING_CONFIG)
+    sys.stderr.write("the stream has to actually accept writes\n")
+
+
+def test_working_streams_are_left_alone(monkeypatch, tmp_path):
+    """Redirecting a terminal's output into a log file would be a regression."""
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path)
+    before_out, before_err = sys.stdout, sys.stderr
+
+    main.ensure_streams()
+
+    assert sys.stdout is before_out and sys.stderr is before_err
+    assert not (tmp_path / "app.log").exists()
+
+
+def test_main_repairs_the_streams_before_anything_else(monkeypatch):
+    """The repair is useless if the startup path stops calling it.
+
+    Nothing else in this file would notice its removal: the tests above drive
+    ensure_streams directly. The CI smoke launch would catch it, but minutes
+    later and only on Windows.
+    """
+    order: list[str] = []
+    monkeypatch.setattr(main, "ensure_streams", lambda: order.append("streams"))
+    monkeypatch.setattr(main, "ensure_config_exists",
+                        lambda: order.append("config") or None)
+    monkeypatch.setattr(main, "get_server_url", lambda: None)
+    monkeypatch.setattr(main, "wait_port", lambda port, timeout=15: False)
+    monkeypatch.setattr(main, "show_fatal_error", lambda message: None)
+    monkeypatch.setattr(main, "start_server_thread", lambda: (1, []))
+
+    with pytest.raises(SystemExit):
+        main.main()
+
+    assert order[:2] == ["streams", "config"], f"startup order was {order}"

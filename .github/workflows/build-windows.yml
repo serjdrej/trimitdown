@@ -58,20 +58,32 @@ jobs:
       # Вердикт берётся из лога, а не из кода возврата: .exe собран
       # console=False, у него sys.stdout и sys.stderr равны None, а
       # GUI-подсистемный процесс не всегда отдаёт код возврата шеллу.
-      - name: Smoke-launch the bundle
-        shell: bash
+      # Start-Process, а не запуск из шелла напрямую, и это несущая деталь.
+      # Собранный console=False .exe, запущенный ИЗ КОНСОЛИ, наследует её
+      # дескрипторы, и sys.stdout со sys.stderr у него живые. Пользователь
+      # запускает двойным кликом, консоли нет, оба равны None -- и uvicorn
+      # падает на конфигурации логирования, потому что обработчик пишет в
+      # stderr. Проверка, запускающая .exe из bash, эту разницу не видит: она
+      # проверяла условия, в которых пользователь приложение не запускает.
+      #
+      # Вердикт берётся из файла, а не из вывода, именно поэтому: у процесса
+      # без консоли выводу деваться некуда.
+      - name: Smoke-launch the bundle the way a user does
+        shell: pwsh
         env:
+          TRIMITDOWN_SMOKE: smoke.pdf
           TRIMITDOWN_SMOKE_LOG: smoke.log
         run: |
-          set +e
-          TRIMITDOWN_SMOKE=smoke.pdf ./dist/TrimItDown-windows-x64.exe
-          status=$?
-          set -e
-          echo "exit status: $status"
-          test -s smoke.log || { echo "the bundle produced no smoke log at all"; exit 1; }
-          cat smoke.log
-          tail -1 smoke.log | grep -q '^smoke ok:' \
-            || { echo "the bundle did not complete a conversion"; exit 1; }
+          $app = Start-Process -FilePath ".\dist\TrimItDown-windows-x64.exe" `
+                               -PassThru -Wait
+          "exit status: $($app.ExitCode)"
+          if (-not (Test-Path smoke.log)) {
+            throw "the bundle produced no smoke log at all"
+          }
+          Get-Content smoke.log
+          if ((Get-Content smoke.log | Select-Object -Last 1) -notmatch '^smoke ok:') {
+            throw "the bundle did not complete a conversion"
+          }
 
       - uses: actions/upload-artifact@v7
         with:
