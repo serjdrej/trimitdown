@@ -1,5 +1,6 @@
 """Релизный конвейер: то, что ломается ровно один раз и уже необратимо."""
 import re
+import runpy
 import sys
 from pathlib import Path
 
@@ -80,21 +81,19 @@ def test_the_macos_release_is_a_verified_drag_to_install_image():
     after release, so the workflow must retain both checks.
     """
     image = _step("build-macos.yml", "build", "Build drag-to-install image")
+    install = _step("build-macos.yml", "build", "Install dependencies")
     contents = _step("build-macos.yml", "build", "Verify image contents")
     smoke = _step("build-macos.yml", "build", "Smoke-launch the mounted image")
 
     image_run = _script(image)
+    install_run = _script(install)
     contents_run = _script(contents)
     smoke_run = _script(smoke)
 
-    assert "hdiutil create" in image_run
-    assert "-format UDZO" in image_run
-    assert "ln -s /Applications" in image_run
-    # ditto copies an .app faithfully and leaves its signature intact; cp -R
-    # yields a bundle that looks complete and can be refused at launch. The
-    # image checks below would not notice the difference.
-    assert "ditto dist/TrimItDown.app" in image_run
-    assert "cp -R dist/TrimItDown.app" not in image_run
+    assert "dmgbuild" in install_run
+    assert "dmgbuild" in image_run
+    assert "mac-build/dmgbuild_settings.py" in image_run
+    assert "-D app=dist/TrimItDown.app" in image_run
     assert "hdiutil attach" in contents_run
     assert 'test -d "$mount_dir/TrimItDown.app"' in contents_run
     assert 'test -L "$mount_dir/Applications"' in contents_run
@@ -104,6 +103,27 @@ def test_the_macos_release_is_a_verified_drag_to_install_image():
     assert "TrimItDown.app/Contents/MacOS/TrimItDown" in smoke_run
     assert "TRIMITDOWN_SMOKE=smoke.pdf" in smoke_run
     assert "tail -1 smoke-mounted.log | grep -q '^smoke ok:'" in smoke_run
+
+
+def test_dmgbuild_settings_create_a_symmetric_install_layout():
+    """Removing Finder geometry returns the image to its large default window."""
+    settings_path = REPO_ROOT / "mac-build" / "dmgbuild_settings.py"
+    assert settings_path.is_file(), "the macOS image has no dmgbuild settings"
+
+    settings = runpy.run_path(
+        str(settings_path),
+        init_globals={"defines": {"app": "dist/TrimItDown.app"}},
+    )
+
+    assert settings["files"] == ["dist/TrimItDown.app"]
+    assert settings["symlinks"] == {"Applications": "/Applications"}
+    assert settings["background"] is None
+    assert settings["window_rect"] == ((200, 200), (660, 400))
+    assert settings["icon_size"] == 128
+    assert settings["icon_locations"] == {
+        "TrimItDown.app": (180, 200),
+        "Applications": (480, 200),
+    }
 
 
 def test_no_dispatch_input_reaches_a_shell_or_an_action():
