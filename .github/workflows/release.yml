@@ -108,11 +108,13 @@ jobs:
             echo "## Установка / Install"
             echo
             echo '```bash'
-            echo "uvx trimitdown convert file.pdf"
+            echo "uv tool install trimitdown"
             echo '```'
             echo
-            echo "Приложение для macOS и Windows — в файлах ниже."
-            echo "The macOS and Windows apps are attached below."
+            echo "Приложение для macOS и Windows — в файлах ниже. На macOS: открыть образ"
+            echo "и перетащить TrimItDown в «Программы»."
+            echo "The macOS and Windows apps are attached below. On macOS: open the disk"
+            echo "image and drag TrimItDown into Applications."
             echo
             echo "## SHA256"
             echo

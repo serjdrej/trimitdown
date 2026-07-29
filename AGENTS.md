@@ -42,6 +42,13 @@ which is why it is a test and not a comment.
 - **The package version literal appears in exactly one file**:
   `src/trimitdown/__init__.py`. Everything else imports it. A second copy will
   disagree with the first eventually.
+- **Published text is English unless it is deliberately bilingual.** Commit
+  messages, workflow step names, the comments inside `run:` blocks (Actions
+  echoes them into a public log), issue and PR text: English. Bilingual where
+  that was chosen on purpose and stays chosen — release notes, the README pair,
+  the desktop UI. If you are about to invent a language rule for a new kind of
+  text, it is English. Written down after eighteen Russian commit messages
+  reached `main` and surfaced as run titles in Actions.
 - **`packages/trimitdown-pdf/` is frozen.** It is published to PyPI and pinned
   exactly. Bug fixes are allowed; new algorithmic work is not, without the
   owner's agreement.
