@@ -107,10 +107,9 @@ pip install -e packages/trimitdown-pdf   # см. ниже
 python main.py
 ```
 
-`requirements.txt` ставит само приложение (`-e .[server]`) вместе с серверными
-зависимостями и перекрывает пин движка локальной сборкой из
-`packages/trimitdown-pdf`, чтобы тесты проверяли ваши правки, а не
-опубликованную на PyPI версию.
+`requirements.txt` installs the application (`-e .[server]`) with its server
+dependencies and installs the engine from `packages/trimitdown-pdf`, so tests
+exercise local changes rather than the PyPI release.
 
 После установки доступна команда `trimitdown convert файл.pdf` — тот же CLI,
 что получает пользователь через `uvx trimitdown`.
@@ -131,6 +130,31 @@ PyInstaller не умеет ходить за editable-установкой: о�
 бинарник **без движка**, и падение случится у пользователя на первом же PDF. Оба
 спека это проверяют и падают с этим сообщением, так что забыть не получится —
 но знать причину полезно.
+
+## Artifact dependency lock
+
+`pyproject.toml` keeps library dependency ranges so downstream applications can
+resolve their own graphs. Desktop artifacts and the Docker image instead install
+the hash-pinned third-party graph from `requirements.lock`, then install the two
+local projects separately:
+
+```bash
+pip install --require-hashes -r requirements.lock
+# --no-deps is load-bearing: resolving again here would bypass the lock.
+pip install --no-deps -e . ./packages/trimitdown-pdf
+```
+
+Regenerate the lock with `uv`; it is a maintainer tool and is not used by the
+artifact builds:
+
+```bash
+uv pip compile --universal --generate-hashes --upgrade --only-binary cryptography --no-emit-package trimitdown --no-emit-package trimitdown-pdf --output-file requirements.lock requirements.txt
+```
+
+The scheduled dependency-lock canary compiles the same input without reading
+the lock and fails with a diff when upstream packages move. Review that diff and
+update `requirements.lock` deliberately rather than letting an artifact build
+discover it.
 
 Запуск `python main.py` напрямую (не через собранный `.app`) даёт: вывод в консоль,
 осмысленные исключения вместо тихого падения, и мгновенную перезагрузку после правок —

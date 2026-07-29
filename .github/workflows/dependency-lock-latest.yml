@@ -1,0 +1,38 @@
+name: Dependency lock (latest)
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Compile an unlocked candidate
+        run: >-
+          uv pip compile --universal --generate-hashes
+          --only-binary cryptography
+          --no-emit-package trimitdown
+          --no-emit-package trimitdown-pdf
+          --output-file requirements.latest.lock requirements.txt
+
+      - name: Report dependency movement
+        run: |
+          if diff -u requirements.lock requirements.latest.lock; then
+            echo "The dependency lock is current." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Upstream dependency movement requires a deliberate lock update." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

@@ -1,0 +1,5 @@
+# Build tooling for the macOS disk image only. Deliberately not in
+# requirements.txt: it is one platform's build tool and has no business in the
+# environment of the Windows build, the Docker image or a developer checkout.
+# Locked all the same, because it shapes an artifact a user receives.
+dmgbuild

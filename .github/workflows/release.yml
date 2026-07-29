@@ -56,7 +56,13 @@ jobs:
       # was dropped where it is not.
       - name: Run the portable suite
         run: |
-          python -m pip install -r requirements-dev.txt
+          # requirements-dev.lock, not requirements.lock plus a hand-typed list
+          # of test tools: a second list of the same dependencies is a second
+          # source that drifts, and an unpinned install in the job that gates the
+          # release reopens exactly the hole this lock closes.
+          python -m pip install --require-hashes -r requirements-dev.lock
+          # --no-deps is load-bearing: resolving again here would bypass the lock.
+          python -m pip install --no-deps -e . ./packages/trimitdown-pdf
           python -m pytest -m "not corpus" -rs --junitxml=report.xml
           python scripts/check_no_skips.py report.xml
 

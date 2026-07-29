@@ -1,6 +1,5 @@
 """Упаковка: то, что ломается молча и всплывает только у пользователя."""
 import re
-import shlex
 import sys
 from importlib import resources
 from pathlib import Path
@@ -45,6 +44,42 @@ def test_package_does_not_pull_audio_dependencies():
 
     assert "all" not in extras
     assert "audio-transcription" not in extras
+
+
+def test_library_dependencies_are_not_exact_pins():
+    """Changing one library dependency to ``name==version`` must fail this test.
+
+    The published library deliberately leaves dependency selection to its
+    consumer. This examines its declared metadata, not the currently installed
+    environment, because an artifact lock must not turn into a library pin.
+
+    Our own engine is exempt, and the exemption is narrow on purpose: the rule
+    exists so that our pin cannot collide with the graph of whoever installs
+    us, and nobody but us publishes trimitdown-pdf, so there is no graph to
+    collide with. Its exact pin is a decision about output quality -- a range
+    would raise the engine silently on a rebuild, and the engine is what the
+    output is made of -- and raising it is meant to be its own commit.
+    """
+    from packaging.requirements import Requirement
+
+    ours = {"trimitdown-pdf", "trimitdown_pdf"}
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    exact_pins = []
+    for declared in project["project"]["dependencies"]:
+        requirement = Requirement(declared)
+        if requirement.name in ours:
+            continue
+        if any(
+            specifier.operator in {"==", "==="}
+            and not specifier.version.endswith(".*")
+            for specifier in requirement.specifier
+        ):
+            exact_pins.append(declared)
+
+    assert not exact_pins, (
+        "library dependencies must remain ranges; exact pins belong in "
+        f"requirements.lock: {exact_pins}"
+    )
 
 
 def test_declared_version_is_the_one_that_ships():
@@ -160,9 +195,13 @@ def _distribution_key(requirement: str) -> str:
     return re.sub(r"[._-]+", "-", name).lower()
 
 
-def test_docker_warms_every_runtime_package_dependency():
-    # Эта проверка существует, потому что --no-deps даёт зелёную сборку образа,
-    # а пропущенная прогретая зависимость проявляется только при старте контейнера.
+def test_docker_installs_the_hashed_lock_before_local_projects():
+    """Removing the lock install or ``--no-deps`` must make this test fail.
+
+    The direct runtime requirements must also be present in the lock. The
+    release workflow running on each target platform is the proof that the
+    universal lock installs there.
+    """
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     runtime_dependencies = {
         _distribution_key(requirement)
@@ -172,25 +211,23 @@ def test_docker_warms_every_runtime_package_dependency():
         ]
     }
     engine = _distribution_key("trimitdown-pdf")
-
     dockerfile = (REPO_ROOT / "docker-server" / "Dockerfile").read_text(encoding="utf-8")
     instructions = [
         line.strip()
         for line in dockerfile.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    warmup_line = next(
-        line for line in instructions if line.startswith("RUN pip install ")
-    )
-    warmup_packages = {
-        _distribution_key(argument)
-        for argument in shlex.split(warmup_line)
-        if argument not in {"RUN", "pip", "install"} and not argument.startswith("-")
+    lock = (REPO_ROOT / "requirements.lock").read_text(encoding="utf-8")
+    locked_packages = {
+        _distribution_key(line)
+        for line in lock.splitlines()
+        if re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*==", line)
     }
 
-    assert engine in runtime_dependencies
-    assert "RUN pip install --no-cache-dir ./packages/trimitdown-pdf" in instructions
-    assert runtime_dependencies - {engine} <= warmup_packages
+    assert "COPY requirements.lock ./" in instructions
+    assert "RUN pip install --no-cache-dir --require-hashes -r requirements.lock" in instructions
+    assert "RUN pip install --no-cache-dir --no-deps -e . ./packages/trimitdown-pdf" in instructions
+    assert runtime_dependencies - {engine} <= locked_packages
 
 
 def test_the_pii_hook_offers_no_bypass():
