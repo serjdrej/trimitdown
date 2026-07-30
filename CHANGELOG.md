@@ -23,6 +23,9 @@ and was lost once, together with a recreated draft.
   запускается до публикации, а не после: раньше файл, попадавший в индекс,
   первым запускал незнакомый человек. Версии зависимостей закреплены, поэтому
   две сборки одного кода больше не собираются из разного.
+- **Приложение и пакет конвертируют одним и тем же.** Приложение отставало по
+  версии конвертера для документов не-PDF; теперь версии совпадают. Вывод при
+  этом не изменился — сверено на семи форматах.
 
 ### What changed
 
@@ -33,6 +36,9 @@ accumulating and the section will grow with it.
   before publication rather than after: the file reaching the index used to be
   one a stranger ran first. Dependency versions are pinned, so two builds of the
   same code are no longer assembled out of different parts.
+- **The app and the package convert with the same thing.** The app trailed the
+  package on the converter used for non-PDF documents; the versions now match.
+  The output did not change -- checked across seven formats.
 
 ## 0.1.1
 
