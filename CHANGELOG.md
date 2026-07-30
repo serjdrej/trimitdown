@@ -12,6 +12,28 @@ release **refuses to build** when this file has no section for the requested
 version: before this file the description of the changes was typed in by hand
 and was lost once, together with a recreated draft.
 
+## 0.1.2
+
+### Что изменилось
+
+Пока ничего, что видно при работе с программой. Этот выпуск набирается, и
+раздел будет расти вместе с ним.
+
+- **Надёжность выпуска.** Пакет для `pip` и `uvx` теперь устанавливается и
+  запускается до публикации, а не после: раньше файл, попадавший в индекс,
+  первым запускал незнакомый человек. Версии зависимостей закреплены, поэтому
+  две сборки одного кода больше не собираются из разного.
+
+### What changed
+
+Nothing yet that shows while using the program. This release is still
+accumulating and the section will grow with it.
+
+- **Release reliability.** The `pip` and `uvx` package is now installed and run
+  before publication rather than after: the file reaching the index used to be
+  one a stranger ran first. Dependency versions are pinned, so two builds of the
+  same code are no longer assembled out of different parts.
+
 ## 0.1.1
 
 ### Что изменилось
