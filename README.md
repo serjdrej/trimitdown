@@ -119,7 +119,7 @@ binary. Every non-PDF format still goes through MarkItDown.
 | Platform | How |
 |---|---|
 | **Terminal** (any OS) | `uv tool install trimitdown` — no GUI, no system prompts, see [Command-line package](#command-line-package) |
-| **Windows** | Download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
+| **Windows** | `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown` then `scoop install trimitdown` — Start-menu entry, `scoop update trimitdown` later. Or download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
 | **macOS** (Apple Silicon / Intel) | `.dmg` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
 | **iPhone / iPad** | Served by your own Docker server — open it in Safari → Share → *Add to Home Screen* |
 | **Docker server** | See [Self-hosting](#self-hosting) below |
@@ -136,7 +136,9 @@ downloaded copy, not on every launch.
 - **macOS** — the first launch is refused; dismiss the warning, allow the app
   under **System Settings → Privacy & Security → Open Anyway**, then launch it
   again.
-- **Windows** — SmartScreen → **More info → Run anyway**.
+- **Windows** — SmartScreen → **More info → Run anyway**. Installing through
+  scoop does not raise this prompt at all: scoop does not tag what it downloads
+  as coming from the web, so there is nothing for SmartScreen to warn about.
 
 Every release publishes SHA-256 checksums — that is what you can verify in place
 of a signature.

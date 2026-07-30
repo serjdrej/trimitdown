@@ -124,7 +124,7 @@ ML-моделей, без облака, достаточно компактно,
 | Платформа | Как |
 |---|---|
 | **Терминал** (любая ОС) | `uv tool install trimitdown` — без GUI и без подтверждений системы, см. [Пакет командной строки](#пакет-командной-строки) |
-| **Windows** | Скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — один файл, без установщика |
+| **Windows** | `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown`, затем `scoop install trimitdown` — ярлык в меню «Пуск», дальше `scoop update trimitdown`. Либо скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — один файл, без установщика |
 | **macOS** (Apple Silicon / Intel) | `.dmg` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — смонтировать, перетащить в Applications, затем [Первый запуск](#первый-запуск) |
 | **iPhone / iPad** | Отдаётся вашим Docker-сервером — открыть в Safari → «Поделиться» → *На экран «Домой»* |
 | **Docker-сервер** | См. [Свой сервер](#свой-сервер) ниже |
@@ -142,6 +142,8 @@ ML-моделей, без облака, достаточно компактно,
   приложение в **Системные настройки → «Конфиденциальность и безопасность» →
   «Всё равно открыть»**, запустить снова.
 - **Windows** — SmartScreen → **«Подробнее» → «Выполнить в любом случае»**.
+  При установке через scoop этого запроса нет вовсе: scoop не помечает
+  скачанное как пришедшее из интернета, и предупреждать SmartScreen не о чем.
 
 К каждому релизу публикуются контрольные суммы SHA-256 — это то, что можно
 проверить вместо подписи.
