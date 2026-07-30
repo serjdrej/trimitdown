@@ -1,3 +1,12 @@
+# Asks, once a week, what upstream has done. Everything that builds an artifact
+# installs from a hash-pinned lock, and a lock that nothing ever questions ages
+# in silence until a release breaks on it. This is the one place that resolves the
+# graph freely.
+#
+# It fails on movement, deliberately. A green job whose summary reports a moved
+# dependency is a job nobody reads. A red one arrives as mail. A failure here does
+# not mean anything is broken -- it means a decision is owed: raise the locks with
+# `./scripts/compile-locks.sh --upgrade` or write down why not.
 name: Dependency lock (latest)
 
 on:
@@ -19,20 +28,36 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
-      - name: Compile an unlocked candidate
-        run: >-
-          uv pip compile --universal --generate-hashes
-          --only-binary cryptography
-          --no-emit-package trimitdown
-          --no-emit-package trimitdown-pdf
-          --output-file requirements.latest.lock requirements.txt
+      # The same script a developer runs, not a copy of its flags: a copy that
+      # drifted would report movement that never happened, and this check would
+      # be ignored from then on.
+      #
+      # --upgrade is what makes this a question rather than an echo. uv treats an
+      # existing output file as preferences, so without it a recompile reproduces
+      # the pins already committed and this job reports "current" no matter what
+      # upstream has published.
+      - name: Recompile every lock against current upstream
+        run: ./scripts/compile-locks.sh --upgrade
 
       - name: Report dependency movement
         run: |
-          if diff -u requirements.lock requirements.latest.lock; then
-            echo "The dependency lock is current." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Upstream dependency movement requires a deliberate lock update." \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+          if [ -z "$(git status --porcelain -- '*.lock')" ]; then
+            echo "Every lock is current." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+          {
+            echo "### Upstream moved. The locks need a deliberate update."
+            echo
+            echo "Raise them with \`./scripts/compile-locks.sh --upgrade\`, or"
+            echo "record why they stay where they are."
+            echo
+            echo '```'
+            # Version lines only. The hash lines below each one are indented, and
+            # a diff of a thousand hashes tells a reader nothing.
+            git diff -U0 -- '*.lock' \
+              | grep -E '^[-+][A-Za-z0-9]' \
+              | grep -vE '^(---|\+\+\+)' \
+              | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
