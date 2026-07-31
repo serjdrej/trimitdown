@@ -471,3 +471,81 @@ def test_a_conversion_does_not_hold_the_event_loop(tmp_path, monkeypatch):
         "which means the conversion was running on the loop -- every other "
         "client is frozen for its whole duration"
     )
+
+
+class TestTheUploadCeiling:
+    """A ceiling checked after the whole upload is in memory is not a ceiling."""
+
+    def test_an_oversized_upload_is_refused_before_it_is_all_in_memory(
+        self, tmp_path, monkeypatch
+    ):
+        """Reading the upload in one call must fail this test.
+
+        The refusal itself was never in doubt -- the old code raised 413 too.
+        What was missing is that it raised it *after* allocating the whole file,
+        so a 2 GB upload was a 2 GB allocation first and a refusal second, and
+        under a container memory limit the process dies before it can refuse at
+        all. This counts what was actually read.
+        """
+        monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 4 * 1024)
+        monkeypatch.setattr(converter, "READ_CHUNK_BYTES", 1024)
+
+        handed_out = {"bytes": 0}
+        # Far past the ceiling, but finite. An endless fake would turn "the
+        # ceiling was removed" into a hung test rather than a failing one, and a
+        # test that hangs is not an oracle -- measured: the first version of this
+        # did exactly that and the mutation run had to be killed.
+        oversized = b"x" * (64 * 1024)
+
+        class HugeUpload:
+            filename = "huge.txt"
+
+            def __init__(self):
+                self._remaining = oversized
+
+            async def read(self, size=-1):
+                # If the caller asks for everything at once it gets everything at
+                # once -- which is the defect being repaired.
+                take = len(self._remaining) if size == -1 else size
+                chunk, self._remaining = self._remaining[:take], self._remaining[take:]
+                handed_out["bytes"] += len(chunk)
+                return chunk
+
+        with pytest.raises(HTTPException) as refused:
+            asyncio.run(converter._read_within_limit(HugeUpload()))
+
+        assert refused.value.status_code == 413
+        # Read the ceiling plus at most one chunk, not the whole file.
+        assert handed_out["bytes"] <= 4 * 1024 + 1024, (
+            f"read {handed_out['bytes']} bytes to enforce a 4096 byte ceiling"
+        )
+
+    def test_a_document_under_the_ceiling_arrives_whole(self, monkeypatch):
+        # Chunking must not truncate or reorder anything: the bytes handed to the
+        # converter are the bytes that were uploaded.
+        monkeypatch.setattr(converter, "READ_CHUNK_BYTES", 7)
+        payload = bytes(range(256)) * 4
+
+        upload = make_upload("a.bin", payload)
+
+        assert asyncio.run(converter._read_within_limit(upload)) == payload
+
+    def test_the_ceiling_still_applies_to_every_file_of_a_batch(
+        self, tmp_path, monkeypatch
+    ):
+        # convert_batch goes through the same reader; a limit enforced only on
+        # the single-file route would let ten oversized files through the other.
+        monkeypatch.setattr(converter, "MAX_UPLOAD_BYTES", 8)
+
+        events = []
+
+        async def run():
+            async for event in converter.convert_batch(
+                tmp_path, [make_upload("big.txt", b"x" * 4096)]
+            ):
+                events.append(event)
+
+        asyncio.run(run())
+
+        assert len(events) == 1
+        assert events[0]["status"] == "error"

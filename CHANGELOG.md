@@ -23,6 +23,11 @@ and was lost once, together with a recreated draft.
   запускается до публикации, а не после: раньше файл, попадавший в индекс,
   первым запускал незнакомый человек. Версии зависимостей закреплены, поэтому
   две сборки одного кода больше не собираются из разного.
+- **Слишком большой файл отклоняется, не съев память.** Ограничение в 200 МБ
+  проверялось после того, как файл целиком оказывался в памяти: двухгигабайтный
+  документ сначала занимал два гигабайта и только потом получал отказ, а
+  контейнер с лимитом памяти успевал умереть раньше. Для этого не нужен
+  злоумышленник — достаточно перетащить не тот файл.
 - **У сервера появился замок.** Docker-сервер больше не отдаёт архив всякому, кто
   доберётся до порта: нужен общий секрет из `TRIMITDOWN_TOKEN`, и без него сервер
   отказывается обслуживать запросы. Открыть один раз ссылку с секретом — дальше
@@ -46,6 +51,11 @@ accumulating and the section will grow with it.
   before publication rather than after: the file reaching the index used to be
   one a stranger ran first. Dependency versions are pinned, so two builds of the
   same code are no longer assembled out of different parts.
+- **An oversized file is refused without eating memory first.** The 200 MB limit
+  was checked after the whole upload was already in memory, so a two-gigabyte
+  document was a two-gigabyte allocation first and a refusal second -- and a
+  container with a memory limit died before it could refuse at all. No attacker
+  required: dragging the wrong file does it.
 - **The server has a lock now.** The Docker server no longer hands the archive to
   whoever reaches the port: it wants the shared secret in `TRIMITDOWN_TOKEN` and
   refuses to serve without one. Open the link carrying it once and the device

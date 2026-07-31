@@ -31,6 +31,9 @@ from fastapi.responses import JSONResponse
 from trimitdown.convert import ConversionError, convert_bytes, count_tokens, safe_stem
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB
+# Big enough that reading a real document is not thousands of awaits, small
+# enough that the overshoot past the limit is negligible.
+READ_CHUNK_BYTES = 1024 * 1024
 
 
 def _candidate_names(stem: str):
@@ -77,13 +80,42 @@ def zip_archive_files(archive_dir: Path, filenames: list[str]) -> io.BytesIO:
     return buffer
 
 
+async def _read_within_limit(file: UploadFile) -> bytes:
+    """Read an upload, refusing as soon as it grows past the limit.
+
+    The check used to come after `await file.read()`, which means the whole
+    upload was already in memory by the time anything decided it was too large.
+    A 200 MB ceiling enforced that way is not a ceiling: a 2 GB file is a 2 GB
+    allocation first and a 413 afterwards, and on a container with a memory
+    limit the process is killed before it ever gets to say no. That needs no
+    attacker -- one absent-minded drag of the wrong file does it, which is why
+    this is worth fixing on a personal server too.
+
+    Reading in chunks bounds what is held to the limit itself. Starlette has
+    already spooled the body to disk by the time a handler runs, so this bounds
+    memory rather than disk; refusing the request before it is parsed at all
+    would be a different mechanism, and this is not it.
+    """
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(READ_CHUNK_BYTES)
+        if not chunk:
+            return b"".join(chunks)
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            # Drop what was collected before raising: the traceback keeps the
+            # frame alive, and with it every chunk read so far.
+            chunks.clear()
+            raise HTTPException(
+                status_code=413,
+                detail="Файл слишком большой (максимум 200 МБ) / File too large (200 MB max)",
+            )
+        chunks.append(chunk)
+
+
 async def _convert_one(archive_dir: Path, file: UploadFile) -> dict:
-    data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail="Файл слишком большой (максимум 200 МБ) / File too large (200 MB max)",
-        )
+    data = await _read_within_limit(file)
     # Conversion can take several seconds on large files — offload to a thread
     # so it doesn't block the event loop for every other client. This server is
     # meant to be hit by multiple devices at once; without this, one slow
