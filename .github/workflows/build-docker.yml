@@ -1,0 +1,170 @@
+# The Docker image is the fourth thing this project ships, and until now the
+# only one no check ever built, let alone started. The macOS bundle, the
+# Windows .exe and the pip/uvx package all run and convert a document before
+# anyone can receive them (see build-macos.yml, build-windows.yml, and the
+# `package` job in release.yml). This does the same for docker-server -- and
+# for the shared-secret middleware app.py gained on top of it, which unit
+# tests exercise only against the ASGI app object, never against a running
+# container.
+#
+# The risk is specific: the middleware answers 503 when TRIMITDOWN_TOKEN is
+# unset. If the plumbing from docker-server/.env through env_file into the
+# container's environment is wrong, a correctly configured server answers 503
+# too -- "broken" and "working" look identical from outside a container. Only
+# starting one and talking to it over the network tells them apart.
+name: Build Docker image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Explicit rather than the repository default: this job only needs to read code.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Built from the same file a user's `docker-compose up -d --build` reads:
+      # `-f docker-server/docker-compose.yaml` without --project-directory makes
+      # Compose resolve `context: ..` relative to that file's own directory, so
+      # this builds docker-server/Dockerfile with the repository root as
+      # context -- exactly what docker-compose.yaml declares, not a second,
+      # CI-only invocation that could quietly stop matching it.
+      - name: Build the image
+        run: docker compose -f docker-server/docker-compose.yaml build
+
+      # The exact command docker-server/README.md documents for a real deploy,
+      # with the placeholder IP replaced by the loopback address this job talks
+      # to. archive/ and certs/ already exist in the tree (each holds a
+      # .gitkeep or a README so Compose's bind mounts have somewhere to attach);
+      # this only adds the certificate pair, which is gitignored and never
+      # committed.
+      - name: Generate a self-signed certificate for the container
+        run: |
+          mkdir -p docker-server/certs docker-server/archive
+          cd docker-server/certs
+          openssl req -x509 -nodes -newkey rsa:2048 \
+            -keyout key.pem -out cert.pem -days 3650 \
+            -subj "/CN=trimitdown" \
+            -addext "subjectAltName=IP:127.0.0.1"
+
+      # Reproduces the exact mistake a real user makes by copying the template
+      # without filling it in: .env.example declares TRIMITDOWN_TOKEN with no
+      # value. This is the state SECURITY.md promises stays safe, so it is the
+      # first state this workflow actually starts.
+      - name: Start a container with no secret configured
+        run: |
+          cp docker-server/.env.example docker-server/.env
+          docker compose -f docker-server/docker-compose.yaml up -d
+
+      - name: Wait for the unconfigured container to accept connections
+        run: |
+          ready=""
+          for i in $(seq 1 30); do
+            if curl -sk -o /dev/null https://localhost:8002/api/mode; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test -n "$ready" || {
+            echo "the container never started answering"
+            docker compose -f docker-server/docker-compose.yaml logs
+            exit 1
+          }
+
+      # This half is what makes every step after it mean something: without it,
+      # a 503 from a misconfigured container and a 503 from this deliberately
+      # unconfigured one would be indistinguishable, and nothing below would
+      # prove the wiring is correct rather than coincidentally broken the same way.
+      - name: A container with no secret configured refuses to serve
+        run: |
+          status=$(curl -sk -o body.json -w '%{http_code}' https://localhost:8002/api/archive)
+          test "$status" = "503" || { echo "expected 503, got $status"; cat body.json; exit 1; }
+          grep -q "TRIMITDOWN_TOKEN" body.json \
+            || { echo "the refusal does not name TRIMITDOWN_TOKEN"; cat body.json; exit 1; }
+
+      # --force-recreate is load-bearing: environment variables are fixed for
+      # the life of a container process, so merely rewriting .env and restarting
+      # the same container would keep serving with the OLD (empty) token. A new
+      # container has to be created to pick up the new env_file content -- the
+      # same thing a real user does by re-running docker-compose after editing .env.
+      - name: Reconfigure the container with a generated secret
+        run: |
+          TOKEN=$(openssl rand -hex 24)
+          echo "TRIMITDOWN_TOKEN=$TOKEN" > docker-server/.env
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          docker compose -f docker-server/docker-compose.yaml up -d --force-recreate
+
+      - name: Wait for the reconfigured container to accept connections
+        run: |
+          ready=""
+          for i in $(seq 1 30); do
+            if curl -sk -o /dev/null https://localhost:8002/api/mode; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test -n "$ready" || {
+            echo "the reconfigured container never started answering"
+            docker compose -f docker-server/docker-compose.yaml logs
+            exit 1
+          }
+
+      - name: Without the secret a request is refused
+        run: |
+          status=$(curl -sk -o body.json -w '%{http_code}' https://localhost:8002/api/archive)
+          test "$status" = "401" || { echo "expected 401, got $status"; cat body.json; exit 1; }
+          grep -q '"detail"' body.json || { echo "no refusal detail in the response"; exit 1; }
+          # A real archive listing is a JSON array of entries, each carrying a
+          # "filename" key; a refusal never has one. Checked explicitly rather
+          # than trusting the status code alone, and it still catches a bug
+          # that lets the request through even while the archive is empty.
+          if grep -q '"filename"' body.json; then
+            echo "the archive listing leaked through a refusal"
+            exit 1
+          fi
+
+      - name: With the secret in the link the server answers and sets the cookie
+        run: |
+          status=$(curl -sk -c cookies.txt -o body.json -w '%{http_code}' \
+            "https://localhost:8002/api/archive?k=$TOKEN")
+          test "$status" = "200" || { echo "expected 200, got $status"; cat body.json; exit 1; }
+          grep -q "trimitdown_key" cookies.txt \
+            || { echo "the response did not set the session cookie"; cat cookies.txt; exit 1; }
+
+      # Same generator as every other smoke document in this project: prose
+      # plus a real table, so the engine has to do its work. Import-free, so
+      # this needs no dev dependencies installed on the runner.
+      - name: Build the smoke document
+        run: python3 -c "from tests.pdf_fixtures import ruled_table; open('smoke.pdf','wb').write(ruled_table())"
+
+      # The point of this whole workflow, not the checks around it: a document
+      # goes in over HTTPS, through the shared-secret middleware, into the
+      # engine, and markdown with an actual table comes back out. A 200 status
+      # alone would also be produced by a broken converter that returns empty
+      # or unstructured text; the assertion opens the response and looks for a
+      # table in the content the way a person reading it would.
+      - name: Convert a document through the running container
+        run: |
+          status=$(curl -sk -b cookies.txt -o response.json -w '%{http_code}' \
+            -F "file=@smoke.pdf;type=application/pdf" \
+            https://localhost:8002/api/convert)
+          test "$status" = "200" || { echo "conversion failed with status $status"; cat response.json; exit 1; }
+          python3 - <<'PY'
+          import json
+          with open("response.json", encoding="utf-8") as f:
+              content = json.load(f)["content"]
+          assert "|" in content, "the converted markdown has no table"
+          print(content[:500])
+          PY
+
+      - name: Show container logs
+        if: always()
+        run: docker compose -f docker-server/docker-compose.yaml logs || true
