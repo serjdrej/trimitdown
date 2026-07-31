@@ -40,3 +40,9 @@ report.xml
 
 # Generated for inspection by generate_iconset.py, like AppIcon.iconset itself.
 mac-build/AppIcon_composed_1024.png
+
+# The server's shared secret. .env.example is the template that ships; .env is
+# the thing it protects. Untracked is not enough -- `git add -A` takes untracked
+# files, and that is how a secret reaches a public repository.
+docker-server/.env
+!docker-server/.env.example

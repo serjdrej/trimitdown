@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit, urlunsplit
+
 import requests
 import urllib3
 
@@ -9,8 +11,23 @@ SERVER_CHECK_TIMEOUT = 1.5
 
 
 def server_reachable(url: str) -> bool:
+    """Whether the stored address answers, secret and all.
+
+    The address may carry the server's shared secret as a query -- that is how
+    the link works in a browser, in a webview and on a phone. Appending "/" to
+    the string, which is what this used to do, produced `...?k=secret/` and
+    turned a working link into an unreachable server.
+
+    Known rough edge: a wrong or missing secret is refused with 401 and reads
+    here as "unreachable", so a person who pastes the address without its secret
+    goes looking for a network problem. Telling the two apart means returning
+    more than a boolean, and the two copies of the interface that render it have
+    already diverged -- that is a separate job.
+    """
+    parts = urlsplit(url)
+    probe = urlunsplit((parts.scheme, parts.netloc, parts.path or "/", parts.query, ""))
     try:
-        r = requests.get(url + "/", timeout=SERVER_CHECK_TIMEOUT, verify=False)
+        r = requests.get(probe, timeout=SERVER_CHECK_TIMEOUT, verify=False)
         return r.status_code == 200
     except Exception:
         return False

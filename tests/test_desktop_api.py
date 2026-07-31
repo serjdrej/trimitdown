@@ -72,3 +72,47 @@ def test_check_reachable_false_on_exception(monkeypatch):
     monkeypatch.setattr(desktop_api.requests, "get", raise_error)
     api = desktop_api.Api()
     assert api.check_reachable("https://example.com") is False
+
+
+def test_reachability_keeps_the_secret_in_the_address(monkeypatch):
+    """Appending "/" to the stored address must fail this test.
+
+    The address of a locked server carries its shared secret as a query. The
+    old form built `https://host:8002/?k=secret/`, which the server refuses --
+    so a working link was reported as an unreachable server, and the person
+    would go looking for a network fault that was not there.
+    """
+    import desktop_api
+
+    asked = {}
+
+    class Answer:
+        status_code = 200
+
+    def fake_get(url, **kwargs):
+        asked["url"] = url
+        return Answer()
+
+    monkeypatch.setattr(desktop_api.requests, "get", fake_get)
+
+    assert desktop_api.server_reachable("https://host:8002/?k=secret") is True
+    assert asked["url"] == "https://host:8002/?k=secret"
+
+
+def test_reachability_still_asks_for_the_root_of_a_bare_address(monkeypatch):
+    import desktop_api
+
+    asked = {}
+
+    class Answer:
+        status_code = 200
+
+    monkeypatch.setattr(
+        desktop_api.requests,
+        "get",
+        lambda url, **kwargs: (asked.__setitem__("url", url), Answer())[1],
+    )
+
+    desktop_api.server_reachable("https://host:8002")
+
+    assert asked["url"] == "https://host:8002/"

@@ -173,11 +173,21 @@ Docker-сервер — источник истины: он конвертиру
 git clone https://github.com/serjdrej/trimitdown.git
 cd trimitdown/docker-server
 # один раз: сгенерировать самоподписанный HTTPS-сертификат (готовая команда в docker-server/README.md)
+cp .env.example .env && echo "TRIMITDOWN_TOKEN=$(openssl rand -hex 24)" > .env
 docker-compose up -d --build
 ```
 
-Затем открыть `https://ВАШ_СЕРВЕР:8002`. Полная инструкция — генерация сертификата, доверие
-к нему на iOS/Windows/macOS и API — в [`docker-server/README.md`](docker-server/README.md).
+Затем один раз открыть `https://ВАШ_СЕРВЕР:8002/?k=ВАШ_ТОКЕН`. Секрет переедет в cookie, и
+дальше достаточно `https://ВАШ_СЕРВЕР:8002`.
+
+Один общий секрет, а не учётные записи: сервер хранит один архив и принадлежит одному
+человеку. Без секрета он отказывается обслуживать запросы. `docker-compose` публикует порт
+на всех интерфейсах, а собственные правила Docker означают, что `ufw deny` на хосте его
+**не закрывает** — если нужен доступ только с этой машины, привяжите к `127.0.0.1` в
+`docker-compose.yaml`.
+
+Полная инструкция — генерация сертификата, доверие к нему на iOS/Windows/macOS и API —
+в [`docker-server/README.md`](docker-server/README.md).
 
 ## Скриншоты
 

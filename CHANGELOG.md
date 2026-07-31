@@ -23,6 +23,12 @@ and was lost once, together with a recreated draft.
   запускается до публикации, а не после: раньше файл, попадавший в индекс,
   первым запускал незнакомый человек. Версии зависимостей закреплены, поэтому
   две сборки одного кода больше не собираются из разного.
+- **У сервера появился замок.** Docker-сервер больше не отдаёт архив всякому, кто
+  доберётся до порта: нужен общий секрет из `TRIMITDOWN_TOKEN`, и без него сервер
+  отказывается обслуживать запросы. Открыть один раз ссылку с секретом — дальше
+  устройство помнит. Это не учётные записи: сервер хранит один архив и
+  принадлежит одному человеку. **При обновлении нужно завести `.env`** —
+  `docker-server/.env.example` показывает как.
 - **Установка на Windows через scoop.** `scoop bucket add trimitdown
   https://github.com/serjdrej/trimitdown`, затем `scoop install trimitdown` —
   ярлык в меню «Пуск» и обновление одной командой. Предупреждения SmartScreen на
@@ -40,6 +46,12 @@ accumulating and the section will grow with it.
   before publication rather than after: the file reaching the index used to be
   one a stranger ran first. Dependency versions are pinned, so two builds of the
   same code are no longer assembled out of different parts.
+- **The server has a lock now.** The Docker server no longer hands the archive to
+  whoever reaches the port: it wants the shared secret in `TRIMITDOWN_TOKEN` and
+  refuses to serve without one. Open the link carrying it once and the device
+  remembers. Not accounts — the server holds one archive and belongs to one
+  person. **Upgrading requires creating `.env`**; `docker-server/.env.example`
+  shows how.
 - **Windows installs through scoop.** `scoop bucket add trimitdown
   https://github.com/serjdrej/trimitdown`, then `scoop install trimitdown` — a
   Start-menu entry and updates in one command. No SmartScreen prompt on this

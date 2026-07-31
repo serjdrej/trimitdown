@@ -15,10 +15,36 @@ from fastapi.testclient import TestClient
 from trimitdown import convert as pure
 
 
+TOKEN = "a-secret-for-the-tests"
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    """A client that already holds the shared secret.
+
+    Every test below used to reach the archive with no credentials at all and
+    call that a pass -- the audit's point exactly: the checks confirmed the door
+    was open. They now go through the lock, and the tests that prove the lock
+    exists are at the bottom of this file.
+    """
     import app as docker_app
     monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setenv("TRIMITDOWN_TOKEN", TOKEN)
+    client = TestClient(docker_app.app)
+    client.cookies.set(docker_app.TOKEN_COOKIE, TOKEN)
+    return client
+
+
+def locked_client_for(tmp_path, monkeypatch):
+    """A client holding nothing, for the tests about being refused.
+
+    A plain function rather than a fixture: the pre-commit guard that looks for
+    personal data reads the fixture decorator as an email address, and the rule
+    in this repository is to reword rather than to narrow the pattern.
+    """
+    import app as docker_app
+    monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setenv("TRIMITDOWN_TOKEN", TOKEN)
     return TestClient(docker_app.app)
 
 
@@ -103,3 +129,101 @@ def test_mode_endpoint_returns_server_mode_and_version(client):
 
     assert response.status_code == 200
     assert response.json() == {"mode": "server", "version": VERSION}
+
+
+class TestTheSharedSecret:
+    """The lock on the door of a personal server.
+
+    Not a user system: one archive, one person, one secret. What was missing was
+    any lock at all, while `docker-compose` published the port on every
+    interface -- which on a machine with a public address is the open internet,
+    and Docker's own iptables rules mean a `ufw deny` on that port does not
+    close it.
+    """
+
+    def test_the_archive_is_not_served_to_a_request_without_the_secret(
+        self, tmp_path, monkeypatch
+    ):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        (tmp_path / "private.md").write_text("someone's document", encoding="utf-8")
+
+        listing = locked_client.get("/api/archive")
+        download = locked_client.get("/api/archive/private.md")
+        removal = locked_client.delete("/api/archive/private.md")
+
+        assert listing.status_code == 401
+        assert download.status_code == 401
+        assert removal.status_code == 401
+        assert "someone's document" not in download.text
+        # And the refusal did not delete it either.
+        assert (tmp_path / "private.md").exists()
+
+    def test_conversion_is_not_performed_for_a_request_without_the_secret(
+        self, tmp_path, monkeypatch
+    ):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        response = locked_client.post(
+            "/api/convert", files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")}
+        )
+
+        assert response.status_code == 401
+
+    def test_a_link_carrying_the_secret_opens_the_server_and_leaves_a_cookie(
+        self, tmp_path, monkeypatch
+    ):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        import app as docker_app
+
+        response = locked_client.get(f"/api/mode?{docker_app.TOKEN_PARAM}={TOKEN}")
+
+        assert response.status_code == 200
+        assert response.json()["mode"] == "server"
+        # The secret stops travelling in URLs after the first visit, and the
+        # front end -- which exists in two diverged copies -- needs to know
+        # nothing about any of this.
+        assert locked_client.cookies.get(docker_app.TOKEN_COOKIE) == TOKEN
+
+    def test_a_wrong_secret_is_refused(self, tmp_path, monkeypatch):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        response = locked_client.get("/api/mode?k=not-the-secret")
+
+        assert response.status_code == 401
+        assert locked_client.cookies.get("trimitdown_key") is None
+
+    def test_a_server_with_no_secret_configured_refuses_to_serve(
+        self, tmp_path, monkeypatch
+    ):
+        # The dangerous default is the one that keeps working. An unset secret
+        # used to mean "no protection at all", and that disagreed with what
+        # SECURITY.md promised the reader.
+        import app as docker_app
+
+        monkeypatch.setattr(docker_app, "ARCHIVE_DIR", tmp_path)
+        monkeypatch.delenv("TRIMITDOWN_TOKEN", raising=False)
+        client = TestClient(docker_app.app)
+
+        response = client.get("/api/archive")
+
+        assert response.status_code == 503
+        assert "TRIMITDOWN_TOKEN" in response.json()["detail"]
+
+    def test_the_static_files_are_behind_the_lock_too(self, tmp_path, monkeypatch):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        # A mounted StaticFiles app is easy to leave outside a check that only
+        # decorates routes. The UI is not a secret, but the same mount is how a
+        # reader would learn the server is there at all.
+        assert locked_client.get("/static/app.js").status_code == 401
+
+    def test_a_forged_cookie_is_refused(self, tmp_path, monkeypatch):
+        locked_client = locked_client_for(tmp_path, monkeypatch)
+        # The cookie is what every request after the first one carries, so it is
+        # the path that matters most -- and it is trivially set by hand. A test
+        # that only checks a wrong secret in the link leaves this whole branch
+        # unguarded: measured, removing the comparison here kept the file green.
+        import app as docker_app
+
+        locked_client.cookies.set(docker_app.TOKEN_COOKIE, "not-the-secret")
+
+        response = locked_client.get("/api/archive")
+
+        assert response.status_code == 401

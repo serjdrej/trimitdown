@@ -169,11 +169,20 @@ the iPhone PWA.
 git clone https://github.com/serjdrej/trimitdown.git
 cd trimitdown/docker-server
 # one-time: generate a self-signed HTTPS certificate (copy-paste command in docker-server/README.md)
+cp .env.example .env && echo "TRIMITDOWN_TOKEN=$(openssl rand -hex 24)" > .env
 docker-compose up -d --build
 ```
 
-Then open `https://YOUR_SERVER:8002`. Full instructions — certificate generation, trusting it
-on iOS/Windows/macOS, and the API — in [`docker-server/README.en.md`](docker-server/README.en.md).
+Then open `https://YOUR_SERVER:8002/?k=YOUR_TOKEN` once. The secret moves into a cookie and
+later visits need only `https://YOUR_SERVER:8002`.
+
+One shared secret, not accounts — the server holds one archive and belongs to one person.
+It refuses to start serving without one. `docker-compose` publishes the port on every
+interface, and Docker's own firewall rules mean a `ufw deny` on the host does not close it;
+bind to `127.0.0.1` in `docker-compose.yaml` if you want this machine only.
+
+Full instructions — certificate generation, trusting it on iOS/Windows/macOS, and the API —
+in [`docker-server/README.en.md`](docker-server/README.en.md).
 
 ## Screenshots
 

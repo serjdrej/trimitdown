@@ -6,8 +6,16 @@ services:
     image: trimitdown-web:latest
     container_name: trimitdown-web
     restart: unless-stopped
+    # The interface is written out on purpose. The short form -- "8002:8000" --
+    # binds to 0.0.0.0, which on a machine with a public address is the open
+    # internet, and Docker publishes ports by writing its own iptables rules, so
+    # a `ufw deny 8002` on the host does not close it. 0.0.0.0 here means the
+    # local network, which is what serving a phone needs; change it to
+    # 127.0.0.1 for this machine only.
     ports:
-      - "8002:8000"
+      - "0.0.0.0:8002:8000"
+    env_file:
+      - .env
     volumes:
       - ./archive:/app/archive
       - ./certs:/certs:ro

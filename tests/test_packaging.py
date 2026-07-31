@@ -308,3 +308,31 @@ def test_the_bundle_cannot_silently_build_cryptography_from_source():
     assert "--only-binary=cryptography" in lines, \
         "without --only-binary a vanished wheel becomes a silent source build " \
         "instead of a failed install"
+
+
+def test_the_servers_secret_cannot_be_committed():
+    """Removing the .gitignore rule must fail this test.
+
+    `.env` holds the shared secret that stands between the archive and anyone
+    who can reach the port. Untracked is not protection: `git add -A` takes
+    untracked files, and a secret in a public repository cannot be un-published
+    by deleting it later.
+
+    Asks git rather than reading .gitignore for a substring: a rule can be
+    present and overridden by a later one, and the file would still look right.
+    """
+    import subprocess
+
+    ignored = subprocess.run(
+        ["git", "check-ignore", "-q", "docker-server/.env"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+    )
+    template = subprocess.run(
+        ["git", "check-ignore", "-q", "docker-server/.env.example"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+    )
+
+    assert ignored.returncode == 0, "docker-server/.env is not ignored by git"
+    assert template.returncode == 1, "the template must stay in the repository"
