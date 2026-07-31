@@ -569,3 +569,108 @@ def test_the_release_waits_for_the_package_job():
     # Without this the draft can be cut while the CLI has never been installed,
     # and the distributions would simply be absent from it.
     assert "package" in _workflow("release.yml")["jobs"]["release"]["needs"]
+
+
+# The Docker image was the one artifact of the four this project ships that no
+# check had ever built, let alone started -- and it just gained a shared-secret
+# middleware exercised only against the ASGI app object (test_docker_server_routes.py),
+# never against a running container, where the .env -> env_file -> environment
+# plumbing can silently break in a way no unit test can see.
+#
+# What follows are text assertions over build-docker.yml's YAML, in the same
+# style as the rest of this file. That style has a real limit here: it can show
+# that the workflow names the right endpoints, generates a secret, checks both
+# a refusal and an acceptance, and inspects the converted content rather than
+# trusting a status code. It cannot show that `docker compose build` actually
+# produces a working image, that uvicorn comes up behind the generated
+# certificates, or that any of these curl calls succeed against a real
+# container -- only a run on a real runner proves that, and this repository's
+# sandbox has no Docker daemon to run one against.
+def test_the_docker_image_builds_from_the_repository_root():
+    # Same file and the same invocation a real deploy uses (docker-compose.yaml),
+    # not a second, CI-only recipe that could quietly stop matching it. Compose
+    # resolves the `context: ..` inside that file relative to the file's own
+    # directory, which is how a build invoked with -f from anywhere still uses
+    # the repository root as context.
+    script = _script(_step("build-docker.yml", "build", "Build the image"))
+    assert "docker compose -f docker-server/docker-compose.yaml build" in script
+
+
+def test_the_unconfigured_container_is_refused_by_name():
+    # Expect 503, and the message has to name the environment variable -- a
+    # 503 for some unrelated reason would pass a check that only looked at the
+    # status code.
+    script = _script(
+        _step(
+            "build-docker.yml", "build",
+            "A container with no secret configured refuses to serve",
+        )
+    )
+    assert '"$status" = "503"' in script
+    assert "TRIMITDOWN_TOKEN" in script
+
+
+def test_the_secret_is_generated_not_hardcoded():
+    script = _script(
+        _step("build-docker.yml", "build", "Reconfigure the container with a generated secret")
+    )
+    assert "openssl rand -hex 24" in script
+    # --force-recreate is load-bearing: a container's environment is fixed for
+    # its whole life, so restarting the same process after rewriting .env would
+    # keep serving with the old, empty token. Losing this flag is exactly the
+    # bug this whole workflow exists to catch, and it would still pass a check
+    # that only looked for the secret being written.
+    assert "--force-recreate" in script
+
+
+def test_a_request_without_the_secret_is_refused_once_one_is_configured():
+    script = _script(_step("build-docker.yml", "build", "Without the secret a request is refused"))
+    assert '"$status" = "401"' in script
+    # Not the status code alone: a real archive listing is a JSON array of
+    # entries, each carrying a "filename" key, and a refusal must never have
+    # one -- checked explicitly so a bug that lets the request through on an
+    # archive that happens to be empty right now still fails this.
+    assert '"filename"' in script
+
+
+def test_the_secret_in_the_link_is_accepted_and_leaves_a_cookie():
+    script = _script(
+        _step(
+            "build-docker.yml", "build",
+            "With the secret in the link the server answers and sets the cookie",
+        )
+    )
+    assert '"$status" = "200"' in script
+    assert "api/archive?k=$TOKEN" in script
+    assert "trimitdown_key" in script
+
+
+def test_the_converted_document_is_checked_for_a_table_not_a_status_code():
+    """Removing the content check and keeping only the status assertion still
+    passes a converter that returns empty or unstructured text for the same
+    PDF -- the exact silent failure this product exists to avoid.
+    """
+    build_doc = _script(_step("build-docker.yml", "build", "Build the smoke document"))
+    assert "ruled_table" in build_doc
+
+    convert = _script(
+        _step("build-docker.yml", "build", "Convert a document through the running container")
+    )
+    assert "/api/convert" in convert
+    assert '"$status" = "200"' in convert
+    # The check opens the JSON response and reads its "content" field before
+    # looking for a table, rather than grepping the raw response bytes for a
+    # pipe character -- a stray "|" elsewhere in the payload (an error string,
+    # a header) cannot pass a check that never looks past the status.
+    assert 'json.load(f)["content"]' in convert
+    assert '"|" in content' in convert
+
+
+def test_the_docker_workflow_runs_on_pushes_and_pull_requests():
+    # A check nobody runs is the failure this workflow exists to fix in the
+    # first place; it has to fire on ordinary pushes and PRs, not only on
+    # request.
+    triggers = _workflow("build-docker.yml")["on"]
+    assert "push" in triggers
+    assert "pull_request" in triggers
+    assert "workflow_dispatch" in triggers
