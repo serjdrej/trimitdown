@@ -23,6 +23,12 @@ and was lost once, together with a recreated draft.
   запускается до публикации, а не после: раньше файл, попадавший в индекс,
   первым запускал незнакомый человек. Версии зависимостей закреплены, поэтому
   две сборки одного кода больше не собираются из разного.
+- **В серверном интерфейсе видно, что именно пошло не так.** Раньше при отказе,
+  который сервер вернул не в JSON, показывалось сообщение разборщика вроде
+  «Unexpected token», а настоящая причина терялась.
+- **Адрес сервера больше не прячется.** Когда приложение открывает удалённый
+  сервер, блок «Адрес сервера» мог не появиться вовсе — то есть поменять адрес
+  было нечем именно в том режиме, ради которого туда и заходят.
 - **Слишком большой файл отклоняется, не съев память.** Ограничение в 200 МБ
   проверялось после того, как файл целиком оказывался в памяти: двухгигабайтный
   документ сначала занимал два гигабайта и только потом получал отказ, а
@@ -51,6 +57,12 @@ accumulating and the section will grow with it.
   before publication rather than after: the file reaching the index used to be
   one a stranger ran first. Dependency versions are pinned, so two builds of the
   same code are no longer assembled out of different parts.
+- **The server interface says what actually went wrong.** A failure the server
+  returned as something other than JSON used to surface as a parser message like
+  "Unexpected token", and the real cause was lost.
+- **The server address stops hiding.** When the app opens a remote server, the
+  Server Address controls could fail to appear at all — leaving no way to change
+  the address in the one mode where that is why you opened settings.
 - **An oversized file is refused without eating memory first.** The 200 MB limit
   was checked after the whole upload was already in memory, so a two-gigabyte
   document was a two-gigabyte allocation first and a refusal second -- and a
