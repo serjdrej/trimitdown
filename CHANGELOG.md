@@ -16,8 +16,9 @@ and was lost once, together with a recreated draft.
 
 ### Что изменилось
 
-Пока ничего, что видно при работе с программой. Этот выпуск набирается, и
-раздел будет расти вместе с ним.
+Выпуск про надёжность и безопасность. Одно изменение требует действия при
+обновлении: Docker-серверу теперь нужен `TRIMITDOWN_TOKEN` — без него он не
+обслуживает запросы. Подробности в пункте про замок ниже.
 
 - **Надёжность выпуска.** Пакет для `pip` и `uvx` теперь устанавливается и
   запускается до публикации, а не после: раньше файл, попадавший в индекс,
@@ -50,8 +51,9 @@ and was lost once, together with a recreated draft.
 
 ### What changed
 
-Nothing yet that shows while using the program. This release is still
-accumulating and the section will grow with it.
+A reliability and security release. One change needs action on upgrade: the
+Docker server now requires `TRIMITDOWN_TOKEN` and refuses to serve without it.
+See the lock entry below.
 
 - **Release reliability.** The `pip` and `uvx` package is now installed and run
   before publication rather than after: the file reaching the index used to be
