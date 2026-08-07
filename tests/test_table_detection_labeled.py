@@ -53,11 +53,23 @@ def _labeled_grids(root: Path):
                 page.flush_cache()
 
 
-# Expected scoreable counts, from labels.py. If a labeled file is missing from
-# disk, or rglob picks a same-named wrong file (its grids won't match the stored
-# bbox and get dropped), the denominator shrinks below these — which must FAIL,
-# not silently pass 44/44. The whole set is skipped only if NOTHING is on disk.
-EXPECTED = {"T": 45, "F": 14, "D": 15}
+# Expected scoreable counts. If a labeled file is missing from disk, or rglob
+# picks a same-named wrong file (its grids won't match the stored bbox and get
+# dropped), the denominator shrinks below these — which must FAIL, not silently
+# pass. The whole set is skipped only if NOTHING is on disk.
+#
+# 2026-08-06: these counts were REDUCED from {"T": 45, "F": 14, "D": 15} (74
+# grids over 42 documents) after 13 of those documents were found to be gone
+# from the corpus for good. Recovering them by geometry — matching every stored
+# grid bbox on its stored page across the whole archive — returned 0 of 13, so
+# they were deleted rather than renamed. The reduction is a recorded loss, not
+# a denominator tuned to fit the data: the surviving 29 documents were rescored
+# from scratch and these are the observed totals.
+#
+# This set is REGRESSION EVIDENCE ONLY and must never serve as an acceptance
+# gate. It calibrated is_real_table and _is_diagram_debris, so it cannot judge
+# them. An independent holdout is tracked separately.
+EXPECTED = {"T": 31, "F": 8, "D": 14}
 
 
 @pytest.fixture(scope="module")
@@ -93,21 +105,24 @@ def _by_label(scored, lbl):
 def test_keeps_real_tables(scored):
     real = _by_label(scored, "T")
     kept = sum(1 for _, k in real if k)
-    # Measured: 44/45. Never regress below it.
-    assert kept >= 44, f"kept only {kept}/45 real tables: {[g for g, k in real if not k]}"
+    # Measured on the surviving 29 documents (2026-08-06): 31/31. Was 44/45 on
+    # the full set before 13 documents were lost. Never regress below it.
+    assert kept >= 31, f"kept only {kept}/31 real tables: {[g for g, k in real if not k]}"
 
 
 def test_drops_layout_frames(scored):
     frames = _by_label(scored, "F")
     kept = sum(1 for _, k in frames if k)
-    # Measured: 1/14 kept (a drawing title block at exactly rowfill 0.5).
-    assert kept <= 1, f"kept {kept}/14 frames as tables: {[g for g, k in frames if k]}"
+    # Measured on the surviving set (2026-08-06): 1/8 kept — the same single
+    # drawing title block at exactly rowfill 0.5 that this bound was written for.
+    assert kept <= 1, f"kept {kept}/8 frames as tables: {[g for g, k in frames if k]}"
 
 
 def test_diagram_debris_mostly_dropped(scored):
     # rowfill alone kept 7/15 debris grids; the rot>=0.15 filter drops 2 of those
     # (heavy-rotation charts), leaving 5. The curves-overlap signal was measured and
     # rejected (it also killed 4 real tables), so 5 remain a measured-open problem.
+    # 2026-08-06: rescored on the surviving 29 documents — still 5, now out of 14.
     debris = _by_label(scored, "D")
     kept = sum(1 for _, k in debris if k)
-    assert kept <= 5, f"kept {kept}/15 debris grids as tables: {[g for g, k in debris if k]}"
+    assert kept <= 5, f"kept {kept}/14 debris grids as tables: {[g for g, k in debris if k]}"
