@@ -12,7 +12,7 @@
 [![Latest release](https://img.shields.io/github/v/release/serjdrej/trimitdown)](https://github.com/serjdrej/trimitdown/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/serjdrej/trimitdown/total)](https://github.com/serjdrej/trimitdown/releases)
 [![macOS build](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml/badge.svg)](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml)
-[![PyPI](https://img.shields.io/pypi/v/trimitdown-pdf?label=trimitdown-pdf&color=3775A9)](https://pypi.org/project/trimitdown-pdf/)
+[![PyPI](https://img.shields.io/pypi/v/trimitdown?label=trimitdown&color=3775A9)](https://pypi.org/project/trimitdown/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-iOS%20PWA%20·%20Windows%20·%20macOS%20·%20Docker-8A6FE8)
 
@@ -119,8 +119,8 @@ binary. Every non-PDF format still goes through MarkItDown.
 | Platform | How |
 |---|---|
 | **Terminal** (any OS) | `uv tool install trimitdown` — no GUI, no system prompts, see [Command-line package](#command-line-package) |
-| **Windows** | `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown` then `scoop install trimitdown` — Start-menu entry, `scoop update trimitdown` later. Or download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
-| **macOS** (Apple Silicon / Intel) | `.dmg` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
+| **Windows** | x64 only: `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown` then `scoop install trimitdown` — Start-menu entry, `scoop update trimitdown` later. Or download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
+| **macOS 11+** | From [Releases](https://github.com/serjdrej/trimitdown/releases/latest): Apple Silicon (M1 and later) → `TrimItDown-macOS-arm64.dmg`; Intel Mac → `TrimItDown-macOS-x86_64.dmg`. Mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
 | **iPhone / iPad** | Served by your own Docker server — open it in Safari → Share → *Add to Home Screen* |
 | **Docker server** | See [Self-hosting](#self-hosting) below |
 
@@ -140,14 +140,25 @@ downloaded copy, not on every launch.
   scoop does not raise this prompt at all: scoop does not tag what it downloads
   as coming from the web, so there is nothing for SmartScreen to warn about.
 
-Every release publishes SHA-256 checksums — that is what you can verify in place
-of a signature.
+Binaries are not signed. The release workflow creates `SHA256SUMS` for every desktop artifact:
+a hash verifies the downloaded file's integrity, but does not authenticate its publisher. If a
+release includes `SHA256SUMS`, compare the hash for your downloaded filename with its matching row:
+
+```powershell
+Get-FileHash .\TrimItDown-windows-x64.exe -Algorithm SHA256
+```
+
+```bash
+shasum -a 256 TrimItDown-macOS-arm64.dmg
+```
 
 ## Command-line package
 
-To install it for good: `uv tool install trimitdown`, or `pipx install trimitdown`. A plain
-`pip install` into the system Python is refused on many distributions and on Homebrew
-(PEP 668), which is why both commands above put the package in an isolated environment.
+Requires Python 3.10+. To install it for good: `uv tool install trimitdown`, or
+`pipx install trimitdown`. A plain `pip install` into the system Python is refused on many
+distributions and on Homebrew (PEP 668), which is why both commands above put the package in an
+isolated environment. The package is `trimitdown`; `trimitdown-pdf` is its dependency and is not
+needed as a separate end-user install.
 
 ```bash
 trimitdown convert report.pdf -o report.md
@@ -156,33 +167,55 @@ trimitdown convert report.pdf -o report.md
 Without `-o`, Markdown goes to standard output; input can arrive as a stream:
 `trimitdown convert - --type pdf`. The CLI works fully offline.
 
-To try it once without installing: `uvx trimitdown convert report.pdf`. Note that the first
-run still downloads the whole dependency graph — "without installing" means "without a trace
-on the system", not "without a download".
+To try it once without installing: `uvx trimitdown convert report.pdf`. It does not create a
+persistent `trimitdown` command, but downloaded packages and environments may remain in uv's cache.
+
+Update an installed CLI with `uv tool upgrade trimitdown` or `pipx upgrade trimitdown`; remove it
+with `uv tool uninstall trimitdown` or `pipx uninstall trimitdown`.
 
 ## Self-hosting
 
-The Docker server is the source of truth: it converts, stores the shared archive, and serves
-the iPhone PWA.
+The Docker server is the source of truth: it converts, stores the shared archive, and serves the
+iPhone PWA. This repository does not publish a ready-made Docker image; these commands build a
+chosen release from source. You need Git, Docker with Compose, and OpenSSL. Select a release tag
+from the Releases page before building rather than building `main`. Clone into a separate directory,
+not inside an existing clone, to avoid nesting `trimitdown/docker-server/trimitdown/docker-server`.
 
 ```bash
-git clone https://github.com/serjdrej/trimitdown.git
-cd trimitdown/docker-server
-# one-time: generate a self-signed HTTPS certificate (copy-paste command in docker-server/README.md)
-cp .env.example .env && echo "TRIMITDOWN_TOKEN=$(openssl rand -hex 24)" > .env
-docker-compose up -d --build
+git clone https://github.com/serjdrej/trimitdown.git && cd trimitdown && git checkout <release-tag> && cd docker-server
+./setup.sh YOUR_SERVER_ADDRESS
+docker compose up -d --build      # Compose v1: docker-compose up -d --build
 ```
 
-Then open `https://YOUR_SERVER:8002/?k=YOUR_TOKEN` once. The secret moves into a cookie and
-later visits need only `https://YOUR_SERVER:8002`.
+`setup.sh` prints the first-visit link; the secret moves into a cookie, and later visits need only
+`https://YOUR_SERVER:8002`.
 
 One shared secret, not accounts — the server holds one archive and belongs to one person.
-It refuses to start serving without one. `docker-compose` publishes the port on every
+It refuses to start serving without one. `docker compose` publishes the port on every
 interface, and Docker's own firewall rules mean a `ufw deny` on the host does not close it;
 bind to `127.0.0.1` in `docker-compose.yaml` if you want this machine only.
 
 Full instructions — certificate generation, trusting it on iOS/Windows/macOS, and the API —
 in [`docker-server/README.en.md`](docker-server/README.en.md).
+
+## Uninstall
+
+Removing the program or container does not remove your documents automatically.
+
+| Channel | Remove the program | What remains |
+|---|---|---|
+| `uv tool` | `uv tool uninstall trimitdown` | Markdown files you created and uv's package cache |
+| `pipx` | `pipx uninstall trimitdown` | Markdown files you created and pip/pipx caches |
+| Scoop | `scoop uninstall trimitdown`; optionally `scoop bucket rm trimitdown` | `%APPDATA%\TrimItDown` |
+| Windows EXE | Delete the downloaded EXE | `%APPDATA%\TrimItDown` |
+| macOS DMG | Delete `TrimItDown.app` from Applications | `~/Library/Application Support/TrimItDown` |
+| Docker | From `docker-server/`: `docker compose down` | The `trimitdown-web:latest` image, clone, `.env`, `certs/`, and `archive/` |
+| iPhone/iPad PWA | Remove it from the Home Screen | Safari website data, the cookie, and any installed certificate |
+
+Back up needed conversions before deleting `archive`; removing the app or container alone does not
+clear it. Certificate trust is system state: removing an app or PWA does not remove it. Remove the
+profile on iOS, the certificate from `CurrentUser\Root` on Windows, or the certificate from Keychain
+on macOS when you no longer trust this server.
 
 ## Screenshots
 
@@ -227,6 +260,12 @@ Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Limitations
 
+- Best fit: text-based PDFs and ruled tables. Borderless and whitespace-aligned tables are outside
+  the PDF engine's scope.
+- TrimItDown does not perform OCR. Scanned or image-only pages are marked as having no extractable
+  text layer.
+- Full multi-column layout reconstruction is out of scope, including reading order across columns,
+  headers/footers, and figure captions.
 - The server's self-signed HTTPS certificate needs a one-time manual trust on each device
   (iOS: profile + full trust; Windows: import into `CurrentUser\Root`; macOS: Keychain).
 - Unsigned binaries: one manual approval per downloaded copy — see

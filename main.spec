@@ -5,6 +5,7 @@ import sysconfig
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
+from trimitdown import __version__
 
 # Кэш переехал в пакет trimitdown; в бандле он обязан лежать там, где его ищет
 # trimitdown.convert -- по пути пакета, а не в core/.
@@ -107,6 +108,8 @@ app = BUNDLE(
     icon='mac-build/AppIcon.icns',
     bundle_identifier='dev.serjdrej.trimitdown',
     info_plist={
+        'CFBundleShortVersionString': __version__,
+        'CFBundleVersion': __version__,
         'NSHighResolutionCapable': True,
         'LSMinimumSystemVersion': '11.0',
         # WKWebView blocks plain-HTTP to 127.0.0.1 by default (ATS); the local

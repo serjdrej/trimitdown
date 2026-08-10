@@ -1,12 +1,12 @@
 {
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Convert documents to LLM-ready markdown. Ruled-table-aware PDF extraction, offline, no cloud.",
     "homepage": "https://github.com/serjdrej/trimitdown",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/serjdrej/trimitdown/releases/download/v0.1.1/TrimItDown-windows-x64.exe#/TrimItDown.exe",
-            "hash": "9eec4f058b1a91dcbb8ba269094d160bcb8f0c6e3e794a22736905300408e991"
+            "url": "https://github.com/serjdrej/trimitdown/releases/download/v0.1.2/TrimItDown-windows-x64.exe#/TrimItDown.exe",
+            "hash": "4f4901ff2f107dcf3d80863868b10f432c4bc5a8c69212133045ad6b54481ee9"
         }
     },
     "shortcuts": [

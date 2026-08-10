@@ -10,19 +10,19 @@ FastAPI + [MarkItDown](https://github.com/microsoft/markitdown) на Docker: к�
 Разворачивается на любой машине с Docker — домашний NAS, VPS, свой сервер. Папка называется
 `docker-server/`, потому что подходит для любого сервера с Docker, а не только для NAS.
 
+Этот репозиторий не публикует готовый Docker-образ. Этот деплой собирает выбранный релиз из
+исходников; нужны Git, Docker с Compose и OpenSSL. Клонируйте в отдельный каталог, не внутрь
+существующего клона, иначе получится вложенный `trimitdown/docker-server/trimitdown/docker-server`.
+
 ## Деплой
 
 ```bash
-# на машине, где будет крутиться сервис (NAS, VPS, свой сервер — что угодно с Docker)
-mkdir -p certs archive
-cd certs
-openssl req -x509 -nodes -newkey rsa:2048 \
-  -keyout key.pem -out cert.pem -days 3650 \
-  -subj "/CN=trimitdown" \
-  -addext "subjectAltName=IP:ТВОЙ_IP_СЕРВЕРА"
-cd ..
-sudo docker-compose up -d --build
+git clone https://github.com/serjdrej/trimitdown.git && cd trimitdown && git checkout <release-tag> && cd docker-server
+./setup.sh ВАШ_АДРЕС_СЕРВЕРА
+docker compose up -d --build      # Compose v1: docker-compose up -d --build
 ```
+
+`setup.sh` печатает ссылку для первого входа. Для следующих посещений секрет хранится в cookie.
 
 `docker-compose.yaml` пробрасывает `8002:8000`, монтирует `./archive` (архив конвертированных
 файлов) и `./certs:/certs:ro` (сертификат). Поменять порт/IP — там же.
@@ -51,10 +51,9 @@ sudo docker-compose up -d --build
 |---|---|---|
 | `POST` | `/api/convert` | Конвертирует загруженный файл, сохраняет в архив, возвращает markdown |
 | `GET` | `/api/archive?q=` | Список архива (опциональный поиск по имени) |
-| `GET` | `/api/archive/{filename}` | Скачать файл. `?raw=1` — `application/octet-stream` для десктоп-приложений (см. корневой README, раздел «Известные грабли»); без параметра — `text/markdown` для браузеров |
+| `GET` | `/api/archive/{filename}` | Скачать файл. `?raw=1` — `application/octet-stream` для десктоп-приложений; без параметра — `text/markdown` для браузеров |
 | `DELETE` | `/api/archive/{filename}` | Удалить файл из архива |
 | `GET` | `/cert` | Отдаёт публичный сертификат для установки на устройство |
 
-`markitdown[all]` тянет тяжёлые ML-зависимости (аудио-транскрипция и т.д.) — это осознанный
-выбор для серверной версии, где место и время сборки не критичны. У десктоп-версии (см. корень
-репозитория) набор extras урезан для portable-сборки.
+В проекте указаны более узкие MarkItDown extras:
+`docx,pdf,pptx,xlsx,xls,outlook`, а не `markitdown[all]`.
