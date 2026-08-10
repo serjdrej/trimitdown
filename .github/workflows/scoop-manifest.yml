@@ -1,0 +1,25 @@
+name: Scoop manifest
+
+# Manifest drift is a release state, not a push event. Daily polling catches a
+# forgotten post-publication update without turning every development push into
+# a GitHub API request.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check the Scoop manifest against the published release
+        run: python scripts/check_scoop_manifest.py
