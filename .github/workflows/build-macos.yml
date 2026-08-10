@@ -58,6 +58,27 @@ jobs:
           PYI_TARGET_ARCH: ${{ matrix.arch }}
         run: pyinstaller main.spec
 
+      - name: Verify bundle version
+        run: |
+          python - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          from trimitdown import __version__
+
+          plist_path = Path("dist/TrimItDown.app/Contents/Info.plist")
+          with plist_path.open("rb") as stream:
+              plist = plistlib.load(stream)
+
+          for key in ("CFBundleShortVersionString", "CFBundleVersion"):
+              actual = plist.get(key)
+              if actual != __version__:
+                  raise SystemExit(
+                      f"{key} is {actual!r}, expected package version {__version__!r}"
+                  )
+          print(f"bundle version: {__version__}")
+          PY
+
       # A green build proves nothing about what is inside the bundle: a missing
       # module produces an app that starts fine and fails on the first PDF. Same
       # check the tiktoken_ext regression needed. Path is explicit -- PyInstaller
