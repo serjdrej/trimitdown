@@ -12,7 +12,7 @@
 [![Latest release](https://img.shields.io/github/v/release/serjdrej/trimitdown)](https://github.com/serjdrej/trimitdown/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/serjdrej/trimitdown/total)](https://github.com/serjdrej/trimitdown/releases)
 [![macOS build](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml/badge.svg)](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml)
-[![PyPI](https://img.shields.io/pypi/v/trimitdown-pdf?label=trimitdown-pdf&color=3775A9)](https://pypi.org/project/trimitdown-pdf/)
+[![PyPI](https://img.shields.io/pypi/v/trimitdown?label=trimitdown&color=3775A9)](https://pypi.org/project/trimitdown/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-iOS%20PWA%20·%20Windows%20·%20macOS%20·%20Docker-8A6FE8)
 
@@ -124,8 +124,8 @@ ML-моделей, без облака, достаточно компактно,
 | Платформа | Как |
 |---|---|
 | **Терминал** (любая ОС) | `uv tool install trimitdown` — без GUI и без подтверждений системы, см. [Пакет командной строки](#пакет-командной-строки) |
-| **Windows** | `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown`, затем `scoop install trimitdown` — ярлык в меню «Пуск», дальше `scoop update trimitdown`. Либо скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — один файл, без установщика |
-| **macOS** (Apple Silicon / Intel) | `.dmg` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — смонтировать, перетащить в Applications, затем [Первый запуск](#первый-запуск) |
+| **Windows** | Только x64: `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown`, затем `scoop install trimitdown` — ярлык в меню «Пуск», дальше `scoop update trimitdown`. Либо скачать `TrimItDown-windows-x64.exe` из [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — один файл, без установщика |
+| **macOS 11+** | Из [Releases](https://github.com/serjdrej/trimitdown/releases/latest): Apple Silicon (M1 и новее) → `TrimItDown-macOS-arm64.dmg`; Intel Mac → `TrimItDown-macOS-x86_64.dmg`. Смонтировать, перетащить TrimItDown в Applications, затем [Первый запуск](#первый-запуск) |
 | **iPhone / iPad** | Отдаётся вашим Docker-сервером — открыть в Safari → «Поделиться» → *На экран «Домой»* |
 | **Docker-сервер** | См. [Свой сервер](#свой-сервер) ниже |
 
@@ -145,14 +145,24 @@ ML-моделей, без облака, достаточно компактно,
   При установке через scoop этого запроса нет вовсе: scoop не помечает
   скачанное как пришедшее из интернета, и предупреждать SmartScreen не о чем.
 
-К каждому релизу публикуются контрольные суммы SHA-256 — это то, что можно
-проверить вместо подписи.
+Бинарники не подписаны. Workflow `release.yml` создаёт `SHA256SUMS` для каждого десктопного артефакта:
+хеш проверяет целостность скачанного файла, но не подтверждает издателя. Если в релизе есть
+`SHA256SUMS`, сравните хеш скачанного файла со строкой для его имени:
+
+```powershell
+Get-FileHash .\TrimItDown-windows-x64.exe -Algorithm SHA256
+```
+
+```bash
+shasum -a 256 TrimItDown-macOS-arm64.dmg
+```
 
 ## Пакет командной строки
 
-Постоянная установка — `uv tool install trimitdown`, либо `pipx install trimitdown`.
-Прямой `pip install` в системный Python на многих дистрибутивах и в Homebrew отклоняется
-(PEP 668), поэтому оба варианта выше ставят пакет в изолированное окружение.
+Требуется Python 3.10+. Постоянная установка — `uv tool install trimitdown`, либо
+`pipx install trimitdown`. Прямой `pip install` в системный Python на многих дистрибутивах и в
+Homebrew отклоняется (PEP 668), поэтому оба варианта выше ставят пакет в изолированное окружение.
+Пакет — `trimitdown`; `trimitdown-pdf` — его зависимость и отдельно конечному пользователю не нужен.
 
 ```bash
 trimitdown convert report.pdf -o report.md
@@ -161,33 +171,56 @@ trimitdown convert report.pdf -o report.md
 Без `-o` Markdown уходит в стандартный вывод; вход можно подать потоком:
 `trimitdown convert - --type pdf`. CLI полностью работает офлайн.
 
-Попробовать разово, не устанавливая: `uvx trimitdown convert report.pdf`. Учтите, что
-первый запуск всё равно скачивает весь граф зависимостей — «без установки» означает
-«без следа в системе», а не «без загрузки».
+Попробовать разово, не устанавливая: `uvx trimitdown convert report.pdf`. Постоянная команда
+`trimitdown` при этом не создаётся, но скачанные пакеты и окружения могут остаться в кеше uv.
+
+Обновить установленный CLI: `uv tool upgrade trimitdown` или `pipx upgrade trimitdown`; удалить:
+`uv tool uninstall trimitdown` или `pipx uninstall trimitdown`.
 
 ## Свой сервер
 
 Docker-сервер — источник истины: он конвертирует, хранит общий архив и отдаёт PWA для iPhone.
+Этот репозиторий не публикует готовый Docker-образ: команды ниже собирают выбранный релиз из
+исходников. Нужны Git, Docker с Compose и OpenSSL. Перед сборкой выберите тег релиза на странице
+Releases, а не собирайте `main`. Клонируйте в отдельный каталог, не внутрь существующего клона,
+иначе получится вложенный `trimitdown/docker-server/trimitdown/docker-server`.
 
 ```bash
-git clone https://github.com/serjdrej/trimitdown.git
-cd trimitdown/docker-server
-# один раз: сгенерировать самоподписанный HTTPS-сертификат (готовая команда в docker-server/README.md)
-cp .env.example .env && echo "TRIMITDOWN_TOKEN=$(openssl rand -hex 24)" > .env
-docker-compose up -d --build
+git clone https://github.com/serjdrej/trimitdown.git && cd trimitdown && git checkout <release-tag> && cd docker-server
+./setup.sh ВАШ_АДРЕС_СЕРВЕРА
+docker compose up -d --build      # Compose v1: docker-compose up -d --build
 ```
 
-Затем один раз открыть `https://ВАШ_СЕРВЕР:8002/?k=ВАШ_ТОКЕН`. Секрет переедет в cookie, и
-дальше достаточно `https://ВАШ_СЕРВЕР:8002`.
+`setup.sh` печатает ссылку для первого входа; секрет переедет в cookie, и дальше достаточно
+`https://ВАШ_СЕРВЕР:8002`.
 
 Один общий секрет, а не учётные записи: сервер хранит один архив и принадлежит одному
-человеку. Без секрета он отказывается обслуживать запросы. `docker-compose` публикует порт
+человеку. Без секрета он отказывается обслуживать запросы. `docker compose` публикует порт
 на всех интерфейсах, а собственные правила Docker означают, что `ufw deny` на хосте его
 **не закрывает** — если нужен доступ только с этой машины, привяжите к `127.0.0.1` в
 `docker-compose.yaml`.
 
 Полная инструкция — генерация сертификата, доверие к нему на iOS/Windows/macOS и API —
 в [`docker-server/README.md`](docker-server/README.md).
+
+## Удаление
+
+Удаление программы или контейнера не удаляет пользовательские документы автоматически.
+
+| Канал | Как удалить программу | Что останется |
+|---|---|---|
+| `uv tool` | `uv tool uninstall trimitdown` | Созданные Markdown-файлы и кеш пакетов uv |
+| `pipx` | `pipx uninstall trimitdown` | Созданные Markdown-файлы и кеши pip/pipx |
+| Scoop | `scoop uninstall trimitdown`; при необходимости `scoop bucket rm trimitdown` | `%APPDATA%\TrimItDown` |
+| Windows EXE | Удалить скачанный EXE | `%APPDATA%\TrimItDown` |
+| macOS DMG | Удалить `TrimItDown.app` из Applications | `~/Library/Application Support/TrimItDown` |
+| Docker | В `docker-server/`: `docker compose down` | Образ `trimitdown-web:latest`, клон, `.env`, `certs/` и `archive/` |
+| iPhone/iPad PWA | Удалить с экрана «Домой» | Данные сайта Safari, cookie и установленный сертификат |
+
+Перед удалением `archive` сохраните нужные конвертации: удаление приложения или контейнера само
+по себе этот каталог не очищает. Доверие к сертификату — системное состояние: удаление приложения
+или PWA его не отменяет. Если серверу больше не доверяете, удалите профиль на iOS, сертификат из
+`CurrentUser\Root` на Windows или сертификат из Keychain на macOS.
 
 ## Скриншоты
 
@@ -232,6 +265,12 @@ docker-compose up -d --build
 
 ## Ограничения
 
+- Лучший вариант — PDF с текстовым слоем и таблицами с разлиновкой. Таблицы без границ и таблицы,
+  выровненные пробелами, вне области работы PDF-движка.
+- TrimItDown не делает OCR. Сканированные страницы и PDF только с изображением помечаются как не
+  имеющие извлекаемого текстового слоя.
+- Полное восстановление многоколонной вёрстки не поддерживается: в том числе порядок чтения между
+  колонками, колонтитулы и подписи к рисункам.
 - Самоподписанный HTTPS-сертификат сервера нужно один раз вручную одобрить на каждом
   устройстве (iOS: профиль + полное доверие; Windows: импорт в `CurrentUser\Root`;
   macOS: Keychain).

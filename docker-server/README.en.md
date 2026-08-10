@@ -10,19 +10,19 @@ Home Screen as a full app (offline UI caching via a service worker, its own icon
 Runs on any machine with Docker — a home NAS, a VPS, your own server. The folder is called
 `docker-server/` because it works for any Docker-capable server, not just a NAS.
 
+This repository does not publish a ready-made Docker image. This deployment builds a chosen source
+release and requires Git, Docker with Compose, and OpenSSL. Clone into a separate directory, not
+inside an existing clone, to avoid nesting `trimitdown/docker-server/trimitdown/docker-server`.
+
 ## Deploy
 
 ```bash
-# on whichever machine will run the service (NAS, VPS, your own server — anything with Docker)
-mkdir -p certs archive
-cd certs
-openssl req -x509 -nodes -newkey rsa:2048 \
-  -keyout key.pem -out cert.pem -days 3650 \
-  -subj "/CN=trimitdown" \
-  -addext "subjectAltName=IP:YOUR_SERVER_IP"
-cd ..
-sudo docker-compose up -d --build
+git clone https://github.com/serjdrej/trimitdown.git && cd trimitdown && git checkout <release-tag> && cd docker-server
+./setup.sh YOUR_SERVER_ADDRESS
+docker compose up -d --build      # Compose v1: docker-compose up -d --build
 ```
+
+`setup.sh` prints the first-visit link. It is stored in a cookie for later visits.
 
 `docker-compose.yaml` maps `8002:8000`, mounts `./archive` (the converted-files archive) and
 `./certs:/certs:ro` (the certificate). Change the port/IP in the same file.
@@ -51,10 +51,9 @@ side: certificate trust (above) and the API (below).
 |---|---|---|
 | `POST` | `/api/convert` | Converts the uploaded file, saves it to the archive, returns the markdown |
 | `GET` | `/api/archive?q=` | Lists the archive (optional name search) |
-| `GET` | `/api/archive/{filename}` | Download a file. `?raw=1` → `application/octet-stream` for desktop apps (see the root README's "Known gotchas" section); no param → `text/markdown` for browsers |
+| `GET` | `/api/archive/{filename}` | Download a file. `?raw=1` → `application/octet-stream` for desktop apps; no param → `text/markdown` for browsers |
 | `DELETE` | `/api/archive/{filename}` | Deletes a file from the archive |
 | `GET` | `/cert` | Serves the public certificate for installing on a device |
 
-`markitdown[all]` pulls in heavy ML dependencies (audio transcription, etc.) — a deliberate
-choice for the server version, where disk space and build time aren't a constraint. The desktop
-version (see repo root) trims the extras for a portable build.
+The project declares the narrower MarkItDown extras
+`docx,pdf,pptx,xlsx,xls,outlook`, rather than `markitdown[all]`.
