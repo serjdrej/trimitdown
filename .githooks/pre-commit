@@ -78,8 +78,24 @@ fi
 
 # Only added lines (leading +), excluding this hook itself -- it necessarily
 # contains the very marker words it scans for.
-staged=$(git diff --cached --unified=0 -- . ':(exclude).githooks/pre-commit' \
-    | grep '^+' | grep -v '^+++' || true)
+#
+# The marker is stripped before matching, and that is not a loosening. It used to
+# be fed to grep as if it were file content, so the email pattern read it as the
+# local part of an address: every added line beginning with a decorator, such as
+# `@app.get("/api/thing")`, was reported as personal data. No pattern here is
+# anchored to the start of a line, so removing a character that was never in the
+# file changes nothing else about what is caught. The last top-level route was
+# added on 2026-07-14 and this guard landed on 2026-07-21, which is the only
+# reason three weeks passed before anyone hit it -- it would have blocked every
+# route added from now on, and "reword the offending line" has no answer when the
+# line is required framework syntax.
+# Use ASCII SOH as git's added-line indicator. It is a control character that
+# cannot be mistaken for a diff header (which remains +++), or for ordinary
+# source text; printf '\001' is POSIX sh, unlike bash/zsh's $'\\x01' syntax.
+new_indicator=$(printf '\001')
+staged=$(git diff --cached --unified=0 --output-indicator-new="$new_indicator" \
+    -- . ':(exclude).githooks/pre-commit' \
+    | grep "^$new_indicator" | sed "s/^$new_indicator//" || true)
 
 hit=$(printf '%s\n' "$patterns" | while IFS= read -r pat; do
     [ -z "$pat" ] && continue

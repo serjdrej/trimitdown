@@ -37,7 +37,7 @@ jobs:
       # the pins already committed and this job reports "current" no matter what
       # upstream has published.
       - name: Recompile every lock against current upstream
-        run: ./scripts/compile-locks.sh --upgrade
+        run: bash ./scripts/compile-locks.sh --upgrade
 
       - name: Report dependency movement
         run: |

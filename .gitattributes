@@ -1,3 +1,14 @@
+# This working tree travels between machines on one external drive, so the usual
+# per-machine core.autocrlf setting cannot help: the files move, they are not checked
+# out again on the other side, and whatever bytes are on the drive stay on the drive.
+# The line ending is therefore pinned in the repository itself. Both platforms write
+# LF into the working tree and the tree stays byte-identical wherever it is plugged in.
+#
+# This also closes for good a trap that has already cost this project twice: a shell
+# script that silently acquires CRLF stops working inside the Docker image, because the
+# carriage return becomes part of the shebang.
+* text=auto eol=lf
+
 # The vendored tiktoken BPE cache file must be treated as binary. Its filename is a sha1 hash
 # that tiktoken looks up directly, and its contents are checked against a hardcoded sha256 hash
 # at load time (see tiktoken/load.py). Line-ending normalization (LF -> CRLF on Windows checkout)

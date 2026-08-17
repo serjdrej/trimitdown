@@ -46,3 +46,13 @@ mac-build/AppIcon_composed_1024.png
 # files, and that is how a secret reaches a public repository.
 docker-server/.env
 !docker-server/.env.example
+
+# Agent scratch. .claude/ holds the worktrees and runs to gigabytes; neither it nor
+# the pip download cache belongs on a drive that is carried between machines.
+.claude/
+.pip-cache/
+
+# macOS writes an AppleDouble sidecar next to every file it touches on this exFAT
+# drive. They carry resource forks, not content, and they come back on every write,
+# so ignoring them is the only thing that holds.
+._*
