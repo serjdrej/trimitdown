@@ -89,8 +89,13 @@ fi
 # reason three weeks passed before anyone hit it -- it would have blocked every
 # route added from now on, and "reword the offending line" has no answer when the
 # line is required framework syntax.
-staged=$(git diff --cached --unified=0 -- . ':(exclude).githooks/pre-commit' \
-    | grep '^+' | grep -v '^+++' | sed 's/^+//' || true)
+# Use ASCII SOH as git's added-line indicator. It is a control character that
+# cannot be mistaken for a diff header (which remains +++), or for ordinary
+# source text; printf '\001' is POSIX sh, unlike bash/zsh's $'\\x01' syntax.
+new_indicator=$(printf '\001')
+staged=$(git diff --cached --unified=0 --output-indicator-new="$new_indicator" \
+    -- . ':(exclude).githooks/pre-commit' \
+    | grep "^$new_indicator" | sed "s/^$new_indicator//" || true)
 
 hit=$(printf '%s\n' "$patterns" | while IFS= read -r pat; do
     [ -z "$pat" ] && continue
