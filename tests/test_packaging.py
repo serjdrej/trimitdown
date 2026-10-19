@@ -53,21 +53,29 @@ def test_library_dependencies_are_not_exact_pins():
     consumer. This examines its declared metadata, not the currently installed
     environment, because an artifact lock must not turn into a library pin.
 
-    Our own engine is exempt, and the exemption is narrow on purpose: the rule
-    exists so that our pin cannot collide with the graph of whoever installs
-    us, and nobody but us publishes trimitdown-pdf, so there is no graph to
-    collide with. Its exact pin is a decision about output quality -- a range
-    would raise the engine silently on a rebuild, and the engine is what the
-    output is made of -- and raising it is meant to be its own commit.
+    The engine that determines the output is exempt, and the exemption is
+    narrow on purpose. Its exact pin is a decision about output quality: a
+    range would raise the engine silently on a rebuild, and the engine is what
+    the output is made of, so raising it is meant to be its own commit.
+
+    Until 0.2 that engine was our own trimitdown-pdf, which nobody else
+    publishes, so its pin could not collide with anyone's graph. Since 0.2 it
+    is pdf-inspector, and the same argument holds with more force: the route
+    keys on its reason identifiers ("scanned", "invisible_text_layer",
+    "suspected_garbled_text"), which upstream does not document, and between
+    0.2.6 and 1.25.2 a new way of silently emptying a page appeared. The cost
+    -- a consumer pinning another pdf-inspector cannot install us -- is
+    accepted; the weekly pdf-inspector-latest canary is what keeps the pin
+    from going stale. Every other dependency stays a range.
     """
     from packaging.requirements import Requirement
 
-    ours = {"trimitdown-pdf", "trimitdown_pdf"}
+    output_engines = {"pdf-inspector", "pdf_inspector"}
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     exact_pins = []
     for declared in project["project"]["dependencies"]:
         requirement = Requirement(declared)
-        if requirement.name in ours:
+        if requirement.name in output_engines:
             continue
         if any(
             specifier.operator in {"==", "==="}
@@ -79,6 +87,30 @@ def test_library_dependencies_are_not_exact_pins():
     assert not exact_pins, (
         "library dependencies must remain ranges; exact pins belong in "
         f"requirements.lock: {exact_pins}"
+    )
+
+
+def test_the_output_engine_is_pinned_exactly():
+    """The other half of the exemption above: the engine must actually be pinned.
+
+    Relaxing pdf-inspector to a range passes the test above (ranges are always
+    allowed) and lets a rebuild pick up a renamed reason identifier, after which
+    the route stops catching scans without a word. This is what fails then.
+
+    The installed version is deliberately not compared: the weekly canary runs
+    this suite against the newest pdf-inspector on purpose.
+    """
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    engine = next(
+        Requirement(declared)
+        for declared in project["project"]["dependencies"]
+        if Requirement(declared).name == "pdf-inspector"
+    )
+    specifiers = list(engine.specifier)
+    assert len(specifiers) == 1 and specifiers[0].operator == "==", (
+        f"pdf-inspector must be pinned exactly, found {engine}"
     )
 
 

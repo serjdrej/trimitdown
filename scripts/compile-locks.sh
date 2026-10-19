@@ -20,6 +20,12 @@
 #                        would differ every single week and the canary would fail
 #                        on its own flags rather than on upstream. How to
 #                        regenerate belongs here, not in the output.
+#   --python-version     the oldest interpreter any lock consumer runs (the macOS
+#     3.12               build, the package job and the image use 3.12). Without
+#                        it uv takes whatever python is first on PATH as the floor:
+#                        on a machine with 3.15 first, onnxruntime has no wheel for
+#                        it, so uv backtracked markitdown all the way to 0.0.2 and
+#                        wrote that into the lock without an error.
 #
 # A second copy of this invocation drifting from the first would make the drift
 # canary report movement that never happened, and nobody would trust it twice.
@@ -43,6 +49,7 @@ compile() {
     --generate-hashes \
     --no-header \
     --only-binary cryptography \
+    --python-version 3.12 \
     --no-emit-package trimitdown \
     --no-emit-package trimitdown-pdf \
     --output-file "$output" \

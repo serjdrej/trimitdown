@@ -314,6 +314,7 @@ cryptography==48.0.1 \
     # via
     #   -r requirements.txt
     #   pdfminer-six
+    #   pypdf
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
@@ -660,13 +661,20 @@ pandas==3.0.5 \
     --hash=sha256:ef01af4d8dc6cd2c8d6c7736f149574ef93fe043811eeb5e445f2647154b5040 \
     --hash=sha256:fa290c16964d4963fbfbc358928239cf3bd755b20e988ce944877def2f44471d
     # via markitdown
+pdf-inspector==1.25.2 \
+    --hash=sha256:0a2596febc67d1177d1dc3e58e2d364be03c33f4e3180c13367d1918cb17d018 \
+    --hash=sha256:227537eb91c8afbcd995c386ff5e10683286f3b44e6d385e143304255f72ee92 \
+    --hash=sha256:35474ed3d57972a7eac54b63c11901d3561e7723a1c84785ede5d8c15590a64c \
+    --hash=sha256:436e620154b0d8f2a3648acb52a1ce169333a5bd0dd4e8988ce159f17d40adc4 \
+    --hash=sha256:7664d87d400c2b4057b6e5d3897954a21d4a0eec6883062e970fa42d75761da5 \
+    --hash=sha256:9762bb04a82d72667201fe54aaadcf2f4f10ff7e7fd56cbfa09fbf969feedc4b
+    # via trimitdown
 pdfminer-six==20260107 \
     --hash=sha256:366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9 \
     --hash=sha256:96bfd431e3577a55a0efd25676968ca4ce8fd5b53f14565f85716ff363889602
     # via
     #   markitdown
     #   pdfplumber
-    #   trimitdown
 pdfplumber==0.11.10 \
     --hash=sha256:7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580 \
     --hash=sha256:b95b2d28c66efb0a794a83b88c6c6aea5987532a445d20a1cbcfa657022e6e57
@@ -769,6 +777,7 @@ pillow==12.3.0 \
     # via
     #   pdfplumber
     #   python-pptx
+    #   trimitdown
 pluggy==1.6.0 \
     --hash=sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3 \
     --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
@@ -1013,6 +1022,10 @@ pyobjc-framework-webkit==12.2.1 ; sys_platform == 'darwin' \
     --hash=sha256:af5c4ccdf03845adac082823a3b4341b5b2fe62d2d664550afa705b5286a06fc \
     --hash=sha256:f46adcc6227873f2b14d74b2e789c937f227722274ab59b9fa3c04c6ecb46dd5
     # via pywebview
+pypdf==6.21.1 \
+    --hash=sha256:2d62c383acd6e0dff0a96322ba8b1135229343b084d73c6f6cfd947fd291afcb \
+    --hash=sha256:553e2d42f5bb3bb2a785a7d3de8ef90bb7df74b5413eff5a7b4388007ea9254b
+    # via trimitdown
 pypdfium2==5.12.1 \
     --hash=sha256:05bab9b1ba2de7fc299ae2af25cb9c8a0543bc8bb893e879fe8c9ba8310e9ce4 \
     --hash=sha256:05bfa20a08a96584253bbe38b60e13f81a037eac31c5579e607ec1480ad25dbf \
@@ -1036,7 +1049,9 @@ pypdfium2==5.12.1 \
     --hash=sha256:d4ee061e566a6422b660cdddaaa799a2d1cbf2f016921bcaf24d61426d01d942 \
     --hash=sha256:e10cbf41b21233ec5e20adfc170cf60edd77abead86a97dc708fff55a8a886c7 \
     --hash=sha256:e5358d2ce4ebc5c899aab1df9ca5d215357244e9168aa443225d3c1e649c7eac
-    # via pdfplumber
+    # via
+    #   pdfplumber
+    #   trimitdown
 pyreadline3==3.5.6 ; sys_platform == 'win32' \
     --hash=sha256:61e53218b99656091ddb077df9e71f25850e72e030b6183b39c9b7e6e4f4a9bf \
     --hash=sha256:8449b734232e42a5dcd74048e39b60db2839a4c38cf3ae2bf7707d58b5389c0d
@@ -1367,12 +1382,14 @@ typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
     --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
     # via
+    #   anyio
     #   beautifulsoup4
     #   fastapi
     #   pydantic
     #   pydantic-core
     #   python-pptx
     #   pywebview
+    #   starlette
     #   typing-inspection
 typing-inspection==0.4.2 \
     --hash=sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7 \

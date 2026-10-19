@@ -145,6 +145,16 @@ def test_convert_path_does_not_import_fastapi():
 # Маршрутизация и оценка приехали сюда из tests/test_converter.py вместе с самой
 # логикой: они проверяют ядро, а не HTTP. Держать их на веб-слое значило бы
 # патчить имена на модуле, который этими объектами больше не владеет.
+#
+# Since 0.2 the PDF side is trimitdown.pdf_route. These tests replace route_pdf
+# on the convert module with a one-page accept route, so they still say only
+# which way a file goes; how pages are routed is test_pdf_route.py's business.
+def _fake_route(text):
+    from trimitdown.pdf_route import PageRoute
+
+    return lambda path: [PageRoute(page=1, path="accept", reasons=(), text=text)]
+
+
 class TestPdfRouting:
     def test_pdf_routes_through_pdf_extract(self, monkeypatch):
         class Boom:
@@ -152,12 +162,12 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a .pdf")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".pdf")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_uppercase_suffix_still_routes_through_pdf_extract(self, monkeypatch):
         # Суффикс приходит с диска/имени файла как есть -- нормализация регистра
@@ -171,12 +181,12 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a .PDF")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".PDF")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_non_pdf_still_routes_through_markitdown(self, monkeypatch):
         class FakeResult:
@@ -186,7 +196,7 @@ class TestPdfRouting:
             raise AssertionError("pdf_extract must not see a .docx")
 
         monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(pure, "pdf_to_markdown", boom)
+        monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"fake docx bytes", ".docx")
 
@@ -204,7 +214,7 @@ class TestPdfRouting:
             raise AssertionError("pdf_extract must not see non-PDF content")
 
         monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(pure, "pdf_to_markdown", boom)
+        monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"<html>not really a pdf</html>", ".pdf")
 
@@ -221,15 +231,15 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a real PDF with an offset marker")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(pdf_fixtures.offset_pdf_marker(), ".pdf")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_pdf_gets_before_estimate(self, monkeypatch):
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# Scanned doc\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# Scanned doc\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 4)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".pdf")

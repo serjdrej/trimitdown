@@ -1,4 +1,5 @@
 """CLI: единственный интерфейс pip/uvx-пакета. Только локальная конверсия."""
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -128,6 +129,9 @@ def test_type_without_a_leading_dot_still_reaches_the_pdf_engine(tmp_path):
     bare = convert("pdf")
 
     assert dotted.returncode == 0 and bare.returncode == 0
-    assert b"| Header A | Header B |" in dotted.stdout
+    # The header row of a markdown table, whatever the cell padding:
+    # pdf-inspector writes |Header A|Header B|, the old engine wrote
+    # | Header A | Header B |. The stock converter's loose lines match neither.
+    assert re.search(rb"\|\s*Header A\s*\|\s*Header B\s*\|", dotted.stdout), dotted.stdout
     assert bare.stdout == dotted.stdout, \
         "the spelling of --type changed the conversion, not just the argument"

@@ -17,10 +17,9 @@ import tiktoken
 
 from markitdown import MarkItDown
 
-from pdfminer.pdfpage import PDFPage
 from pptx import Presentation
 
-from trimitdown_pdf import pdf_to_markdown
+from trimitdown.pdf_route import PageRoute, render_markdown, route_pdf
 
 md = MarkItDown()
 
@@ -56,6 +55,10 @@ class ConversionResult:
     tokens_before: int | None
     unit: str | None
     units: int | None
+    # PDFs only: how each page was routed (accept / substitute / scan / corrupt
+    # / blank) and why. Last and defaulted, so the web layer, which builds
+    # nothing from it, keeps working unchanged.
+    pages: tuple[PageRoute, ...] | None = None
 
 
 def _get_encoding():
@@ -84,8 +87,13 @@ def safe_stem(name: str) -> str:
 
 
 def _count_pdf_pages(path: Path) -> int:
-    with open(path, "rb") as f:
-        return len(list(PDFPage.get_pages(f)))
+    import pypdfium2
+
+    document = pypdfium2.PdfDocument(str(path))
+    try:
+        return len(document)
+    finally:
+        document.close()
 
 
 def _count_pptx_slides(path: Path) -> int:
@@ -110,15 +118,19 @@ def convert_path(path: Path | str) -> ConversionResult:
     path = Path(path)
     suffix = path.suffix.lower()
 
+    pages = None
     try:
         with open(path, "rb") as f:
             head = f.read(1024)
 
-        # PDFs take our own extractor: markitdown's PDF converter glues words
-        # together, invents tables out of prose, and drops real ones. No fallback
-        # to markitdown here — both sit on pdfminer, so a file that breaks one
-        # breaks the other. This is a route, not a fallback: markitdown itself
-        # dispatches by sniffing content, so an HTML/TXT file misnamed ".pdf"
+        # PDFs take the checked pdf-inspector route (trimitdown.pdf_route):
+        # markitdown's PDF converter glues words together, invents tables out of
+        # prose, and drops real ones. No fallback to markitdown when the route
+        # refuses a file -- pdf-inspector, pypdf and pdfium were probed on
+        # damaged and encrypted files and refuse together; markitdown would only
+        # turn a clear refusal into an empty document. This is a route, not a
+        # fallback: markitdown itself dispatches by sniffing content, so an
+        # HTML/TXT file misnamed ".pdf"
         # used to convert fine through markitdown. Checking the %PDF magic bytes
         # keeps real PDFs on our path and hands everything else back to
         # markitdown's own sniffing, exactly as before.
@@ -133,7 +145,8 @@ def convert_path(path: Path | str) -> ConversionResult:
         # the marker rather than anchoring, which is why those files open at all
         # — so scan a window instead of anchoring at byte 0.
         if suffix == ".pdf" and head.find(b"%PDF") != -1:
-            text = pdf_to_markdown(str(path))
+            pages = tuple(route_pdf(path))
+            text = render_markdown(list(pages))
         else:
             text = md.convert(str(path)).text_content
     except Exception as e:
@@ -151,7 +164,8 @@ def convert_path(path: Path | str) -> ConversionResult:
         after = None
 
     return ConversionResult(
-        text=text, tokens_after=after, tokens_before=before, unit=unit, units=units
+        text=text, tokens_after=after, tokens_before=before, unit=unit, units=units,
+        pages=pages,
     )
 
 
@@ -159,7 +173,7 @@ def convert_bytes(data: bytes, suffix: str) -> ConversionResult:
     """Сконвертировать содержимое в памяти.
 
     Существует ради веб-слоя, где вход -- UploadFile, а не путь. Временный файл
-    нужен потому, что и markitdown, и наш движок работают с путями.
+    нужен потому, что и markitdown, и маршрут PDF работают с путями.
     """
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
