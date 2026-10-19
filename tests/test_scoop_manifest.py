@@ -25,6 +25,41 @@ def manifest():
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
+# The manifest as it was while desktop builds were released. The retarget script
+# is kept (no desktop code is deleted), so its tests still need a document with
+# the fields it was written for; the shipped manifest no longer has them.
+RETARGET_TEMPLATE = """{
+    "version": "0.1.2",
+    "description": "Convert documents to LLM-ready markdown. Ruled-table-aware PDF extraction, offline, no cloud.",
+    "homepage": "https://github.com/serjdrej/trimitdown",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/serjdrej/trimitdown/releases/download/v0.1.2/TrimItDown-windows-x64.exe#/TrimItDown.exe",
+            "hash": "4f4901ff2f107dcf3d80863868b10f432c4bc5a8c69212133045ad6b54481ee9"
+        }
+    },
+    "shortcuts": [
+        [
+            "TrimItDown.exe",
+            "TrimItDown"
+        ]
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/serjdrej/trimitdown/releases/download/v$version/TrimItDown-windows-x64.exe#/TrimItDown.exe"
+            }
+        },
+        "hash": {
+            "url": "https://github.com/serjdrej/trimitdown/releases/download/v$version/SHA256SUMS"
+        }
+    }
+}
+"""
+
+
 def test_the_manifest_is_valid_json_with_the_fields_scoop_requires():
     document = manifest()
 
@@ -68,15 +103,20 @@ def test_the_manifest_does_not_put_the_app_on_the_path():
     assert document["shortcuts"] == [["TrimItDown.exe", "TrimItDown"]]
 
 
-def test_autoupdate_reads_the_checksums_we_publish():
-    # Without this scoop's own updater re-downloads and re-hashes, which proves
-    # the network worked and nothing else. Our SHA256SUMS is the record of what
-    # was actually published.
-    autoupdate = manifest()["autoupdate"]
+def test_the_manifest_is_frozen_at_the_last_desktop_release():
+    """Re-adding ``checkver`` or ``autoupdate`` must fail this test.
 
-    assert autoupdate["hash"]["url"].endswith("/SHA256SUMS")
-    assert "$version" in autoupdate["architecture"]["64bit"]["url"]
-    assert "$version" in autoupdate["hash"]["url"]
+    The desktop app is no longer released; 0.2.0 onwards ships only the PyPI
+    package. With ``checkver: github`` scoop's own tooling would find the 0.2.0
+    GitHub release, which carries no Windows build, and move users to a URL that
+    does not exist. Frozen means no field that can move the version by itself.
+    """
+    document = manifest()
+
+    assert "checkver" not in document
+    assert "autoupdate" not in document
+    assert document["version"] == "0.1.2"
+    assert "/releases/download/v0.1.2/" in document["architecture"]["64bit"]["url"]
 
 
 def test_hash_for_picks_the_right_line():
@@ -107,7 +147,7 @@ def test_hash_for_reads_the_binary_marker_sha256sum_writes():
 
 
 def test_retarget_moves_all_three_fields_together():
-    before = MANIFEST_PATH.read_text(encoding="utf-8")
+    before = RETARGET_TEMPLATE
 
     after = retarget(before, "9.9.9", "f" * 64)
     document = json.loads(after)
@@ -121,7 +161,7 @@ def test_retarget_moves_all_three_fields_together():
 
 
 def test_retarget_changes_nothing_else():
-    before = MANIFEST_PATH.read_text(encoding="utf-8")
+    before = RETARGET_TEMPLATE
     document = json.loads(before)
 
     after = json.loads(retarget(before, "9.9.9", "f" * 64))
