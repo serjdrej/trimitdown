@@ -25,12 +25,15 @@ GATE_MIN_LETTERS = 20
 GATE_MIN_SHARE = 0.20
 GATE_RATIO = 0.5
 
-# Whether the gate also watches Latin. On by the owner's decision for 0.2, and
-# provisional: the gate was never measured on Latin pages, and if pdf-inspector
-# loses Latin letters inside tables or columns, every such page is substituted
-# with plain text and loses its structure. The 200-document benchmark decides
-# the final value; switching it off leaves the Cyrillic gate untouched.
-GATE_LATIN = True
+# Whether the gate also watches Latin. Off, by measurement: on the
+# 200-document benchmark the Latin branch substituted three documents whose
+# reference text merely carried more Latin than pdf-inspector's (running
+# headers, repeated captions), and plain text replaced their headings -- MHS
+# fell from 0.770 to 0.752. On a private Russian document it swapped five good
+# pages for worse ones. Off, the route is no worse than pdf-inspector on any
+# metric and better on reading order (NID 0.903 -> 0.917), and every Cyrillic
+# loss is still caught: the Cyrillic branch does not depend on this switch.
+GATE_LATIN = False
 
 # Box drawing (U+2500-U+257F) and block elements (U+2580-U+259F). Form frames
 # are drawn with them; they carry no information and must not make a page look

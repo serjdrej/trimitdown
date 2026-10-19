@@ -138,8 +138,10 @@ From Python: `trimitdown.review.prepare_review`, `assemble` and `render_pages`.
 ## Limitations
 
 - No built-in OCR, and no review performed by the program: scans need Tesseract and a reviewer.
-- The check on Latin pages is on and not yet measured on a large benchmark; it may substitute
-  plain text for structured Markdown on pages where pdf-inspector loses Latin letters.
+- A loss of Latin letters alone is not checked. On the 200-document benchmark the Latin check
+  replaced good structured Markdown (headings) with plain text more often than it recovered
+  text, so it ships switched off (`GATE_LATIN` in `text_metrics.py`). Cyrillic replaced by
+  Latin is still caught: that is a loss of Cyrillic.
 - Text under an image (an OCR layer of a different shape, or text an overlay was meant to hide)
   is accepted as text; the review manifest records how much of each page is under images.
 - The garbage detector behind `corrupt` uses conservative thresholds that have not been

@@ -89,18 +89,19 @@ def test_a_swap_to_latin_fires_although_the_letter_total_is_unchanged():
     assert details["fired_on"] == ["CYRILLIC"]
 
 
-def test_latin_gate_is_on_and_switchable():
-    """Owner's decision for 0.2.0: the gate watches Latin too (provisional until
-    the 200-document benchmark). Switching it off must leave it blind to Latin
-    loss and nothing else; fails if the switch is ignored or the default flips."""
+def test_latin_gate_is_off_by_default_and_switchable():
+    """Off by measurement (see GATE_LATIN): fails if the default flips back on,
+    or if the switch is ignored in either direction. The Cyrillic decision must
+    not depend on it -- that is the loss the gate exists for."""
     reference = _text(0, 300)
     candidate = _text(0, 100)
 
-    assert tm.GATE_LATIN is True
-    assert tm.gate_fires(candidate, reference)[0] is True
-    assert tm.gate_fires(candidate, reference, latin=False)[0] is False
+    assert tm.GATE_LATIN is False
+    assert tm.gate_fires(candidate, reference)[0] is False
+    assert tm.gate_fires(candidate, reference, latin=True)[0] is True
     # The Cyrillic decision does not depend on the switch.
-    assert tm.gate_fires(_text(0, 0), _text(300, 0), latin=False)[0] is True
+    assert tm.gate_fires(_text(0, 0), _text(300, 0))[0] is True
+    assert tm.gate_fires(_text(0, 0), _text(300, 0), latin=True)[0] is True
 
 
 def test_scripts_are_read_from_unicode_names():

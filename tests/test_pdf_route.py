@@ -214,6 +214,14 @@ def test_vector_text_reason_with_an_intact_layer_is_substituted():
     assert path == "substitute"
 
 
+def _insane_cyrillic_reference() -> str:
+    # Rule 7 needs the gate to fire while the reference itself is garbage. The
+    # gate is driven through Cyrillic, the loss it exists for (the Latin branch
+    # is off by measurement): plenty of Cyrillic, but every word carries a Latin
+    # look-alike, so the reference fails the mixed-scripts sanity check.
+    return "налоr сбoр плательщиk ведомoсть " * 30
+
+
 def test_gate_fired_with_garbage_on_both_sides_goes_to_review():
     """The lead's correction to rule 7: garbage on both sides is corrupt.
 
@@ -221,9 +229,8 @@ def test_gate_fired_with_garbage_on_both_sides_goes_to_review():
     was garbage. If pdf-inspector's text is garbage as well, that let garbage
     through silently. Fails if rule 7 is restored as written (verified).
     """
-    soup = ("налог сбор плательщик ведомость " * 10).encode("cp1251").decode("latin-1")
-    path, flags, _ = decide(pi_markdown="#$&@^~ " * 30, reasons=set(), reference=soup,
-                            layer_chars=400, blank=False)
+    path, flags, _ = decide(pi_markdown="#$&@^~ " * 30, reasons=set(),
+                            reference=_insane_cyrillic_reference(), layer_chars=400, blank=False)
     assert path == "corrupt"
     assert "gate_fired" in flags
 
@@ -231,9 +238,8 @@ def test_gate_fired_with_garbage_on_both_sides_goes_to_review():
 def test_gate_fired_with_a_sane_candidate_and_garbage_reference_is_accepted():
     # The other half of rule 7: pdf-inspector's text is fine, the reference is
     # the one that broke. Accepted, and marked so it can be counted.
-    soup = ("налог сбор плательщик ведомость " * 10).encode("cp1251").decode("latin-1")
-    path, flags, _ = decide(pi_markdown=_sane_cyrillic(), reasons=set(), reference=soup,
-                            layer_chars=400, blank=False)
+    path, flags, _ = decide(pi_markdown=_sane_cyrillic(), reasons=set(),
+                            reference=_insane_cyrillic_reference(), layer_chars=400, blank=False)
     assert path == "accept"
     assert "gate_fired_ref_insane" in flags
 
