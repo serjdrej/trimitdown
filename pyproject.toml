@@ -85,4 +85,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 # Офлайн-кэш tiktoken. Без этой строки он не попадёт в wheel, и счёт токенов у
 # установленного пакета молча уйдёт в сеть.
-trimitdown = ["tiktoken_cache/*"]
+# review_rule.md is the procedure every review directory is written with; a
+# wheel without it writes directories nobody knows how to review.
+trimitdown = ["tiktoken_cache/*", "review_rule.md"]

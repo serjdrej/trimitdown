@@ -4,13 +4,20 @@
 (docker exec внутрь контейнера) и настройка в десктопном приложении; сетевого
 режима здесь нет сознательно, чтобы у инструмента, который ценен локальностью,
 не появилось сетевых отказов.
+
+Three commands: `convert` (optionally writing a review directory for the PDF
+pages it cannot vouch for), `assemble` (putting reviewed pages back) and
+`render` (page images on demand, for checking digits on text-layer pages).
 """
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from trimitdown import __version__
 from trimitdown.convert import ConversionError, convert_bytes, convert_path
+from trimitdown.pdf_route import summary_line
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -29,10 +36,97 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="suffix",
         help='file extension for stdin input, e.g. ".pdf" -- required with "-"',
     )
+    review = convert.add_argument_group(
+        "review (PDF only)",
+        "Write the pages that need checking -- scans, unverified OCR layers, "
+        "unreadable text layers -- into a directory an agent reconciles. "
+        "Nothing is reviewed by this program; see REVIEW.md in that directory.",
+    )
+    review.add_argument("--review-dir", metavar="DIR",
+                        help="write document.md, manifest.json, REVIEW.md and page images here")
+    review.add_argument("--review-markers", choices=["ru", "en"], default="ru",
+                        help="marks the review rule asks for: ru ([неразборчиво], "
+                             "=== стр. N ===) or en ([illegible], === page N ===); default ru")
+    review.add_argument("--review-substitute", action="store_true",
+                        help="also send pages whose text was taken from the text layer")
+    review.add_argument("--no-ocr", action="store_true",
+                        help="do not run Tesseract; pages without a candidate are still sent")
+    review.add_argument("--ocr-fresh", action="store_true",
+                        help="run Tesseract even on scans that carry an OCR layer")
+    review.add_argument("--ocr-lang", default="rus",
+                        help="Tesseract languages, e.g. rus or rus+eng; default rus")
+    review.add_argument("--tesseract", metavar="PATH",
+                        help="the tesseract executable (default: TRIMITDOWN_TESSERACT, PATH, "
+                             "then the usual install locations)")
+    review.add_argument("--tessdata-dir", metavar="DIR",
+                        help="where the .traineddata files are, if not Tesseract's own")
+
+    assemble = sub.add_parser("assemble", help="put reviewed pages back into the document")
+    assemble.add_argument("review_dir", help="a directory written by convert --review-dir")
+    assemble.add_argument("-o", "--output", help="write markdown here instead of stdout")
+    assemble.add_argument("--allow-missing", action="store_true",
+                          help="keep the unverified text of pages nobody reviewed yet")
+
+    render = sub.add_parser("render", help="write page images of a PDF")
+    render.add_argument("path", help="the PDF")
+    render.add_argument("--pages", required=True, help="pages from 1, e.g. 5,7,10-12")
+    render.add_argument("-o", "--output", required=True, metavar="DIR",
+                        help="directory to write the images into")
     return parser
 
 
+def _write(text: str, output: str | None) -> None:
+    if output:
+        Path(output).write_text(text, encoding="utf-8")
+    else:
+        # Явная запись в буфер: на Windows консольная кодировка по умолчанию не
+        # переваривает вывод конвертации (m³/h, ≥, кириллица) и печать падает.
+        sys.stdout.buffer.write(text.encode("utf-8"))
+
+
+def _review(args, source: Path, result) -> int:
+    from trimitdown.review import ReviewError, prepare_review
+
+    if result.pages is None:
+        print("--review-dir works on PDFs only", file=sys.stderr)
+        return 2
+    try:
+        manifest = prepare_review(
+            source,
+            args.review_dir,
+            ocr=not args.no_ocr,
+            ocr_lang=args.ocr_lang,
+            ocr_fresh=args.ocr_fresh,
+            tesseract=args.tesseract,
+            tessdata_dir=args.tessdata_dir,
+            include_substitute=args.review_substitute,
+            markers=args.review_markers,
+            routes=list(result.pages),
+        )
+    except (ReviewError, OSError) as e:
+        print(f"could not write the review directory: {e}", file=sys.stderr)
+        return 1
+
+    summary = manifest["summary"]
+    print(summary_line(list(result.pages), len(summary["review_pages"])), file=sys.stderr)
+    without = summary["without_candidate"]
+    if without:
+        why = {
+            "unavailable": "Tesseract was not found",
+            "lang_missing": f"Tesseract has no {', '.join(manifest['ocr'].get('missing', []))}",
+            "disabled": "--no-ocr",
+        }.get(manifest["ocr"]["status"], "OCR produced no text")
+        noun = "page goes" if len(without) == 1 else "pages go"
+        print(f"{len(without)} {noun} to review without a candidate ({why}): "
+              "the reviewer transcribes them from the image", file=sys.stderr)
+    print(f"review directory: {args.review_dir}", file=sys.stderr)
+    if args.output:
+        _write(result.text, args.output)
+    return 0
+
+
 def _run_convert(args) -> int:
+    temp_path = None
     if args.path == "-":
         if not args.suffix:
             print(
@@ -41,18 +135,29 @@ def _run_convert(args) -> int:
                 file=sys.stderr,
             )
             return 2
-        # Routing happens on the extension, and the PDF engine is selected by
+        # Routing happens on the extension, and the PDF route is selected by
         # ".pdf" exactly. A bare "pdf" names a temp file with no extension at
         # all, so the document silently falls through to the stock converter --
         # measured on the ruled-table fixture, the whole table came back as
         # loose lines. Silent worse output is the one failure this project
         # exists to prevent, so accept both spellings rather than reject one.
         suffix = args.suffix if args.suffix.startswith(".") else f".{args.suffix}"
+        data = sys.stdin.buffer.read()
         try:
-            result = convert_bytes(sys.stdin.buffer.read(), suffix)
+            if args.review_dir:
+                # The review directory needs the PDF on disk for its page images.
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(data)
+                    temp_path = Path(tmp.name)
+                result = convert_path(temp_path)
+            else:
+                result = convert_bytes(data, suffix)
         except ConversionError as e:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
             print(f"could not convert stdin: {e}", file=sys.stderr)
             return 1
+        source = temp_path
     else:
         path = Path(args.path)
         if not path.is_file():
@@ -63,13 +168,52 @@ def _run_convert(args) -> int:
         except ConversionError as e:
             print(f"could not convert {path}: {e}", file=sys.stderr)
             return 1
+        source = path
 
-    if args.output:
-        Path(args.output).write_text(result.text, encoding="utf-8")
-    else:
-        # Явная запись в буфер: на Windows консольная кодировка по умолчанию не
-        # переваривает вывод конвертации (m³/h, ≥, кириллица) и печать падает.
-        sys.stdout.buffer.write(result.text.encode("utf-8"))
+    try:
+        if args.review_dir:
+            return _review(args, source, result)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+    if result.pages and any(page.path != "accept" for page in result.pages):
+        # Silent on a clean document; one line when some page did not come from
+        # pdf-inspector, so the change in the output is never invisible.
+        print(summary_line(list(result.pages)), file=sys.stderr)
+    _write(result.text, args.output)
+    return 0
+
+
+def _run_assemble(args) -> int:
+    from trimitdown.review import ReviewError, assemble
+
+    try:
+        text = assemble(args.review_dir, allow_missing=args.allow_missing)
+    except ReviewError as e:
+        print(f"could not assemble {args.review_dir}: {e}", file=sys.stderr)
+        return 1
+    _write(text, args.output)
+    return 0
+
+
+def _run_render(args) -> int:
+    from trimitdown.review import render_pages
+
+    path = Path(args.path)
+    if not path.is_file():
+        print(f"no such file: {path}", file=sys.stderr)
+        return 1
+    try:
+        written = render_pages(path, args.pages, args.output)
+    except ValueError as e:
+        print(f"could not render {path}: {e}", file=sys.stderr)
+        return 2
+    except Exception as e:  # pdfium refusing the file
+        print(f"could not render {path}: {e}", file=sys.stderr)
+        return 1
+    for file in written:
+        print(os.fspath(file), file=sys.stderr)
     return 0
 
 
@@ -84,6 +228,10 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "convert":
         return _run_convert(args)
+    if args.command == "assemble":
+        return _run_assemble(args)
+    if args.command == "render":
+        return _run_render(args)
     return 2
 
 
