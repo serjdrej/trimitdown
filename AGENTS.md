@@ -12,24 +12,32 @@ not visual fidelity to the original page. That distinction settles most
 trade-offs: a real table rendered as a markdown table is worth its tokens, a
 table hallucinated out of prose is not.
 
-Three artifacts come out of this one tree:
+One artifact comes out of this tree:
 
 | Artifact | Built from | Delivered by |
 |---|---|---|
 | `trimitdown` (wheel/sdist) | `src/trimitdown/` | PyPI → `uvx` / `pip` |
-| desktop app | PyInstaller over the flat root modules | brew-cask / scoop / winget |
-| server image | `docker-server/` | self-hosted |
+
+It is the extractor the owner's skills use: a CLI and a Python API. The desktop
+app (PyInstaller over the flat root modules) and the server image
+(`docker-server/`) are **code in the tree that is no longer released** (owner's
+decision, 2026-10-19). Their workflows run on request only; do not delete them,
+and do not re-enable their triggers without the owner.
 
 ## Layering — the rule that shapes the code
 
 `src/trimitdown/convert.py` is **pure**: a path or bytes in, text and token
 counts out. It must never import FastAPI. The HTTP layer lives in
-`core/converter.py` and calls into it.
+`core/converter.py` and calls into it. The PDF route it calls,
+`pdf_route.py` (with `text_metrics.py`), is pure in the same sense.
+`review.py` writes directories and starts Tesseract; `convert.py` does not
+import it.
 
 This is enforced by a test, not by good intentions:
 `tests/test_convert_pure.py::test_pure_module_does_not_import_fastapi`. Breaking
 it costs the CLI package the entire web stack while breaking nothing visible —
-which is why it is a test and not a comment.
+which is why it is a test and not a comment. `tests/test_review.py` holds the
+same line for the review path.
 
 ## Invariants
 
@@ -48,9 +56,17 @@ which is why it is a test and not a comment.
   that was chosen on purpose and stays chosen — release notes, the README pair,
   the desktop UI. If you are about to invent a language rule for a new kind of
   text, it is English. Written down after eighteen Russian commit messages
-  reached `main` and surfaced as run titles in Actions.
+  reached `main` and surfaced as run titles in Actions. The review rule
+  (`src/trimitdown/review_rule.md`) is English; the review *marks* it asks for
+  are Russian by default (`--review-markers ru`), because the owner's skills and
+  their quote checker read them — that is a chosen exception, not a precedent.
+- **pdf-inspector is pinned exactly** (`pdf-inspector==1.25.2`). The route keys
+  on its reason identifiers, which upstream does not document. Raising the pin
+  is its own commit, after the corpus measurements in `RELEASING.md`; the weekly
+  `pdf-inspector-latest.yml` only says that a new version exists.
 - **`packages/trimitdown-pdf/` is frozen.** It is published to PyPI and pinned
-  exactly. Bug fixes are allowed; new algorithmic work is not, without the
+  exactly; the package no longer depends on it, the desktop and server code
+  still do. Bug fixes are allowed; new algorithmic work is not, without the
   owner's agreement.
 - **Corpus-derived data, personal data and internal documents never enter this
   tree.** They live outside it. Counts and timings may be published; filenames,
@@ -106,6 +122,19 @@ fails without saying so.
 - The PDF signature check has been written wrong twice: once as a 5-byte slice
   against a 4-byte literal, once anchored at byte 0 when real files carry the
   marker at an offset. It scans a window for a reason.
+- pdf-inspector returns an empty page, or a page in the wrong alphabet, with
+  no error and sometimes no flag. That is why every page is checked against
+  pypdf (`pdf_route.py`); a change that skips the check on unflagged pages
+  brings the silent loss back.
+- Tesseract can be missing, can lack the `rus` or `osd` data, or can sit
+  outside `PATH` (the Windows installer does that). None of these may be worked
+  around quietly: the page still goes to review, the manifest and stderr say
+  why, and recognition never falls back to `eng`, which turns Cyrillic into
+  confident garbage. CI has no Tesseract; tests use a fake one, never a skip.
+- `uv pip compile` takes the first Python on `PATH` as the lock's floor. With
+  3.15 first it found no onnxruntime wheel and backtracked markitdown to 0.0.2
+  without an error. `scripts/compile-locks.sh` names `--python-version` for
+  that reason.
 
 When you touch any of these, assert the outcome — not the absence of an error.
 

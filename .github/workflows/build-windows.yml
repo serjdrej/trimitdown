@@ -4,7 +4,7 @@
 # nothing.
 name: Build Windows app
 
-# Not run on push since 0.2.0: the desktop app is no longer released (owner's
+# Not run on push since 0.2: the desktop app is no longer released (owner's
 # decision, 2026-10-19). The code stays in the tree and this build still works
 # on request, but a push-triggered build would now go red on its own bundle
 # check -- the package no longer ships trimitdown_pdf -- and red that nobody

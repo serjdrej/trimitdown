@@ -3,7 +3,7 @@
 # on GitHub only at that moment, so nothing this pipeline does before then is
 # irreversible. publish-pypi.yml then uploads exactly the files attached here.
 #
-# Since 0.2.0 the desktop app is not built here (owner's decision, 2026-10-19):
+# Since 0.2 the desktop app is not built here (owner's decision, 2026-10-19):
 # the package is the one product. build-macos.yml and build-windows.yml are kept
 # and still run on request; they are simply no longer something a release waits
 # for, so a desktop build that breaks cannot hold the package back.

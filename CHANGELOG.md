@@ -12,6 +12,62 @@ release **refuses to build** when this file has no section for the requested
 version: before this file the description of the changes was typed in by hand
 and was lost once, together with a recreated draft.
 
+## 0.2.0
+
+### Что изменилось
+
+Пакет `trimitdown` теперь — весь продукт: извлекатель текста для скиллов и агентов,
+консольный и Python. **Вывод PDF меняется** — проверьте, если вы разбираете его программно.
+
+- **Новый маршрут PDF.** PDF читает pdf-inspector: появляются заголовки и таблицы без линий,
+  токенов меньше. Таблицы пишутся без пробелов у разделителей (`|A|B|` вместо `| A | B |`).
+- **Каждая страница проверяется.** pdf-inspector иногда теряет текст молча — отдаёт пустую
+  страницу при живом текстовом слое или кириллицу латиницей. Каждая страница сверяется с
+  независимым декодером (pypdf); потерянный текст возвращается из слоя простым текстом.
+- **Сомнительные страницы помечены.** Скан без слоя и нечитаемый слой дают строку
+  `[trimitdown: page N has no usable text layer (scan|corrupt)]`; слой OCR, который никто не
+  выверял, отдаётся с пометкой `[trimitdown: page N: OCR layer, not verified]`. Пустые листы
+  пропускаются. Если в документе есть такие страницы, `convert` пишет одну строку-сводку в
+  stderr.
+- **Сверка сканов агентом.** `trimitdown convert doc.pdf --review-dir out/` готовит каталог:
+  картинки страниц, текст-кандидат (слой OCR из PDF или Tesseract, если он установлен),
+  манифест и порядок сверки `REVIEW.md`. Пометки сверки по умолчанию русские
+  (`[неразборчиво]`, `=== стр. N ===`), `--review-markers en` — английские.
+  `trimitdown assemble out/` возвращает выверенные страницы в документ, `trimitdown render`
+  пишет картинки страниц для сверки цифр. Сам пакет ничего не распознаёт без Tesseract и
+  ничего не сверяет.
+- **Зависимости.** Вместо `trimitdown-pdf` — `pdf-inspector` (закреплён точно), `pypdf`,
+  `pypdfium2`, `Pillow`; все под разрешительными лицензиями.
+- **Десктопное приложение, Docker-сервер и Scoop больше не выпускаются.** Последние сборки —
+  в релизе 0.1.2; код остаётся в репозитории.
+
+### What changed
+
+The `trimitdown` package is now the whole product: a text extractor for skills and agents,
+from the command line and from Python. **PDF output changes** — check it if you parse it.
+
+- **A new PDF route.** PDFs are read by pdf-inspector: headings and tables without rules
+  appear, and output takes fewer tokens. Tables are written without padding (`|A|B|` rather
+  than `| A | B |`).
+- **Every page is checked.** pdf-inspector sometimes loses text without saying so — an empty
+  page while the text layer is intact, or Cyrillic returned as Latin. Every page is compared
+  with an independent decoder (pypdf), and lost text comes back from the layer as plain text.
+- **Doubtful pages are marked.** A scan with no layer and an unreadable layer give the line
+  `[trimitdown: page N has no usable text layer (scan|corrupt)]`; an OCR layer nobody has
+  checked comes with `[trimitdown: page N: OCR layer, not verified]`. Blank sheets are
+  skipped. When a document has such pages, `convert` prints one summary line to stderr.
+- **Agent review for scans.** `trimitdown convert doc.pdf --review-dir out/` prepares a
+  directory: page images, a candidate text (the PDF's OCR layer, or Tesseract if installed),
+  a manifest and the review procedure, `REVIEW.md`. Review marks are Russian by default
+  (`[неразборчиво]`, `=== стр. N ===`); `--review-markers en` gives English ones.
+  `trimitdown assemble out/` puts reviewed pages back, `trimitdown render` writes page images
+  for checking digits. Without Tesseract the package recognises nothing, and it never
+  reviews anything itself.
+- **Dependencies.** `trimitdown-pdf` is replaced by `pdf-inspector` (pinned exactly), `pypdf`,
+  `pypdfium2` and `Pillow`, all under permissive licenses.
+- **The desktop app, the Docker server and Scoop are no longer released.** Their last builds
+  are in the 0.1.2 release; the code stays in the repository.
+
 ## 0.1.2
 
 ### Что изменилось

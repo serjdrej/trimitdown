@@ -5,274 +5,173 @@
   <img src="brand/wordmark_light.svg" alt="TrimItDown" width="360">
 </picture>
 
-**Any document → clean, LLM-ready Markdown. On your own server, on every device you own.**
+**Documents → LLM-ready Markdown. PDFs checked page by page, scans handed to review.**
 
 *Read this in: English (this file) · [русский](README.ru.md)*
 
-[![Latest release](https://img.shields.io/github/v/release/serjdrej/trimitdown)](https://github.com/serjdrej/trimitdown/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/serjdrej/trimitdown/total)](https://github.com/serjdrej/trimitdown/releases)
-[![macOS build](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml/badge.svg)](https://github.com/serjdrej/trimitdown/actions/workflows/build-macos.yml)
 [![PyPI](https://img.shields.io/pypi/v/trimitdown?label=trimitdown&color=3775A9)](https://pypi.org/project/trimitdown/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-![Platforms](https://img.shields.io/badge/platforms-iOS%20PWA%20·%20Windows%20·%20macOS%20·%20Docker-8A6FE8)
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/result-dark.png">
-  <img src="docs/images/result-light.png" alt="TrimItDown converting a PDF: live Markdown preview with a real table and a token counter" width="850">
-</picture>
 
 </div>
 
-TrimItDown turns PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) and Outlook (.msg)
-files into clean, readable Markdown — ready to paste into Claude/ChatGPT, Obsidian, Notion,
-or any markdown vault. It runs as an iPhone/iPad app (installed straight from Safari, no App
-Store), a single-file Windows program, a macOS app, and a self-hosted Docker server — with one
-shared archive of conversions across all your devices.
+`trimitdown` turns PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) and Outlook (.msg)
+files into Markdown meant to be pasted into an LLM or read by an agent. The objective is the
+fewest tokens with the information preserved: a real table becomes a Markdown table, a page
+whose text cannot be trusted says so instead of passing as text.
 
-## The PDF engine
+It is a command-line tool and a Python library, and it works offline. Since 0.2.0 this package
+is the whole product; see [Earlier releases](#earlier-releases) for the desktop app and the
+Docker server.
 
-Most converters — including the stock [MarkItDown](https://github.com/microsoft/markitdown)
-PDF path — stumble on real-world PDFs in three measurable ways: they **glue words together**,
-**invent tables out of ordinary prose**, and **drop genuine ruled tables**. Measured over 891
-real documents from two independent collections, the stock converter emitted 5,624 table rows
-on documents containing no ruled grid at all — prose reshaped into tables — against 2 from the
-engine below. On the 885 of those documents that are not broken at the source, it roughly
-halves glued words (107 runs vs 53). Those corpora are third-party
-copyrighted material and are not redistributable — the full method, the numbers, the cases
-where this engine *loses*, and what a reader **can** reproduce are in
-[docs/pdf-engine.md](docs/pdf-engine.md).
+## Install
 
-So TrimItDown replaced it with a custom extraction engine:
-
-- **Words split at a measured word-gap threshold** — a fraction of the font size, not a fixed
-  point value, so it holds across small print and large headings alike.
-- **A dedicated table-detection stage** validates every candidate grid by how its cells are
-  actually filled (a row-fill vote), instead of trusting every ruled rectangle. Diagrams and
-  decorative frames get rejected; their text flows back into prose instead of vanishing.
-- **Genuine ruled tables render as honest Markdown tables**, cell for cell.
-
-Here is one document converted both ways. The file is committed to this repo, so you can run
-the comparison yourself:
+Requires Python 3.10+.
 
 ```bash
-python scripts/compare_pdf_engines.py tests/data/sample-service-report.pdf
+uv tool install trimitdown     # or: pipx install trimitdown
+uvx trimitdown convert report.pdf   # once, without installing
 ```
 
-**Stock converter** — a phantom empty column splits the data, shifting every value one column
-right of its header:
+A plain `pip install` into the system Python is refused on many distributions and on Homebrew
+(PEP 668); the commands above put the package in an isolated environment. Inside your own
+virtual environment, `pip install trimitdown` is fine.
 
-```markdown
-| Parameter                 | Unit | Before service |     | After service | Limit |
-| ------------------------- | ---- | -------------- | --- | ------------- | ----- |
-| Supply airflow            | m³/h |                | 352 | 398           | ≥ 380 |
-| Extract airflow           | m³/h |                | 341 | 402           | ≥ 380 |
-| Filter pressure drop      | Pa   |                | 184 | 92            | ≤ 150 |
-| Heat recovery efficiency  | %    |                | 61  | 78            | ≥ 70  |
-| Motor current, supply fan | A    |                | 1.9 | 1.6           | ≤ 2.2 |
-```
-
-**TrimItDown** — the table as it appears on the page:
-
-```markdown
-| Parameter | Unit | Before service | After service | Limit |
-| --- | --- | --- | --- | --- |
-| Supply airflow | m³/h | 352 | 398 | ≥ 380 |
-| Extract airflow | m³/h | 341 | 402 | ≥ 380 |
-| Filter pressure drop | Pa | 184 | 92 | ≤ 150 |
-| Heat recovery efficiency | % | 61 | 78 | ≥ 70 |
-| Motor current, supply fan | A | 1.9 | 1.6 | ≤ 2.2 |
-```
-
-One sample proves nothing about a corpus, and ours is third-party material we cannot publish.
-So the measurement ships instead of the documents — point it at your own PDFs and it runs both
-converters over all of them and prints a comparable summary, counts only, no filenames:
-
-```bash
-python scripts/measure_corpus.py /path/to/your/pdfs --limit 50
-```
-
-**Please send that summary back whatever it says** — a win, a loss, or a tie
-([issue template](https://github.com/serjdrej/trimitdown/issues/new?template=measurement.yml)).
-Results collected only when something breaks are a sample made of breakage, and nothing
-honest can be concluded from it. Pooled across enough corpora, these numbers stop being one
-person's collection. Details in
-[docs/pdf-engine.md](docs/pdf-engine.md#re-measuring-on-your-own-pdfs).
-
-In short: we add the table-*validation* stage that the classic tabula-java pipeline has and
-Python extractors lack, expressed as a cell-fill vote on pdfplumber's ruled grids, with
-per-grid fallback to prose — no ML models, no cloud, small enough to ship inside a portable
-binary. Every non-PDF format still goes through MarkItDown.
-
-## Why TrimItDown
-
-- **Made for the LLM workflow.** Clean Markdown out, a live preview, and a token counter that
-  shows what a document will cost before you paste it into a model's context.
-- **Your files never leave your infrastructure.** Conversion happens on your own server (home
-  NAS, VPS) or fully offline on your computer. No third-party SaaS, no per-page fees.
-- **One archive, every device.** Convert on your phone — the result is already on your
-  computer, and vice versa. Searchable, with batch conversion and ZIP export.
-- **A real app experience everywhere.** iPhone PWA installed from Safari (no App Store), a
-  single-file Windows exe, a macOS app. Russian and English UI, light/dark, two color themes.
-
-## Get it
-
-| Platform | How |
-|---|---|
-| **Terminal** (any OS) | `uv tool install trimitdown` — no GUI, no system prompts, see [Command-line package](#command-line-package) |
-| **Windows** | x64 only: `scoop bucket add trimitdown https://github.com/serjdrej/trimitdown` then `scoop install trimitdown` — Start-menu entry, `scoop update trimitdown` later. Or download `TrimItDown-windows-x64.exe` from [Releases](https://github.com/serjdrej/trimitdown/releases/latest) — a single file, no installer |
-| **macOS 11+** | From [Releases](https://github.com/serjdrej/trimitdown/releases/latest): Apple Silicon (M1 and later) → `TrimItDown-macOS-arm64.dmg`; Intel Mac → `TrimItDown-macOS-x86_64.dmg`. Mount it, drag TrimItDown into Applications, then [First launch](#first-launch) |
-| **iPhone / iPad** | Served by your own Docker server — open it in Safari → Share → *Add to Home Screen* |
-| **Docker server** | See [Self-hosting](#self-hosting) below |
-
-The desktop apps work fully offline out of the box. Point them at your server in **Settings**
-to get the shared archive.
-
-### First launch
-
-The apps are not signed with a developer certificate, so each platform asks once
-before it will run a program it does not recognise. This happens once per
-downloaded copy, not on every launch.
-
-- **macOS** — the first launch is refused; dismiss the warning, allow the app
-  under **System Settings → Privacy & Security → Open Anyway**, then launch it
-  again.
-- **Windows** — SmartScreen → **More info → Run anyway**. Installing through
-  scoop does not raise this prompt at all: scoop does not tag what it downloads
-  as coming from the web, so there is nothing for SmartScreen to warn about.
-
-Binaries are not signed. The release workflow creates `SHA256SUMS` for every desktop artifact:
-a hash verifies the downloaded file's integrity, but does not authenticate its publisher. If a
-release includes `SHA256SUMS`, compare the hash for your downloaded filename with its matching row:
-
-```powershell
-Get-FileHash .\TrimItDown-windows-x64.exe -Algorithm SHA256
-```
-
-```bash
-shasum -a 256 TrimItDown-macOS-arm64.dmg
-```
-
-## Command-line package
-
-Requires Python 3.10+. To install it for good: `uv tool install trimitdown`, or
-`pipx install trimitdown`. A plain `pip install` into the system Python is refused on many
-distributions and on Homebrew (PEP 668), which is why both commands above put the package in an
-isolated environment. The package is `trimitdown`; `trimitdown-pdf` is its dependency and is not
-needed as a separate end-user install.
+## Convert
 
 ```bash
 trimitdown convert report.pdf -o report.md
+trimitdown convert - --type pdf < report.pdf     # from a stream
 ```
 
-Without `-o`, Markdown goes to standard output; input can arrive as a stream:
-`trimitdown convert - --type pdf`. The CLI works fully offline.
+Without `-o`, Markdown goes to standard output.
 
-To try it once without installing: `uvx trimitdown convert report.pdf`. It does not create a
-persistent `trimitdown` command, but downloaded packages and environments may remain in uv's cache.
+```python
+from trimitdown.convert import convert_path
 
-Update an installed CLI with `uv tool upgrade trimitdown` or `pipx upgrade trimitdown`; remove it
-with `uv tool uninstall trimitdown` or `pipx uninstall trimitdown`.
+result = convert_path("report.pdf")
+result.text            # the Markdown
+result.pages           # PDFs: how each page was routed, and why
+result.tokens_after    # cl100k tokens of the Markdown
+```
 
-## Self-hosting
+Non-PDF formats go through Microsoft's [MarkItDown](https://github.com/microsoft/markitdown).
 
-The Docker server is the source of truth: it converts, stores the shared archive, and serves the
-iPhone PWA. This repository does not publish a ready-made Docker image; these commands build a
-chosen release from source. You need Git, Docker with Compose, and OpenSSL. Select a release tag
-from the Releases page before building rather than building `main`. Clone into a separate directory,
-not inside an existing clone, to avoid nesting `trimitdown/docker-server/trimitdown/docker-server`.
+## How PDFs are handled
+
+PDFs go through [pdf-inspector](https://pypi.org/project/pdf-inspector/), which gave the best
+structure in our measurements (headings, tables with and without rules) and the fewest tokens.
+It also loses text without saying so — whole pages come back empty while their text layer is
+intact, and on some pages Cyrillic comes back as Latin with no warning. So every page is checked
+against an independent decoder ([pypdf](https://pypi.org/project/pypdf/)) and takes one of five
+paths:
+
+| Path | When | What the page contributes |
+|---|---|---|
+| `accept` | pdf-inspector read the page | its Markdown, unchanged |
+| `substitute` | pdf-inspector lost text the layer still has | the text layer as plain text |
+| `scan` | no text layer, or an OCR layer under a page image | a marker, or the OCR layer with a note that it is unverified |
+| `corrupt` | a text layer every decoder reads as garbage | a marker |
+| `blank` | no text layer and nothing on the page | nothing |
+
+The loss check is counted per script (Cyrillic, Latin, Greek, CJK…), so a page where one
+alphabet silently replaced another is caught even though the number of letters did not change.
+
+Markers look like this, one line each:
+
+```
+[trimitdown: page 12 has no usable text layer (scan)]
+[trimitdown: page 14: OCR layer, not verified]
+```
+
+When any page did not come from pdf-inspector, `convert` prints one line to standard error, for
+example `7 pages: 1 accept, 2 substitute, 2 scan, 1 corrupt, 1 blank; 3 need review`. A clean
+document converts silently.
+
+## Review: scans and unreadable pages
+
+`trimitdown` does not do OCR itself and does not review anything. It prepares the pages that
+need a look for an agent (or a person) who does:
 
 ```bash
-git clone https://github.com/serjdrej/trimitdown.git && cd trimitdown && git checkout <release-tag> && cd docker-server
-./setup.sh YOUR_SERVER_ADDRESS
-docker compose up -d --build      # Compose v1: docker-compose up -d --build
+trimitdown convert scan.pdf --review-dir out/
 ```
 
-`setup.sh` prints the first-visit link; the secret moves into a cookie, and later visits need only
-`https://YOUR_SERVER:8002`.
+writes
 
-One shared secret, not accounts — the server holds one archive and belongs to one person.
-It refuses to start serving without one. `docker compose` publishes the port on every
-interface, and Docker's own firewall rules mean a `ufw deny` on the host does not close it;
-bind to `127.0.0.1` in `docker-compose.yaml` if you want this machine only.
-
-Full instructions — certificate generation, trusting it on iOS/Windows/macOS, and the API —
-in [`docker-server/README.en.md`](docker-server/README.en.md).
-
-## Uninstall
-
-Removing the program or container does not remove your documents automatically.
-
-| Channel | Remove the program | What remains |
-|---|---|---|
-| `uv tool` | `uv tool uninstall trimitdown` | Markdown files you created and uv's package cache |
-| `pipx` | `pipx uninstall trimitdown` | Markdown files you created and pip/pipx caches |
-| Scoop | `scoop uninstall trimitdown`; optionally `scoop bucket rm trimitdown` | `%APPDATA%\TrimItDown` |
-| Windows EXE | Delete the downloaded EXE | `%APPDATA%\TrimItDown` |
-| macOS DMG | Delete `TrimItDown.app` from Applications | `~/Library/Application Support/TrimItDown` |
-| Docker | From `docker-server/`: `docker compose down` | The `trimitdown-web:latest` image, clone, `.env`, `certs/`, and `archive/` |
-| iPhone/iPad PWA | Remove it from the Home Screen | Safari website data, the cookie, and any installed certificate |
-
-Back up needed conversions before deleting `archive`; removing the app or container alone does not
-clear it. Certificate trust is system state: removing an app or PWA does not remove it. Remove the
-profile on iOS, the certificate from `CurrentUser\Root` on Windows, or the certificate from Keychain
-on macOS when you no longer trust this server.
-
-## Screenshots
-
-| Archive, shared across devices | Settings |
+| | |
 |---|---|
-| ![Archive with search](docs/images/archive-light.png) | ![Settings screen](docs/images/settings-dark.png) |
+| `out/document.md` | the converted document, with a `<!-- page N -->` anchor before each page |
+| `out/manifest.json` | every page: its path and reasons, image, candidate text, OCR status, metrics |
+| `out/REVIEW.md` | the review procedure: OCR first, then compare with the image and correct only the differences |
+| `out/pages/pNNNN.png` | an image of each page to review (the source scan when it is the whole page, otherwise a 300 dpi render) |
+| `out/candidates/pNNNN.txt` | the text to start from: the PDF's own OCR layer, or fresh Tesseract output; empty if there is none |
+| `out/reviewed/` | where the reviewer writes |
 
-| Ocean theme, light | Ocean theme, dark |
-|---|---|
-| ![Ocean light theme](docs/images/home-ocean-light.png) | ![Ocean dark theme](docs/images/home-ocean-dark.png) |
+[Tesseract](https://github.com/tesseract-ocr/tesseract) is optional and external. It is looked
+for in `--tesseract`, `TRIMITDOWN_TESSERACT`, `PATH`, then the usual install locations; the
+defaults are the measured ones (`-l rus --psm 3`, orientation from `--psm 0`), changed with
+`--ocr-lang` and `--tessdata-dir`. Without Tesseract, or without the language data, pages still
+go to review with an empty candidate, and the manifest and standard error say why.
 
-| The iPhone PWA — home screen | Converting a PDF |
-|---|---|
-| <img src="docs/images/iphone-home-en.png" alt="TrimItDown PWA on iPhone, empty state" width="260"> | <img src="docs/images/iphone-result-en.png" alt="TrimItDown PWA on iPhone, conversion result" width="260"> |
+Other options: `--ocr-fresh` (OCR scans that already carry an OCR layer), `--no-ocr`,
+`--review-substitute` (send `substitute` pages too), `--review-markers ru|en` (the marks the
+procedure asks for: `[неразборчиво]`, `=== стр. N ===` by default, or `[illegible]`,
+`=== page N ===`).
 
-## How it works
+When the review is done:
 
-- **The Docker server** is a FastAPI service with HTTPS; the archive lives on the server. The
-  same service serves the PWA for iPhone.
-- **The Windows/macOS apps** check at startup whether your server is reachable: if yes, they
-  open straight on it (shared archive); if not, they spin up a bundled local server and work
-  fully offline. The shell is [pywebview](https://pywebview.flowrl.com/) (WebView2 / WKWebView),
-  packaged with PyInstaller.
-- **Conversion:** PDFs go through TrimItDown's own engine ([`trimitdown-pdf`](packages/trimitdown-pdf),
-  built on pdfplumber); every other format goes through Microsoft's
-  [MarkItDown](https://github.com/microsoft/markitdown).
+```bash
+trimitdown assemble out/ -o report.md
+```
 
-## Repository layout
+puts each reviewed page in place of its marker. It reads `reviewed/doc.txt` with one
+`=== стр. N ===` (or `=== page N ===`) header per page, or one `reviewed/pNNNN.txt` per page,
+and refuses a page reviewed twice, a page that does not exist or a page that was not sent for
+review.
 
-- [`src/trimitdown/`](src/trimitdown/) — published CLI package and conversion logic
-- [`core/`](core/) — HTTP-layer and archive support for the desktop and server applications
-- [`packages/trimitdown-pdf/`](packages/trimitdown-pdf/) — separately published PDF engine
-- [`docker-server/`](docker-server/) — the self-hosted service + iPhone PWA
-- [`static/`](static/), [`main.py`](main.py), [`server_app.py`](server_app.py) — desktop apps (UI, entry point, offline mode)
-- [`tests/`](tests/) — unit tests + a labeled corpus harness for the table-detection stage
-- [`docs/pdf-engine.md`](docs/pdf-engine.md) — PDF engine design, measurements, reproduction
+Readable text in a text layer does not prove its digits right. For the pages that were not
+sent, `trimitdown render report.pdf --pages 5,7 -o img/` writes page images to check them
+against.
 
-## Contributing
-
-Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
-[DEVELOPMENT.md](DEVELOPMENT.md) documents the dev setup and the desktop build internals.
+From Python: `trimitdown.review.prepare_review`, `assemble` and `render_pages`.
 
 ## Limitations
 
-- Best fit: text-based PDFs and ruled tables. Borderless and whitespace-aligned tables are outside
-  the PDF engine's scope.
-- TrimItDown does not perform OCR. Scanned or image-only pages are marked as having no extractable
-  text layer.
-- Full multi-column layout reconstruction is out of scope, including reading order across columns,
-  headers/footers, and figure captions.
-- The server's self-signed HTTPS certificate needs a one-time manual trust on each device
-  (iOS: profile + full trust; Windows: import into `CurrentUser\Root`; macOS: Keychain).
-- Unsigned binaries: one manual approval per downloaded copy — see
-  [First launch](#first-launch).
+- No built-in OCR, and no review performed by the program: scans need Tesseract and a reviewer.
+- The check on Latin pages is on and not yet measured on a large benchmark; it may substitute
+  plain text for structured Markdown on pages where pdf-inspector loses Latin letters.
+- Text under an image (an OCR layer of a different shape, or text an overlay was meant to hide)
+  is accepted as text; the review manifest records how much of each page is under images.
+- The garbage detector behind `corrupt` uses conservative thresholds that have not been
+  measured on real documents.
+- Password-protected PDFs are refused.
+
+## Earlier releases
+
+Up to 0.1.2 TrimItDown also shipped a desktop app for Windows and macOS, a self-hosted Docker
+server with an iPhone PWA, and a Scoop manifest. They are no longer released. Their last builds
+are attached to [v0.1.2](https://github.com/serjdrej/trimitdown/releases/tag/v0.1.2), the Scoop
+bucket in this repository stays pointed at it, and the code remains in the tree — see
+[DEVELOPMENT.md](DEVELOPMENT.md). The PDF engine they use, `trimitdown-pdf`, is described in
+[docs/pdf-engine.md](docs/pdf-engine.md); this package no longer depends on it.
+
+## Repository layout
+
+- [`src/trimitdown/`](src/trimitdown/) — the package: conversion, the PDF route, review
+- [`tests/`](tests/) — the portable suite, on synthetic PDFs built in the tests
+- [`packages/trimitdown-pdf/`](packages/trimitdown-pdf/), [`core/`](core/),
+  [`docker-server/`](docker-server/), [`static/`](static/), [`main.py`](main.py) — the earlier
+  desktop and server applications and their engine
+
+## Contributing
+
+Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## License and credits
 
-Code is [MIT](LICENSE). Non-PDF conversion is powered by
-[MarkItDown](https://github.com/microsoft/markitdown) (Microsoft, MIT); the bundled
-third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Code is [MIT](LICENSE). PDFs are read with [pdf-inspector](https://pypi.org/project/pdf-inspector/)
+(MIT), [pypdf](https://pypi.org/project/pypdf/) (BSD) and
+[pypdfium2](https://pypi.org/project/pypdfium2/) (Apache-2.0 / BSD, with PDFium); other formats
+with [MarkItDown](https://github.com/microsoft/markitdown) (Microsoft, MIT). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

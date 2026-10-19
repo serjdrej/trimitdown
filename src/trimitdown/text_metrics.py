@@ -25,7 +25,7 @@ GATE_MIN_LETTERS = 20
 GATE_MIN_SHARE = 0.20
 GATE_RATIO = 0.5
 
-# Whether the gate also watches Latin. On by the owner's decision for 0.2.0, and
+# Whether the gate also watches Latin. On by the owner's decision for 0.2, and
 # provisional: the gate was never measured on Latin pages, and if pdf-inspector
 # loses Latin letters inside tables or columns, every such page is substituted
 # with plain text and loses its structure. The 200-document benchmark decides

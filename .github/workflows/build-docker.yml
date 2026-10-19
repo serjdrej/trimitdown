@@ -14,7 +14,7 @@
 # starting one and talking to it over the network tells them apart.
 name: Build Docker image
 
-# Not run on push or pull request since 0.2.0: the image is no longer a
+# Not run on push or pull request since 0.2: the image is no longer a
 # product (owner's decision, 2026-10-19). The code stays and the check still
 # runs on request; keeping an unmaintained artifact on every PR would only
 # make its eventual failure noise.
