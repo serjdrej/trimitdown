@@ -1,0 +1,86 @@
+# Asks, once a week, what the newest pdf-inspector does to the PDF route.
+#
+# The package pins pdf-inspector exactly, because the route keys on its reason
+# identifiers ("scanned", "invisible_text_layer", "suspected_garbled_text"),
+# which upstream does not document, and because between 0.2.6 and 1.25.2 it
+# acquired a new way of emptying a page without a flag. A pin nobody questions
+# ages in silence; this is the question.
+#
+# It fails on movement, deliberately, like dependency-lock-latest.yml: a green
+# job whose summary mentions a new version is a job nobody reads. A failure here
+# does not mean anything is broken -- it means a decision is owed: run the
+# measurements on the new version and raise the pin, or write down why not.
+# If the suite itself fails against the new version, that is the answer to the
+# first half of the question.
+#
+# Scope, stated plainly: this exercises the synthetic fixtures only. It catches
+# renamed reasons, API breakage and routing regressions on the shapes the suite
+# builds. It does NOT measure pages lost on real documents -- that is the
+# corpus run outside this repository, which a raise of the pin still needs.
+name: pdf-inspector (latest)
+
+on:
+  schedule:
+    # Mondays, 06:30 UTC, after the other two canaries. GitHub disables
+    # scheduled workflows after 60 days of repository inactivity -- if this
+    # stops reporting, that is likely why.
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      # Must come AFTER requirements-dev.txt, which installs the package and with
+      # it the exact pin. Without this step the job would test the pinned version
+      # and go green forever against the very version it is meant to move off.
+      - name: Upgrade to the latest pdf-inspector
+        run: |
+          python -m pip install -U pdf-inspector
+          python - <<'PY' > versions.txt
+          import tomllib, pathlib
+          from importlib import metadata
+          from packaging.requirements import Requirement
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          pinned = next(Requirement(d) for d in project["project"]["dependencies"]
+                        if Requirement(d).name == "pdf-inspector")
+          print(next(iter(pinned.specifier)).version, metadata.version("pdf-inspector"))
+          PY
+          cat versions.txt
+
+      # Zero skips here too: a new pdf-inspector that breaks an import so that a
+      # test skips instead of failing would make the canary quiet exactly when it
+      # should be loud.
+      - name: Run the portable suite
+        run: |
+          python -m pytest -m "not corpus" -rs --junitxml=report.xml
+          python scripts/check_no_skips.py report.xml
+
+      - name: Report pdf-inspector movement
+        run: |
+          read pinned latest < versions.txt
+          if [ "$pinned" = "$latest" ]; then
+            echo "pdf-inspector $pinned is still the latest release." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "### pdf-inspector $latest is out; the package pins $pinned."
+            echo
+            echo "The portable suite passed against $latest. Raising the pin still"
+            echo "needs the corpus measurements (pages per path, accepted pages"
+            echo "against bare pdf-inspector, the 200-document benchmark), or a"
+            echo "written reason to stay."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

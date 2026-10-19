@@ -1,6 +1,12 @@
-# Builds all three release artifacts, checksums them and creates a DRAFT
-# release. A human publishes the draft: the tag appears on GitHub only at that
-# moment, so nothing this pipeline does before then is irreversible.
+# Builds the package's two distributions, installs and runs them, checksums
+# them and creates a DRAFT release. A human publishes the draft: the tag appears
+# on GitHub only at that moment, so nothing this pipeline does before then is
+# irreversible. publish-pypi.yml then uploads exactly the files attached here.
+#
+# Since 0.2.0 the desktop app is not built here (owner's decision, 2026-10-19):
+# the package is the one product. build-macos.yml and build-windows.yml are kept
+# and still run on request; they are simply no longer something a release waits
+# for, so a desktop build that breaks cannot hold the package back.
 name: Release
 
 on:
@@ -142,39 +148,47 @@ jobs:
             head -20 "smoke-$kind.md"
           done
 
+      # The review hand-off is package data plus a second code path; a wheel
+      # missing review_rule.md, or a route that stopped calling a page with no
+      # text layer a scan, would still pass the table check above. The runner
+      # has no Tesseract, which is the case most users start in: the page must
+      # still be sent, with an empty candidate.
+      - name: Build the scan smoke document
+        run: python -c "from tests.route_fixtures import one, scanned_image_page; open('scan.pdf','wb').write(one(scanned_image_page()))"
+
+      - name: Write a review directory with the CLI installed from each distribution
+        run: |
+          for kind in whl tar.gz; do
+            rm -rf "review-$kind"
+            "smoke-env-$kind/bin/trimitdown" convert scan.pdf --review-dir "review-$kind"
+            test -s "review-$kind/REVIEW.md" \
+              || { echo "the $kind install wrote no review rule"; exit 1; }
+            "smoke-env-$kind/bin/python" - "review-$kind/manifest.json" <<'PY'
+          import json, sys
+          page = json.load(open(sys.argv[1], encoding="utf-8"))["pages"][0]
+          assert page["page"] == 1 and page["path"] == "scan" and page["review"], page
+          print("review smoke ok:", page["path"], page["image_kind"], page["ocr"]["status"])
+          PY
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: distributions
           path: dist
 
-  macos:
-    needs: guard
-    uses: ./.github/workflows/build-macos.yml
-
-  windows:
-    needs: guard
-    uses: ./.github/workflows/build-windows.yml
-
   release:
-    needs: [macos, windows, package]
+    needs: [package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       # The single list of release artifacts. The completeness check, the checksums
       # and the upload all read it -- three private copies would drift apart in
-      # silence, and it would only show on a published release.
-      ARTIFACTS: >-
-        TrimItDown-macOS-x86_64.dmg
-        TrimItDown-macOS-arm64.dmg
-        TrimItDown-windows-x64.exe
+      # silence, and it would only show on a published release. Empty since the
+      # desktop builds left the release: what remains are the two distributions,
+      # whose names carry the version and are appended below.
+      ARTIFACTS: ""
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: TrimItDown-*
-          merge-multiple: true
-          path: release
-
       - uses: actions/download-artifact@v8
         with:
           name: distributions
@@ -221,10 +235,10 @@ jobs:
             echo "uv tool install trimitdown"
             echo '```'
             echo
-            echo "Приложение для macOS и Windows — в файлах ниже. На macOS: открыть образ"
-            echo "и перетащить TrimItDown в «Программы»."
-            echo "The macOS and Windows apps are attached below. On macOS: open the disk"
-            echo "image and drag TrimItDown into Applications."
+            echo "Приложение для macOS и Windows больше не выпускается; последние сборки"
+            echo "приложены к прежним релизам."
+            echo "The macOS and Windows apps are no longer released; the last builds are"
+            echo "attached to earlier releases."
             echo
             # The description of the changes, taken from CHANGELOG.md by the guard
             # job. It used to be typed in by hand here and was lost once when the
