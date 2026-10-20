@@ -36,6 +36,16 @@ A plain `pip install` into the system Python is refused on many distributions an
 (PEP 668); the commands above put the package in an isolated environment. Inside your own
 virtual environment, `pip install trimitdown` is fine.
 
+PDF needs nothing more. Word, PowerPoint, Excel and Outlook need the `office` extra:
+
+```bash
+uv tool install "trimitdown[office]"     # or: pip install "trimitdown[office]"
+```
+
+The extra does not install on Python 3.15 yet: it needs onnxruntime, which has no 3.15 wheels
+so far. PDF conversion works there. Without the extra, converting an office file fails with a
+message naming the extra.
+
 ## Convert
 
 ```bash

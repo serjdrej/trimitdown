@@ -307,3 +307,21 @@ def test_converting_a_pdf_loads_no_ml_model(tmp_path):
 
     assert run.returncode == 0, run.stderr
     assert run.stdout.strip() == "[]"
+
+
+def test_an_office_format_without_the_extra_says_what_to_install(tmp_path, monkeypatch):
+    """Without markitdown the error names the extra, not an import failure.
+
+    markitdown is the `office` extra since 0.2.0; on Python 3.15 it cannot be
+    installed at all yet. A bare ImportError would leave an agent guessing.
+    Removing the ImportError handling must fail this test (verified).
+    """
+    import pytest
+
+    monkeypatch.setitem(sys.modules, "markitdown", None)
+    monkeypatch.setattr(pure, "md", pure._LazyMarkItDown())
+    doc = tmp_path / "note.txt"
+    doc.write_text("hello", encoding="utf-8")
+
+    with pytest.raises(pure.ConversionError, match=r"trimitdown\[office\]"):
+        pure.convert_path(doc)

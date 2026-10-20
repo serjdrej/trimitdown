@@ -38,6 +38,9 @@ and was lost once, together with a recreated draft.
   ничего не сверяет.
 - **`python -m trimitdown`** — та же команда, что `trimitdown`, для окружений, где каталог
   скриптов не в PATH; правило сверки называет её для обрезков в полном разрешении.
+- **Word, PowerPoint, Excel и Outlook — опция `office`.** `pip install "trimitdown[office]"`.
+  Базовая установка — PDF без ML-модели и onnxruntime; ставится и на Python 3.15, где опция пока
+  не ставится: у onnxruntime нет колёс под 3.15.
 - **Зависимости.** Вместо `trimitdown-pdf` — `pdf-inspector` (закреплён точно), `pypdf`,
   `pypdfium2`, `Pillow`; все под разрешительными лицензиями.
 - **Десктопное приложение, Docker-сервер и Scoop больше не выпускаются.** Последние сборки —
@@ -67,6 +70,9 @@ from the command line and from Python. **PDF output changes** — check it if yo
   reviews anything itself.
 - **`python -m trimitdown`** runs the same command as `trimitdown`, for environments whose
   scripts directory is not on PATH; the review rule names it for full-resolution crops.
+- **Word, PowerPoint, Excel and Outlook are the `office` extra.** `pip install "trimitdown[office]"`.
+  The base install is PDF without an ML model or onnxruntime; it installs on Python 3.15 too,
+  where the extra does not yet: onnxruntime has no 3.15 wheels.
 - **Dependencies.** `trimitdown-pdf` is replaced by `pdf-inspector` (pinned exactly), `pypdf`,
   `pypdfium2` and `Pillow`, all under permissive licenses.
 - **The desktop app, the Docker server and Scoop are no longer released.** Their last builds

@@ -37,7 +37,7 @@ def test_package_does_not_pull_audio_dependencies():
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     markitdown = next(
         requirement
-        for requirement in project["project"]["dependencies"]
+        for requirement in project["project"]["optional-dependencies"]["office"]
         if _distribution_key(requirement) == "markitdown"
     )
     extras = markitdown[markitdown.index("[") + 1 : markitdown.index("]")].split(",")
@@ -248,6 +248,7 @@ def test_docker_installs_the_hashed_lock_before_local_projects():
         for requirement in [
             *project["project"]["dependencies"],
             *project["project"]["optional-dependencies"]["server"],
+            *project["project"]["optional-dependencies"]["office"],
         ]
     }
     engine = _distribution_key("trimitdown-pdf")
@@ -368,3 +369,24 @@ def test_the_servers_secret_cannot_be_committed():
 
     assert ignored.returncode == 0, "docker-server/.env is not ignored by git"
     assert template.returncode == 1, "the template must stay in the repository"
+
+
+def test_office_formats_are_an_extra_with_a_floor():
+    """markitdown must stay out of the base install, and the extra must refuse 0.0.2.
+
+    On Python 3.15 markitdown >= 0.1 cannot be installed (onnxruntime has no
+    wheels there yet), and an unbounded requirement let the resolver fall back
+    to markitdown 0.0.2, which lacks the docx/pptx/xlsx extras: every office
+    format broke silently while the install looked fine. Moving markitdown back
+    into the base dependencies, or dropping the floor, must fail this test.
+    """
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    base = {_distribution_key(r) for r in project["project"]["dependencies"]}
+    assert "markitdown" not in base
+
+    office = [Requirement(r) for r in project["project"]["optional-dependencies"]["office"]]
+    markitdown = next(r for r in office if r.name == "markitdown")
+    assert not markitdown.specifier.contains("0.0.2")
+    assert markitdown.specifier.contains("0.1.7")

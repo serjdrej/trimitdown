@@ -35,6 +35,16 @@ uvx trimitdown convert report.pdf   # один раз, без установки
 (PEP 668); команды выше ставят пакет в изолированное окружение. В своём виртуальном окружении
 `pip install trimitdown` работает.
 
+Для PDF больше ничего не нужно. Word, PowerPoint, Excel и Outlook требуют опцию `office`:
+
+```bash
+uv tool install "trimitdown[office]"     # или: pip install "trimitdown[office]"
+```
+
+На Python 3.15 опция пока не ставится: ей нужен onnxruntime, у которого колёс под 3.15 ещё нет.
+PDF там работает. Без опции конвертация офисного файла завершается сообщением, которое называет
+опцию.
+
 ## Конвертация
 
 ```bash

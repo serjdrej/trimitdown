@@ -33,7 +33,13 @@ class _LazyMarkItDown:
 
     def convert(self, *args, **kwargs):
         if self._instance is None:
-            from markitdown import MarkItDown
+            try:
+                from markitdown import MarkItDown
+            except ImportError:
+                raise ConversionError(
+                    "this format needs the office extra: pip install \"trimitdown[office]\" "
+                    "(PDF needs no extra)"
+                ) from None
             self._instance = MarkItDown()
         return self._instance.convert(*args, **kwargs)
 
