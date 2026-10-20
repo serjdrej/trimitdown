@@ -1,4 +1,5 @@
 {
+    "##": "Frozen at 0.1.2, the last desktop release. The desktop app is no longer released; checkver and autoupdate were removed so scoop's tooling cannot move users to a release without a Windows build.",
     "version": "0.1.2",
     "description": "Convert documents to LLM-ready markdown. Ruled-table-aware PDF extraction, offline, no cloud.",
     "homepage": "https://github.com/serjdrej/trimitdown",
@@ -14,16 +15,5 @@
             "TrimItDown.exe",
             "TrimItDown"
         ]
-    ],
-    "checkver": "github",
-    "autoupdate": {
-        "architecture": {
-            "64bit": {
-                "url": "https://github.com/serjdrej/trimitdown/releases/download/v$version/TrimItDown-windows-x64.exe#/TrimItDown.exe"
-            }
-        },
-        "hash": {
-            "url": "https://github.com/serjdrej/trimitdown/releases/download/v$version/SHA256SUMS"
-        }
-    }
+    ]
 }

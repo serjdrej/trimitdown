@@ -1,8 +1,11 @@
 name: Build macOS app
 
+# Not run on push since 0.2: the desktop app is no longer released (owner's
+# decision, 2026-10-19). The code stays in the tree and this build still works
+# on request, but a push-triggered build would now go red on its own bundle
+# check -- the package no longer ships trimitdown_pdf -- and red that nobody
+# acts on teaches everyone to ignore red.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
   # Lets release.yml call this build instead of copying its steps: a copy would
   # drift from the original in silence, and this project has already lived through

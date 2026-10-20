@@ -1,9 +1,31 @@
 # Third-party notices
 
-The compiled releases of this project (Windows `.exe`, macOS `.app`) bundle the following
-third-party software and its dependencies via PyInstaller.
+## The PyPI package
 
-## MarkItDown
+The `trimitdown` package bundles no third-party code: its wheel and sdist carry this project's
+code and a cached tiktoken encoding file (tiktoken's notice is below). Its dependencies are installed from the index as
+separate distributions, each under its own license, which each distribution carries:
+
+| Dependency | License | Used for |
+|---|---|---|
+| [pdf-inspector](https://pypi.org/project/pdf-inspector/) | MIT | PDF to Markdown |
+| [pypdf](https://pypi.org/project/pypdf/) | BSD-3-Clause | the independent text layer each PDF page is checked against |
+| [pypdfium2](https://pypi.org/project/pypdfium2/) | Apache-2.0 or BSD-3-Clause; its wheels carry PDFium and PDFium's third-party libraries, with their notices | layer detection, page images for review, page count |
+| [Pillow](https://pypi.org/project/pillow/) | MIT-CMU | writing page images |
+| [cryptography](https://pypi.org/project/cryptography/) (via `pypdf[crypto]`) | Apache-2.0 or BSD-3-Clause | encrypted PDFs |
+| [MarkItDown](https://github.com/microsoft/markitdown) | MIT | every format other than PDF |
+| [tiktoken](https://github.com/openai/tiktoken) | MIT | token counts |
+| [python-pptx](https://pypi.org/project/python-pptx/) | MIT | slide counts |
+
+Only permissive licenses, by design: the package is meant to be usable inside other people's
+tools. PyMuPDF (AGPL) is deliberately not used.
+
+## The earlier desktop releases
+
+The compiled releases of this project up to 0.1.2 (Windows `.exe`, macOS `.app`) bundle the
+following third-party software and its dependencies via PyInstaller.
+
+### MarkItDown
 
 [https://github.com/microsoft/markitdown](https://github.com/microsoft/markitdown) — the file
 conversion engine this whole project is built around.
@@ -32,7 +54,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## marked.js
+### marked.js
 
 [https://github.com/markedjs/marked](https://github.com/markedjs/marked) —
 Markdown-to-HTML parser used to render conversion output in the live preview. Vendored as a
@@ -63,7 +85,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## tiktoken
+### tiktoken
 
 [https://github.com/openai/tiktoken](https://github.com/openai/tiktoken) — BPE tokeniser used to
 count tokens for conversion output. Version 0.13.0. The `cl100k_base` encoding data file it
@@ -95,7 +117,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## DOMPurify
+### DOMPurify
 
 [https://github.com/cure53/DOMPurify](https://github.com/cure53/DOMPurify) — HTML sanitizer
 used to sanitize marked.js output before it is rendered in the live preview. Vendored as a
@@ -282,7 +304,7 @@ License 2.0 text is reproduced below.
    END OF TERMS AND CONDITIONS
 ```
 
-## Bricolage Grotesque
+### Bricolage Grotesque
 
 [https://github.com/ateliertriay/bricolage](https://github.com/ateliertriay/bricolage) —
 variable display font used for the TrimItDown wordmark and headings. Vendored as a local static
@@ -365,7 +387,7 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-## Lucide
+### Lucide
 
 [https://github.com/lucide-icons/lucide](https://github.com/lucide-icons/lucide) — `upload`,
 `archive`, `settings` SVG icons used in the redesigned bottom navigation. Vendored as local static

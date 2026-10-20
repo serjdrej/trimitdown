@@ -3,9 +3,11 @@ name: Scoop manifest
 # Manifest drift is a release state, not a push event. Daily polling catches a
 # forgotten post-publication update without turning every development push into
 # a GitHub API request.
+#
+# The daily schedule is off since 0.2. The desktop app is no longer released,
+# so the bucket stays on the last release that has a Windows build, and from the
+# first release without one this check would be red every single day.
 on:
-  schedule:
-    - cron: "17 6 * * *"
   workflow_dispatch:
 
 permissions:

@@ -1,5 +1,11 @@
 # The PDF engine — design and measurements
 
+> **Since 0.2.0 the `trimitdown` package no longer uses this engine.** PDFs go through
+> pdf-inspector, checked page by page against pypdf (`src/trimitdown/pdf_route.py`; the README
+> describes the paths). The engine below, `trimitdown-pdf`, stays in this repository and on
+> PyPI, frozen; the earlier desktop and server applications are built on it. What follows is
+> its design and its measurements, kept as they were.
+
 Why TrimItDown does not use markitdown's stock PDF converter, what was measured, and how to
 reproduce it. Non-PDF formats (DOCX/PPTX/XLSX/EPUB/HTML/Outlook) still go through
 [MarkItDown](https://github.com/microsoft/markitdown) and are out of scope here.

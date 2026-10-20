@@ -7,7 +7,7 @@ name = "trimitdown"
 # Единственный источник -- __version__ в модуле, читается статически через AST,
 # без импорта: иначе в build-окружение потянулся бы markitdown.
 dynamic = ["version"]
-description = "Convert documents to LLM-ready markdown. Ruled-table-aware PDF extraction, offline, no cloud."
+description = "Convert documents to LLM-ready markdown. Per-page checked PDF extraction with a review hand-off for scans, offline, no cloud."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -34,22 +34,40 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
-# Точный пин, не диапазон: диапазон дал бы молчаливый подъём движка при
-# пересборке, а движок определяет качество вывода. Подъём -- отдельный коммит.
-# FastAPI/uvicorn здесь НЕТ: это CLI-пакет, веб-стек живёт в extra "server".
+# The PDF engine is pinned exactly, every other dependency is a range. The
+# route in trimitdown.pdf_route keys on pdf-inspector's reason identifiers
+# ("scanned", "invisible_text_layer", "suspected_garbled_text"), which upstream
+# does not document; a range would let a rebuild pick up a renamed reason or a
+# new way of emptying a page, silently. Raising it is its own commit, after the
+# weekly pdf-inspector-latest canary has run the suite against the new version.
+# FastAPI/uvicorn are NOT here: this is a CLI package, the web stack lives in
+# the "server" extra.
 dependencies = [
-    "trimitdown-pdf==0.1.0",
-    # Same narrow extras as requirements.txt, and for the same reason recorded
-    # there: the audio-transcription and Azure extras are heavy and useless
-    # offline, which is what this package claims to be. "all" would pull an
-    # Azure client into every install.
-    "markitdown[docx,pdf,pptx,xlsx,xls,outlook]",
+    "pdf-inspector==1.25.2",
+    # The independent decoder the per-page gate measures pdf-inspector against,
+    # and the text a page falls back to. [crypto] because AES-encrypted files
+    # otherwise raise DependencyError; cryptography used to arrive only
+    # transitively, through pdfminer, and reliability does not rest on that.
+    "pypdf[crypto]>=6.1,<7",
+    # Text-layer presence, page images for review and the page count. v4 and v5
+    # differ in the render/extract API.
+    "pypdfium2>=5,<6",
+    # Writing page images: pypdfium2 hands out bitmaps through PIL, and every
+    # scan codec except JPEG needs it to become a file an agent can read.
+    "pillow>=10",
     "tiktoken",
     "python-pptx",
-    "pdfminer.six",
 ]
 
 [project.optional-dependencies]
+# Word, PowerPoint, Excel and Outlook. Not in the base install: markitdown loads
+# magika, magika loads onnxruntime, and onnxruntime has no wheels for Python
+# 3.15 yet -- unbounded, a resolver there silently fell back to markitdown
+# 0.0.2, which lacks these extras, and every office format broke without a
+# word. The lower bound makes that a loud install failure instead. PDFs need
+# none of it. Narrow extras for the reason recorded in requirements.txt: the
+# audio-transcription and Azure extras are heavy and useless offline.
+office = ["markitdown[docx,pdf,pptx,xlsx,xls,outlook]>=0.1"]
 # Нужен только тому, кто поднимает HTTP-слой (Docker-образ, десктопная сборка).
 server = ["fastapi", "uvicorn", "python-multipart"]
 
@@ -70,4 +88,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 # Офлайн-кэш tiktoken. Без этой строки он не попадёт в wheel, и счёт токенов у
 # установленного пакета молча уйдёт в сеть.
-trimitdown = ["tiktoken_cache/*"]
+# review_rule.md is the procedure every review directory is written with; a
+# wheel without it writes directories nobody knows how to review.
+trimitdown = ["tiktoken_cache/*", "review_rule.md"]

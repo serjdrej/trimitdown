@@ -37,7 +37,7 @@ def test_package_does_not_pull_audio_dependencies():
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     markitdown = next(
         requirement
-        for requirement in project["project"]["dependencies"]
+        for requirement in project["project"]["optional-dependencies"]["office"]
         if _distribution_key(requirement) == "markitdown"
     )
     extras = markitdown[markitdown.index("[") + 1 : markitdown.index("]")].split(",")
@@ -53,21 +53,29 @@ def test_library_dependencies_are_not_exact_pins():
     consumer. This examines its declared metadata, not the currently installed
     environment, because an artifact lock must not turn into a library pin.
 
-    Our own engine is exempt, and the exemption is narrow on purpose: the rule
-    exists so that our pin cannot collide with the graph of whoever installs
-    us, and nobody but us publishes trimitdown-pdf, so there is no graph to
-    collide with. Its exact pin is a decision about output quality -- a range
-    would raise the engine silently on a rebuild, and the engine is what the
-    output is made of -- and raising it is meant to be its own commit.
+    The engine that determines the output is exempt, and the exemption is
+    narrow on purpose. Its exact pin is a decision about output quality: a
+    range would raise the engine silently on a rebuild, and the engine is what
+    the output is made of, so raising it is meant to be its own commit.
+
+    Until 0.2 that engine was our own trimitdown-pdf, which nobody else
+    publishes, so its pin could not collide with anyone's graph. Since 0.2 it
+    is pdf-inspector, and the same argument holds with more force: the route
+    keys on its reason identifiers ("scanned", "invisible_text_layer",
+    "suspected_garbled_text"), which upstream does not document, and between
+    0.2.6 and 1.25.2 a new way of silently emptying a page appeared. The cost
+    -- a consumer pinning another pdf-inspector cannot install us -- is
+    accepted; the weekly pdf-inspector-latest canary is what keeps the pin
+    from going stale. Every other dependency stays a range.
     """
     from packaging.requirements import Requirement
 
-    ours = {"trimitdown-pdf", "trimitdown_pdf"}
+    output_engines = {"pdf-inspector", "pdf_inspector"}
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     exact_pins = []
     for declared in project["project"]["dependencies"]:
         requirement = Requirement(declared)
-        if requirement.name in ours:
+        if requirement.name in output_engines:
             continue
         if any(
             specifier.operator in {"==", "==="}
@@ -82,10 +90,34 @@ def test_library_dependencies_are_not_exact_pins():
     )
 
 
+def test_the_output_engine_is_pinned_exactly():
+    """The other half of the exemption above: the engine must actually be pinned.
+
+    Relaxing pdf-inspector to a range passes the test above (ranges are always
+    allowed) and lets a rebuild pick up a renamed reason identifier, after which
+    the route stops catching scans without a word. This is what fails then.
+
+    The installed version is deliberately not compared: the weekly canary runs
+    this suite against the newest pdf-inspector on purpose.
+    """
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    engine = next(
+        Requirement(declared)
+        for declared in project["project"]["dependencies"]
+        if Requirement(declared).name == "pdf-inspector"
+    )
+    specifiers = list(engine.specifier)
+    assert len(specifiers) == 1 and specifiers[0].operator == "==", (
+        f"pdf-inspector must be pinned exactly, found {engine}"
+    )
+
+
 def test_declared_version_is_the_one_that_ships():
     from trimitdown import __version__
 
-    assert __version__ == "0.1.2"
+    assert __version__ == "0.2.0"
 
 
 def test_version_has_exactly_one_source():
@@ -154,7 +186,7 @@ def test_api_mode_reports_the_package_version():
     from server_app import VERSION
     from trimitdown import __version__
 
-    assert VERSION == __version__ == "0.1.2"
+    assert VERSION == __version__ == "0.2.0"
 
 
 def test_specs_reference_the_package_cache_path():
@@ -216,6 +248,7 @@ def test_docker_installs_the_hashed_lock_before_local_projects():
         for requirement in [
             *project["project"]["dependencies"],
             *project["project"]["optional-dependencies"]["server"],
+            *project["project"]["optional-dependencies"]["office"],
         ]
     }
     engine = _distribution_key("trimitdown-pdf")
@@ -336,3 +369,24 @@ def test_the_servers_secret_cannot_be_committed():
 
     assert ignored.returncode == 0, "docker-server/.env is not ignored by git"
     assert template.returncode == 1, "the template must stay in the repository"
+
+
+def test_office_formats_are_an_extra_with_a_floor():
+    """markitdown must stay out of the base install, and the extra must refuse 0.0.2.
+
+    On Python 3.15 markitdown >= 0.1 cannot be installed (onnxruntime has no
+    wheels there yet), and an unbounded requirement let the resolver fall back
+    to markitdown 0.0.2, which lacks the docx/pptx/xlsx extras: every office
+    format broke silently while the install looked fine. Moving markitdown back
+    into the base dependencies, or dropping the floor, must fail this test.
+    """
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    base = {_distribution_key(r) for r in project["project"]["dependencies"]}
+    assert "markitdown" not in base
+
+    office = [Requirement(r) for r in project["project"]["optional-dependencies"]["office"]]
+    markitdown = next(r for r in office if r.name == "markitdown")
+    assert not markitdown.specifier.contains("0.0.2")
+    assert markitdown.specifier.contains("0.1.7")

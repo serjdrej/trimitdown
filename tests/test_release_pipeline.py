@@ -9,13 +9,12 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
-# Имена, на которые сошлются манифесты brew/scoop/winget. Каждое обязано приехать
-# в релиз с контрольной суммой, иначе манифест не из чего писать.
-RELEASE_ARTIFACTS = {
-    "TrimItDown-macOS-x86_64.dmg",
-    "TrimItDown-macOS-arm64.dmg",
-    "TrimItDown-windows-x64.exe",
-}
+# The static part of the release set. It named the three desktop builds the
+# brew/scoop/winget manifests point at; since 0.2.0 the desktop app is no longer
+# released (owner's decision, 2026-10-19) and the set is empty. What a release
+# carries now is the two distributions, whose names carry the version and are
+# appended at run time -- the checks on that list below are unchanged.
+RELEASE_ARTIFACTS: set[str] = set()
 
 # Подстановка входа workflow_dispatch. Ловит и ${{ inputs.x }}, и
 # ${{ github.event.inputs.x }} -- обе разворачиваются одинаково.
@@ -159,7 +158,7 @@ def test_no_dispatch_input_reaches_a_shell_or_an_action():
                     )
 
 
-def test_the_release_carries_every_artifact_the_manifests_will_need():
+def test_the_release_set_is_one_list_read_by_every_check():
     release = _workflow("release.yml")["jobs"]["release"]
 
     assert set(release["env"]["ARTIFACTS"].split()) == RELEASE_ARTIFACTS
@@ -666,11 +665,76 @@ def test_the_converted_document_is_checked_for_a_table_not_a_status_code():
     assert '"|" in content' in convert
 
 
-def test_the_docker_workflow_runs_on_pushes_and_pull_requests():
-    # A check nobody runs is the failure this workflow exists to fix in the
-    # first place; it has to fire on ordinary pushes and PRs, not only on
-    # request.
-    triggers = _workflow("build-docker.yml")["on"]
-    assert "push" in triggers
-    assert "pull_request" in triggers
-    assert "workflow_dispatch" in triggers
+def test_artifacts_no_longer_released_build_only_on_request():
+    """Owner's decision, 2026-10-19: the desktop app, the Docker image and the
+    Scoop channel are no longer released; their workflows stay, their triggers go.
+
+    A push-triggered desktop build would go red on its own bundle check (the
+    package no longer ships trimitdown_pdf), and the daily Scoop check would go
+    red from the first release without a Windows build. Red nobody acts on
+    teaches everyone to ignore red. Restoring any of these triggers without
+    reviving the product fails here. Still dispatchable, so the code can be
+    exercised by hand.
+    """
+    for name in ("build-macos.yml", "build-windows.yml", "build-docker.yml",
+                 "scoop-manifest.yml"):
+        triggers = _workflow(name)["on"]
+        assert set(triggers) <= {"workflow_dispatch", "workflow_call"}, (
+            f"{name} fires on its own again: {sorted(triggers)}"
+        )
+        assert "workflow_dispatch" in triggers, f"{name} can no longer be run by hand"
+
+
+def test_the_package_release_does_not_wait_for_desktop_builds():
+    """The package is published from the draft release, so the draft must not
+    depend on builds that are no longer the product.
+
+    Fails if release.yml calls a desktop build again or the release job waits
+    on anything but the package (verified by restoring the macos job).
+    """
+    jobs = _workflow("release.yml")["jobs"]
+    assert jobs["release"]["needs"] == ["package"]
+    called = [job.get("uses", "") for job in jobs.values()]
+    assert not [u for u in called if "build-macos" in u or "build-windows" in u]
+    downloads = [step.get("with", {}).get("pattern") for step in jobs["release"]["steps"]
+                 if str(step.get("uses", "")).startswith("actions/download-artifact")]
+    assert "TrimItDown-*" not in downloads, "the release still waits for desktop files"
+
+
+def test_the_installed_package_writes_a_review_directory_before_release():
+    """The review hand-off ships as package data and a second code path.
+
+    A wheel without review_rule.md, or a route that stopped sending a page with
+    no text layer to review, passes the table smoke above. This one does not:
+    both distributions write a review directory for a scan and the manifest is
+    read back. Fails if the step is removed or reduced to an exit status.
+    """
+    steps = _workflow("release.yml")["jobs"]["package"]["steps"]
+    scripts = "\n".join(_script(step) for step in steps if step.get("run"))
+
+    assert "scanned_image_page" in scripts
+    assert "convert scan.pdf --review-dir" in scripts
+    assert "REVIEW.md" in scripts
+    assert 'page["path"] == "scan"' in scripts
+    assert "whl tar.gz" in scripts
+
+
+def test_the_pdf_inspector_canary_tests_the_newest_release_and_fails_on_movement():
+    """The engine is pinned exactly; this is what keeps the pin from ageing silently.
+
+    The upgrade has to come after the install that brings the pin, or the job
+    tests the pinned version forever. Movement has to fail the job, or nobody
+    reads it -- the same choice as dependency-lock-latest.yml.
+    """
+    canary = _workflow("pdf-inspector-latest.yml")
+    assert "schedule" in canary["on"]
+    steps = canary["jobs"]["latest"]["steps"]
+    names = [step.get("name") for step in steps]
+    install = names.index("Install dependencies")
+    upgrade = names.index("Upgrade to the latest pdf-inspector")
+    suite = names.index("Run the portable suite")
+    assert install < upgrade < suite
+    assert "pip install -U pdf-inspector" in _script(steps[upgrade])
+    report = _script(_step("pdf-inspector-latest.yml", "latest", "Report pdf-inspector movement"))
+    assert '[ "$pinned" = "$latest" ]' in report
+    assert report.rstrip().endswith("exit 1")

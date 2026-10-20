@@ -145,6 +145,16 @@ def test_convert_path_does_not_import_fastapi():
 # Маршрутизация и оценка приехали сюда из tests/test_converter.py вместе с самой
 # логикой: они проверяют ядро, а не HTTP. Держать их на веб-слое значило бы
 # патчить имена на модуле, который этими объектами больше не владеет.
+#
+# Since 0.2 the PDF side is trimitdown.pdf_route. These tests replace route_pdf
+# on the convert module with a one-page accept route, so they still say only
+# which way a file goes; how pages are routed is test_pdf_route.py's business.
+def _fake_route(text):
+    from trimitdown.pdf_route import PageRoute
+
+    return lambda path: [PageRoute(page=1, path="accept", reasons=(), text=text)]
+
+
 class TestPdfRouting:
     def test_pdf_routes_through_pdf_extract(self, monkeypatch):
         class Boom:
@@ -152,12 +162,12 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a .pdf")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".pdf")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_uppercase_suffix_still_routes_through_pdf_extract(self, monkeypatch):
         # Суффикс приходит с диска/имени файла как есть -- нормализация регистра
@@ -171,12 +181,12 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a .PDF")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".PDF")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_non_pdf_still_routes_through_markitdown(self, monkeypatch):
         class FakeResult:
@@ -186,7 +196,7 @@ class TestPdfRouting:
             raise AssertionError("pdf_extract must not see a .docx")
 
         monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(pure, "pdf_to_markdown", boom)
+        monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"fake docx bytes", ".docx")
 
@@ -204,7 +214,7 @@ class TestPdfRouting:
             raise AssertionError("pdf_extract must not see non-PDF content")
 
         monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-        monkeypatch.setattr(pure, "pdf_to_markdown", boom)
+        monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"<html>not really a pdf</html>", ".pdf")
 
@@ -221,15 +231,15 @@ class TestPdfRouting:
                 raise AssertionError("markitdown must not see a real PDF with an offset marker")
 
         monkeypatch.setattr(pure, "md", Boom())
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# From pdfplumber\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
         result = convert_bytes(pdf_fixtures.offset_pdf_marker(), ".pdf")
 
-        assert result.text == "# From pdfplumber\n"
+        assert result.text == "# From the PDF route\n"
 
     def test_pdf_gets_before_estimate(self, monkeypatch):
-        monkeypatch.setattr(pure, "pdf_to_markdown", lambda path: "# Scanned doc\n")
+        monkeypatch.setattr(pure, "route_pdf", _fake_route("# Scanned doc\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 4)
 
         result = convert_bytes(b"%PDF-1.4 fake pdf bytes", ".pdf")
@@ -268,3 +278,50 @@ class TestEstimateBeforeTokens:
         monkeypatch.setattr(pure, "_count_pdf_pages", boom)
 
         assert pure._estimate_before_tokens(".pdf", "dummy.pdf") == (None, None, None)
+
+
+def test_converting_a_pdf_loads_no_ml_model(tmp_path):
+    """A PDF must not wake markitdown, magika or onnxruntime.
+
+    markitdown loads magika, which loads an ONNX model through onnxruntime. The
+    PDF route needs none of it. When markitdown was built at import, every call
+    paid for the model and, on GitHub's Linux runners, onnxruntime printed a
+    coloured warning into the stderr the CLI summary owns. Building it at import
+    again must fail this test (verified by doing so). Run in a fresh interpreter:
+    another test may already have imported markitdown into this one.
+    """
+    import subprocess
+    import sys
+
+    import pdf_fixtures
+
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(pdf_fixtures.ruled_table())
+    probe = (
+        "import sys\n"
+        "from trimitdown.convert import convert_path\n"
+        f"convert_path({str(pdf)!r})\n"
+        "print(sorted(m for m in ('markitdown', 'magika', 'onnxruntime') if m in sys.modules))\n"
+    )
+    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=300)
+
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.strip() == "[]"
+
+
+def test_an_office_format_without_the_extra_says_what_to_install(tmp_path, monkeypatch):
+    """Without markitdown the error names the extra, not an import failure.
+
+    markitdown is the `office` extra since 0.2.0; on Python 3.15 it cannot be
+    installed at all yet. A bare ImportError would leave an agent guessing.
+    Removing the ImportError handling must fail this test (verified).
+    """
+    import pytest
+
+    monkeypatch.setitem(sys.modules, "markitdown", None)
+    monkeypatch.setattr(pure, "md", pure._LazyMarkItDown())
+    doc = tmp_path / "note.txt"
+    doc.write_text("hello", encoding="utf-8")
+
+    with pytest.raises(pure.ConversionError, match=r"trimitdown\[office\]"):
+        pure.convert_path(doc)
