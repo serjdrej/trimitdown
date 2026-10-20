@@ -144,8 +144,14 @@ From Python: `trimitdown.review.prepare_review`, `assemble` and `render_pages`.
   Latin is still caught: that is a loss of Cyrillic.
 - Text under an image (an OCR layer of a different shape, or text an overlay was meant to hide)
   is accepted as text; the review manifest records how much of each page is under images.
-- The garbage detector behind `corrupt` uses conservative thresholds that have not been
-  measured on real documents.
+- The garbage detector behind `corrupt` raised no false alarm on 2,795 real pages, but how
+  well it catches a genuinely broken text layer has not been measured: no such page was in
+  the test corpora.
+- Slower than pdf-inspector alone, because every page is also decoded by pypdf to catch a
+  silent loss. On 180 pages of Russian tax forms the route took 62 s against 5.6 s; on the
+  200-document benchmark, 48 ms per document against 7. pdfium as the second decoder makes the
+  same decisions on every real page measured and is about five times faster, but it shares
+  pdf-inspector's blind spot on text carried by `ActualText`, so it is not used.
 - Password-protected PDFs are refused.
 
 ## Earlier releases
