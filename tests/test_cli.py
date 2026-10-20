@@ -217,7 +217,24 @@ def test_assemble_round_trip(tmp_path):
     assert result.returncode == 0, result.stderr
     text = done.read_text(encoding="utf-8")
     assert "three\n" in text and "five\n" in text
-    assert "<!-- page" not in text
+    # Pages stay citable: one anchor per page, in order (0.2.0 dropped them all).
+    assert re.findall(r"^<!-- page (\d+) -->$", text, re.M) == [str(n) for n in range(1, 8)]
+
+    bare = tmp_path / "bare.md"
+    assert run(["assemble", str(out), "-o", str(bare), "--no-page-anchors"]).returncode == 0
+    assert "<!-- page" not in bare.read_text(encoding="utf-8")
+
+
+def test_convert_page_anchors_marks_every_page(tmp_path):
+    """Opt-in: the default stays byte-identical to pdf-inspector; with the flag
+    each page is citable. Fails if the flag is ignored or leaks into the default."""
+    pdf = _mixed(tmp_path)
+    anchored = run(["convert", str(pdf), "--page-anchors"])
+    plain = run(["convert", str(pdf)])
+
+    assert anchored.returncode == 0 and plain.returncode == 0
+    assert re.findall(r"^<!-- page (\d+) -->$", anchored.stdout, re.M) == [str(n) for n in range(1, 8)]
+    assert "<!-- page" not in plain.stdout
 
 
 def test_render_writes_page_images(tmp_path):

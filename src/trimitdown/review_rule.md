@@ -18,8 +18,11 @@ on.
 | `candidates/pNNNN.txt` | the candidate text of that page; may be empty |
 | `reviewed/` | **the only place you write** |
 
-Pages to review are the ones with `"review": true` in the manifest. Page numbers
-count from 1, from the start of the PDF, everywhere.
+Pages to review are the ones with `"review": true` in the manifest. Write only
+those. If your own procedure writes every page, a page that was not sent may
+appear as its header line alone; it is ignored. Text for such a page is refused:
+it comes from the PDF's own layer. Page numbers count from 1, from the start of
+the PDF, everywhere.
 
 ## Before you start
 
@@ -117,8 +120,10 @@ Also write:
 
     trimitdown assemble <this directory> -o document.md
 
-puts each reviewed page in place of its marker in `document.md` and refuses,
-with a message, a page that was not sent for review or that appears twice.
+puts each reviewed page in place of its marker in `document.md`, keeps the
+`<!-- page N -->` line at the start of every page so the result can be cited by
+page (`--no-page-anchors` drops it), and refuses, with a message, text for a page
+that was not sent for review or a page that appears twice.
 Pages left unreviewed make it stop and list them; `--allow-missing` keeps
 their unverified text and markers instead.
 

@@ -7,6 +7,7 @@ no .bat. Whether the real Tesseract reads our images as the owner's measurement
 did is checked outside this repository.
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ import pytest
 import route_fixtures as rf
 from trimitdown import review
 from trimitdown.convert import convert_path
+from trimitdown.pdf_route import render_markdown
 from trimitdown.review import ReviewError, assemble, prepare_review, review_rule
 
 # Bound to plain names: a decorator written "@pytest.mark..." at the start of a
@@ -357,7 +359,7 @@ def test_assemble_takes_the_owners_doc_txt_format(prepared):
         "=== стр. 3 ===\nстраница три\n\n=== стр. 4 ===\nстраница четыре\n"
         "=== стр. 5 ===\nстраница пять\n", encoding="utf-8")
 
-    text = assemble(out)
+    text = assemble(out, page_anchors=False)
 
     routes = convert_path(pdf).pages
     expected = [r.text for r in routes]
@@ -410,11 +412,63 @@ def test_assemble_stops_on_unreviewed_pages_unless_allowed(prepared):
     assert "[trimitdown: page 5 has no usable text layer (corrupt)]" in partial
 
 
-def test_an_unreviewed_directory_assembles_to_the_plain_conversion(prepared):
-    # The review directory adds anchors, nothing else: with nothing reviewed it
-    # gives back exactly what convert gives.
+def test_an_unreviewed_directory_assembles_to_the_conversion(prepared):
+    # The review directory adds nothing but the reviewed pages: with nothing
+    # reviewed it gives back exactly what convert gives, with the same anchors.
     pdf, out = prepared
-    assert assemble(out, allow_missing=True) == convert_path(pdf).text
+    routes = list(convert_path(pdf).pages)
+    assert assemble(out, allow_missing=True, page_anchors=False) == convert_path(pdf).text
+    assert assemble(out, allow_missing=True) == render_markdown(routes, page_anchors=True)
+
+
+def test_assemble_keeps_the_page_anchors_by_default(prepared):
+    """A reviewed scan is cited by page; 0.2.0 dropped every anchor here.
+
+    Fails if assemble goes back to joining bare pages (verified), and if a
+    reviewed page loses its own anchor rather than following it.
+    """
+    pdf, out = prepared
+    (out / "reviewed" / "doc.txt").write_text(
+        "=== стр. 3 ===\nтри\n=== стр. 4 ===\nчетыре\n=== стр. 5 ===\nпять\n", encoding="utf-8")
+
+    text = assemble(out)
+
+    pages = [r.page for r in convert_path(pdf).pages]
+    assert [int(n) for n in re.findall(r"^<!-- page (\d+) -->$", text, re.M)] == pages
+    assert "<!-- page 3 -->\nтри\n" in text and "<!-- page 5 -->\nпять\n" in text
+    assert "<!-- page" not in assemble(out, page_anchors=False)
+
+
+def test_document_md_and_anchored_conversion_are_one_format(prepared):
+    # One function builds both, so a review directory's document.md is what
+    # convert --page-anchors prints. Fails if the two formats drift apart.
+    pdf, out = prepared
+    routes = list(convert_path(pdf).pages)
+    assert (out / "document.md").read_text(encoding="utf-8") == render_markdown(routes, page_anchors=True)
+
+
+def test_assemble_ignores_a_blank_page_that_was_not_sent(prepared):
+    """The owner's procedure writes every page, a blank one as its header alone.
+
+    0.2.0 refused that page as "not sent for review", so a reviewer who followed
+    the rule could not assemble at all. A header with no text is dropped; text
+    for a page that was not sent is still refused (the test above). Fails if
+    the empty page is refused again (verified).
+    """
+    pdf, out = prepared
+    not_sent = [r.page for r in convert_path(pdf).pages if not r.needs_review]
+    blank_header = "".join(f"=== стр. {n} ===\n\n" for n in not_sent)
+    (out / "reviewed" / "doc.txt").write_text(
+        blank_header + "=== стр. 3 ===\nтри\n=== стр. 4 ===\nчетыре\n=== стр. 5 ===\nпять\n",
+        encoding="utf-8")
+
+    text = assemble(out, page_anchors=False)
+
+    assert "три\n" in text and "пять\n" in text
+    plain = convert_path(pdf).pages
+    for r in plain:
+        if not r.needs_review and r.text:
+            assert r.text in text
 
 
 def test_assemble_notices_an_edited_document(prepared):

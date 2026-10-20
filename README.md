@@ -50,6 +50,7 @@ message naming the extra.
 
 ```bash
 trimitdown convert report.pdf -o report.md
+trimitdown convert report.pdf --page-anchors -o report.md   # each page starts with <!-- page N -->
 trimitdown convert - --type pdf < report.pdf     # from a stream
 ```
 
@@ -136,8 +137,9 @@ trimitdown assemble out/ -o report.md
 
 puts each reviewed page in place of its marker. It reads `reviewed/doc.txt` with one
 `=== стр. N ===` (or `=== page N ===`) header per page, or one `reviewed/pNNNN.txt` per page,
-and refuses a page reviewed twice, a page that does not exist or a page that was not sent for
-review.
+and refuses a page reviewed twice, a page that does not exist or text for a page that was not
+sent for review (a bare header for such a page is ignored). The result keeps `<!-- page N -->` at
+the start of every page, so it can be cited by page; `--no-page-anchors` drops it.
 
 Readable text in a text layer does not prove its digits right. For the pages that were not
 sent, `trimitdown render report.pdf --pages 5,7 -o img/` writes page images to check them

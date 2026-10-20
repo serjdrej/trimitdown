@@ -297,9 +297,19 @@ def route_pdf(path: str | Path) -> list[PageRoute]:
     return routes
 
 
-def render_markdown(routes: list[PageRoute]) -> str:
-    """The plain document: page bodies joined the way the benchmark joined
-    pdf-inspector's pages, so an all-accept document is byte-identical to it."""
+PAGE_ANCHOR = "<!-- page {} -->\n"
+
+
+def render_markdown(routes: list[PageRoute], *, page_anchors: bool = False) -> str:
+    """The document: page bodies joined the way the benchmark joined
+    pdf-inspector's pages, so an all-accept document is byte-identical to it.
+
+    With page_anchors each page starts with ``<!-- page N -->`` -- the format of
+    a review directory's document.md, built here so the two cannot drift. A
+    citation needs "page N"; the plain join cannot give it.
+    """
+    if page_anchors:
+        return "\n\n".join(PAGE_ANCHOR.format(route.page) + route.text for route in routes)
     return "\n\n".join(route.text for route in routes)
 
 
