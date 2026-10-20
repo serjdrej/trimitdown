@@ -12,6 +12,36 @@ release **refuses to build** when this file has no section for the requested
 version: before this file the description of the changes was typed in by hand
 and was lost once, together with a recreated draft.
 
+## 0.2.1
+
+### Что изменилось
+
+- **Сборка сохраняет границы страниц.** `trimitdown assemble` в 0.2.0 склеивал страницы и
+  выбрасывал `<!-- page N -->`: сослаться на «стр. N» по выверенному документу было нельзя.
+  Теперь якорь стоит в начале каждой страницы; `--no-page-anchors` убирает его.
+- **`trimitdown convert --page-anchors`** — то же для обычной конвертации PDF. Без ключа вывод
+  прежний, побайтно равный pdf-inspector.
+- **Пустая страница в `reviewed/` больше не останавливает сборку.** Проверяющий, который пишет
+  все страницы, пишет пустую одной строкой заголовка; 0.2.0 отказывал, потому что такая страница
+  не отправлялась на сверку. Строка заголовка без текста пропускается, текст для такой страницы
+  по-прежнему отказ. Правило сверки говорит об этом прямо.
+
+Обе ошибки нашла сессия сверки сканов arbitrazh-ru на выпущенной 0.2.0.
+
+### What changed
+
+- **Assembly keeps the page boundaries.** In 0.2.0 `trimitdown assemble` joined the pages and
+  dropped `<!-- page N -->`, so a reviewed document could not be cited by page. Every page now
+  starts with its anchor; `--no-page-anchors` drops it.
+- **`trimitdown convert --page-anchors`** does the same for a plain PDF conversion. Without the
+  flag the output is unchanged, byte-identical to pdf-inspector.
+- **A blank page in `reviewed/` no longer stops assembly.** A reviewer who writes every page
+  writes a blank one as its header line alone; 0.2.0 refused it because the page was not sent
+  for review. A header without text is skipped; text for such a page is still refused. The
+  review rule now says so.
+
+Both were found on the released 0.2.0 by the arbitrazh-ru scan review session.
+
 ## 0.2.0
 
 ### Что изменилось
