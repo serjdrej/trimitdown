@@ -30,6 +30,7 @@ from pathlib import Path
 
 from trimitdown import __version__
 from trimitdown.pdf_route import (
+    PAGE_ANCHOR,
     REVIEW_COST_PER_PAGE_USD,
     PageRoute,
     open_reference,
@@ -304,7 +305,7 @@ def _stem(page: int) -> str:
 
 
 def _anchor(page: int) -> str:
-    return f"<!-- page {page} -->\n"
+    return PAGE_ANCHOR.format(page)
 
 
 def _sha256(path: Path) -> str:
@@ -580,8 +581,15 @@ def read_reviewed(review_dir: str | Path) -> dict[int, str]:
     return {page: _normalise(body) for page, body in found.items()}
 
 
-def assemble(review_dir: str | Path, *, allow_missing: bool = False) -> str:
-    """The document with every reviewed page in place of its marker."""
+def assemble(review_dir: str | Path, *, allow_missing: bool = False,
+             page_anchors: bool = True) -> str:
+    """The document with every reviewed page in place of its marker.
+
+    Keeps ``<!-- page N -->`` by default: a reviewed scan is the text people cite
+    by page, and 0.2.0 dropped the anchors here, so "page N" could be found only
+    in reviewed/doc.txt. With nothing reviewed the result equals the output of
+    convert with the same page_anchors setting.
+    """
     review_dir = Path(review_dir)
     try:
         manifest = json.loads((review_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -595,6 +603,11 @@ def assemble(review_dir: str | Path, *, allow_missing: bool = False) -> str:
         raise ReviewError("document.md and manifest.json disagree about the pages; one was edited")
 
     reviewed = read_reviewed(review_dir)
+    # A reviewer who writes every page, as the owner's procedure does, writes a
+    # blank page as its header line alone. Such a page carries no text and is
+    # dropped here; only text for a page that was not sent is refused below.
+    reviewed = {page: body for page, body in reviewed.items()
+                if body.strip() or page not in pages or pages[page]["review"]}
     unknown = sorted(set(reviewed) - set(pages))
     if unknown:
         raise ReviewError(f"reviewed text for pages the PDF does not have: {unknown}")
@@ -613,7 +626,8 @@ def assemble(review_dir: str | Path, *, allow_missing: bool = False) -> str:
         )
     out = []
     for page in sorted(pages):
-        out.append(reviewed[page] if page in reviewed else bodies[page])
+        body = reviewed[page] if page in reviewed else bodies[page]
+        out.append(_anchor(page) + body if page_anchors else body)
     return "\n\n".join(out)
 
 

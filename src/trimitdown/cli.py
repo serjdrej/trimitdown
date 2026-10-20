@@ -17,7 +17,7 @@ from pathlib import Path
 
 from trimitdown import __version__
 from trimitdown.convert import ConversionError, convert_bytes, convert_path
-from trimitdown.pdf_route import summary_line
+from trimitdown.pdf_route import render_markdown, summary_line
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -31,6 +31,8 @@ def _build_parser() -> argparse.ArgumentParser:
     convert = sub.add_parser("convert", help="convert one document to markdown")
     convert.add_argument("path", help='file to convert, or "-" to read stdin')
     convert.add_argument("-o", "--output", help="write markdown here instead of stdout")
+    convert.add_argument("--page-anchors", action="store_true",
+                         help="PDF only: start each page with <!-- page N -->, for citing by page")
     convert.add_argument(
         "--type",
         dest="suffix",
@@ -64,6 +66,8 @@ def _build_parser() -> argparse.ArgumentParser:
     assemble = sub.add_parser("assemble", help="put reviewed pages back into the document")
     assemble.add_argument("review_dir", help="a directory written by convert --review-dir")
     assemble.add_argument("-o", "--output", help="write markdown here instead of stdout")
+    assemble.add_argument("--no-page-anchors", action="store_true",
+                          help="drop the <!-- page N --> line that starts each page")
     assemble.add_argument("--allow-missing", action="store_true",
                           help="keep the unverified text of pages nobody reviewed yet")
 
@@ -121,7 +125,7 @@ def _review(args, source: Path, result) -> int:
               "the reviewer transcribes them from the image", file=sys.stderr)
     print(f"review directory: {args.review_dir}", file=sys.stderr)
     if args.output:
-        _write(result.text, args.output)
+        _write(_document_text(args, result), args.output)
     return 0
 
 
@@ -181,15 +185,23 @@ def _run_convert(args) -> int:
         # Silent on a clean document; one line when some page did not come from
         # pdf-inspector, so the change in the output is never invisible.
         print(summary_line(list(result.pages)), file=sys.stderr)
-    _write(result.text, args.output)
+    _write(_document_text(args, result), args.output)
     return 0
+
+
+def _document_text(args, result) -> str:
+    # --page-anchors only means something for a PDF, the one format with pages.
+    if getattr(args, "page_anchors", False) and result.pages:
+        return render_markdown(list(result.pages), page_anchors=True)
+    return result.text
 
 
 def _run_assemble(args) -> int:
     from trimitdown.review import ReviewError, assemble
 
     try:
-        text = assemble(args.review_dir, allow_missing=args.allow_missing)
+        text = assemble(args.review_dir, allow_missing=args.allow_missing,
+                        page_anchors=not args.no_page_anchors)
     except ReviewError as e:
         print(f"could not assemble {args.review_dir}: {e}", file=sys.stderr)
         return 1
