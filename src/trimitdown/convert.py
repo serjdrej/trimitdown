@@ -23,17 +23,22 @@ from trimitdown.pdf_route import PageRoute, render_markdown, route_pdf
 # loads an ONNX model through onnxruntime. A PDF never needs either, yet at
 # import every call -- PDFs included -- paid the model's start-up time, and on
 # GitHub's Linux runners onnxruntime wrote a coloured warning to stderr, where
-# the CLI's one-line summary is meant to be the only thing. Tests replace
-# `md` directly, so the name stays.
-md = None
+# the CLI's one-line summary is meant to be the only thing.
+#
+# `md` stays an object with a `convert` method because tests replace either
+# the object or its method; a stand-in that builds the real one on first call
+# keeps both working.
+class _LazyMarkItDown:
+    _instance = None
+
+    def convert(self, *args, **kwargs):
+        if self._instance is None:
+            from markitdown import MarkItDown
+            self._instance = MarkItDown()
+        return self._instance.convert(*args, **kwargs)
 
 
-def _markitdown():
-    global md
-    if md is None:
-        from markitdown import MarkItDown
-        md = MarkItDown()
-    return md
+md = _LazyMarkItDown()
 
 # Кэш едет внутри пакета как package data. Path(__file__) сработал бы для обычной
 # установки, но не переживает упаковку; resources.files находит его и там, и в
@@ -160,7 +165,7 @@ def convert_path(path: Path | str) -> ConversionResult:
             pages = tuple(route_pdf(path))
             text = render_markdown(list(pages))
         else:
-            text = _markitdown().convert(str(path)).text_content
+            text = md.convert(str(path)).text_content
     except Exception as e:
         raise ConversionError(str(e)) from e
 
