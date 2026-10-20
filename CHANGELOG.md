@@ -36,6 +36,8 @@ and was lost once, together with a recreated draft.
   `trimitdown assemble out/` возвращает выверенные страницы в документ, `trimitdown render`
   пишет картинки страниц для сверки цифр. Сам пакет ничего не распознаёт без Tesseract и
   ничего не сверяет.
+- **`python -m trimitdown`** — та же команда, что `trimitdown`, для окружений, где каталог
+  скриптов не в PATH; правило сверки называет её для обрезков в полном разрешении.
 - **Зависимости.** Вместо `trimitdown-pdf` — `pdf-inspector` (закреплён точно), `pypdf`,
   `pypdfium2`, `Pillow`; все под разрешительными лицензиями.
 - **Десктопное приложение, Docker-сервер и Scoop больше не выпускаются.** Последние сборки —
@@ -63,6 +65,8 @@ from the command line and from Python. **PDF output changes** — check it if yo
   `trimitdown assemble out/` puts reviewed pages back, `trimitdown render` writes page images
   for checking digits. Without Tesseract the package recognises nothing, and it never
   reviews anything itself.
+- **`python -m trimitdown`** runs the same command as `trimitdown`, for environments whose
+  scripts directory is not on PATH; the review rule names it for full-resolution crops.
 - **Dependencies.** `trimitdown-pdf` is replaced by `pdf-inspector` (pinned exactly), `pypdf`,
   `pypdfium2` and `Pillow`, all under permissive licenses.
 - **The desktop app, the Docker server and Scoop are no longer released.** Their last builds

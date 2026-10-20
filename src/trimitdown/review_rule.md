@@ -63,7 +63,9 @@ count from 1, from the start of the PDF, everywhere.
 - **Long codes** (signature and certificate identifiers, VIN, budget codes,
   power-of-attorney numbers): at the size you read the page, characters merge.
   Check them on a crop at full resolution (`trimitdown render` writes 300 dpi
-  images), or write `{{CODE_UNSURE}}`.
+  images; if the `trimitdown` command is not on PATH, `python -m trimitdown
+  render` is the same command). If you cannot make a crop at all, do not read
+  the code off the reduced page: write `{{CODE_UNSURE}}`.
 - **Text under a stamp or a seal**: do not restore it from neighbouring pages.
   Write `{{ILLEGIBLE}}`.
 - **Tables**: if OCR shuffled the cells, rewrite the table from the image row by
@@ -95,6 +97,10 @@ In the text:
   stamp `{{STAMP}}`;
 - running heads and page numbers as on the image;
 - **correct nothing in the original**, not even an obvious typo; add nothing;
+- **the image wins over grammar.** Do not change a word ending, a case or an
+  agreement because the sentence seems to want another one: if the image reads
+  `лицом` where grammar suggests `лицам`, write `лицом`. In a measured run a
+  reviewer did exactly this, unmarked, and it was the one error of the run;
 - an empty page: the header line only.
 
 Also write:
