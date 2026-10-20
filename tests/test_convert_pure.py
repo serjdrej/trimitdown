@@ -278,3 +278,32 @@ class TestEstimateBeforeTokens:
         monkeypatch.setattr(pure, "_count_pdf_pages", boom)
 
         assert pure._estimate_before_tokens(".pdf", "dummy.pdf") == (None, None, None)
+
+
+def test_converting_a_pdf_loads_no_ml_model(tmp_path):
+    """A PDF must not wake markitdown, magika or onnxruntime.
+
+    markitdown loads magika, which loads an ONNX model through onnxruntime. The
+    PDF route needs none of it. When markitdown was built at import, every call
+    paid for the model and, on GitHub's Linux runners, onnxruntime printed a
+    coloured warning into the stderr the CLI summary owns. Building it at import
+    again must fail this test (verified by doing so). Run in a fresh interpreter:
+    another test may already have imported markitdown into this one.
+    """
+    import subprocess
+    import sys
+
+    import pdf_fixtures
+
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(pdf_fixtures.ruled_table())
+    probe = (
+        "import sys\n"
+        "from trimitdown.convert import convert_path\n"
+        f"convert_path({str(pdf)!r})\n"
+        "print(sorted(m for m in ('markitdown', 'magika', 'onnxruntime') if m in sys.modules))\n"
+    )
+    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=300)
+
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.strip() == "[]"

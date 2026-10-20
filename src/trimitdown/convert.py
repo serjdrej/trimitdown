@@ -15,13 +15,25 @@ from pathlib import Path
 
 import tiktoken
 
-from markitdown import MarkItDown
-
 from pptx import Presentation
 
 from trimitdown.pdf_route import PageRoute, render_markdown, route_pdf
 
-md = MarkItDown()
+# Built on first use, never at import. MarkItDown loads magika, and magika
+# loads an ONNX model through onnxruntime. A PDF never needs either, yet at
+# import every call -- PDFs included -- paid the model's start-up time, and on
+# GitHub's Linux runners onnxruntime wrote a coloured warning to stderr, where
+# the CLI's one-line summary is meant to be the only thing. Tests replace
+# `md` directly, so the name stays.
+md = None
+
+
+def _markitdown():
+    global md
+    if md is None:
+        from markitdown import MarkItDown
+        md = MarkItDown()
+    return md
 
 # Кэш едет внутри пакета как package data. Path(__file__) сработал бы для обычной
 # установки, но не переживает упаковку; resources.files находит его и там, и в
@@ -148,7 +160,7 @@ def convert_path(path: Path | str) -> ConversionResult:
             pages = tuple(route_pdf(path))
             text = render_markdown(list(pages))
         else:
-            text = md.convert(str(path)).text_content
+            text = _markitdown().convert(str(path)).text_content
     except Exception as e:
         raise ConversionError(str(e)) from e
 
