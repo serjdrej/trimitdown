@@ -114,7 +114,7 @@ def test_the_output_engine_is_pinned_exactly():
 def test_declared_version_is_the_one_that_ships():
     from trimitdown import __version__
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"
 
 
 def test_version_has_exactly_one_source():
@@ -183,7 +183,7 @@ def test_api_mode_reports_the_package_version():
     from server_app import VERSION
     from trimitdown import __version__
 
-    assert VERSION == __version__ == "0.3.0"
+    assert VERSION == __version__ == "0.3.1"
 
 
 def test_specs_reference_the_package_cache_path():
