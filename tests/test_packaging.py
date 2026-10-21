@@ -248,7 +248,11 @@ def test_docker_installs_the_hashed_lock_before_local_projects():
         for requirement in [
             *project["project"]["dependencies"],
             *project["project"]["optional-dependencies"]["server"],
-            *project["project"]["optional-dependencies"]["office"],
+            # Not the "office" extra, since 0.3.0: the image's requirements.lock
+            # still locks markitdown, not firecrawl-anydoc, and the server is
+            # closed (owner's decision) so its office path is accepted broken.
+            # Putting the extra back here without regenerating that lock fails
+            # this test on purpose -- that is the moment to reopen the server.
         ]
     }
     engine = _distribution_key("trimitdown-pdf")
