@@ -32,13 +32,15 @@ def test_office_extra_carries_no_audio_or_model_stack():
     # extra is anydoc and markdownify; nothing in it may bring a model runtime
     # or an audio stack with it, which was the cost of the markitdown era
     # (magika, onnxruntime, pydub). Naming markitdown, or any of those, in the
-    # extra again must fail this test.
+    # extra again must fail this test. olefile is the one addition since: pure
+    # Python, BSD, and the only way trimitdown.office_inspect can look inside a
+    # DOC; adding anything else to the extra means changing this line on purpose.
     from packaging.requirements import Requirement
 
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = {Requirement(r).name for r in project["project"]["optional-dependencies"]["office"]}
 
-    assert names == {"firecrawl-anydoc", "markdownify"}
+    assert names == {"firecrawl-anydoc", "markdownify", "olefile"}
 
 
 def test_library_dependencies_are_not_exact_pins():
@@ -112,7 +114,7 @@ def test_the_output_engine_is_pinned_exactly():
 def test_declared_version_is_the_one_that_ships():
     from trimitdown import __version__
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"
 
 
 def test_version_has_exactly_one_source():
@@ -181,7 +183,7 @@ def test_api_mode_reports_the_package_version():
     from server_app import VERSION
     from trimitdown import __version__
 
-    assert VERSION == __version__ == "0.3.0"
+    assert VERSION == __version__ == "0.3.1"
 
 
 def test_specs_reference_the_package_cache_path():

@@ -95,8 +95,9 @@ def test_anydoc_is_called_with_ocr_reject_and_no_credentials(tmp_path, monkeypat
         return "# stub\n"
 
     monkeypatch.setattr(anydoc, "to_markdown", recording)
-    doc = tmp_path / "x.docx"
-    doc.write_bytes(b"PK")
+    # A real DOCX, not b"PK": the inspection that runs before anydoc has to
+    # succeed for the stub's answer to be printed at all.
+    doc = _docx_with_table(tmp_path / "x.docx")
 
     assert convert_path(doc).text == "# stub\n"
     assert calls == [((str(doc),), {"ocr": "reject"})]

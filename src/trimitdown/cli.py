@@ -10,6 +10,7 @@ pages it cannot vouch for), `assemble` (putting reviewed pages back) and
 `render` (page images on demand, for checking digits on text-layer pages).
 """
 import argparse
+import json
 import os
 import sys
 import tempfile
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from trimitdown import __version__
 from trimitdown.convert import ConversionError, convert_bytes, convert_path
+from trimitdown.office_inspect import summary_phrase
 from trimitdown.pdf_route import render_markdown, summary_line
 
 
@@ -37,6 +39,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--type",
         dest="suffix",
         help='file extension for stdin input, e.g. ".pdf" -- required with "-"',
+    )
+    convert.add_argument(
+        "--accept-changes",
+        action="store_true",
+        help="DOCX only: convert a document with unresolved tracked changes anyway and "
+             "print the text with every change accepted (the default is to refuse). "
+             "DOC and RTF with tracked changes are refused either way",
+    )
+    convert.add_argument(
+        "--report", metavar="PATH",
+        help="write a JSON report (format, tracked changes, what the Markdown leaves out; "
+             "for a PDF, page counts per route) to PATH when the conversion succeeds",
     )
     review = convert.add_argument_group(
         "review (PDF only)",
@@ -153,9 +167,9 @@ def _run_convert(args) -> int:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(data)
                     temp_path = Path(tmp.name)
-                result = convert_path(temp_path)
+                result = convert_path(temp_path, accept_changes=args.accept_changes)
             else:
-                result = convert_bytes(data, suffix)
+                result = convert_bytes(data, suffix, accept_changes=args.accept_changes)
         except ConversionError as e:
             if temp_path is not None:
                 temp_path.unlink(missing_ok=True)
@@ -168,13 +182,19 @@ def _run_convert(args) -> int:
             print(f"no such file: {path}", file=sys.stderr)
             return 1
         try:
-            result = convert_path(path)
+            result = convert_path(path, accept_changes=args.accept_changes)
         except ConversionError as e:
             print(f"could not convert {path}: {e}", file=sys.stderr)
             return 1
         source = path
 
     try:
+        if args.report:
+            try:
+                _write_report(result, args.report)
+            except OSError as e:
+                print(f"could not write the report: {e}", file=sys.stderr)
+                return 1
         if args.review_dir:
             return _review(args, source, result)
     finally:
@@ -185,8 +205,24 @@ def _run_convert(args) -> int:
         # Silent on a clean document; one line when some page did not come from
         # pdf-inspector, so the change in the output is never invisible.
         print(summary_line(list(result.pages)), file=sys.stderr)
+    _print_office_summary(result)
     _write(_document_text(args, result), args.output)
     return 0
+
+
+def _print_office_summary(result) -> None:
+    # The same words as the <!-- trimitdown: ... --> line at the top of the
+    # Markdown, built from the same report. Silent when there is nothing to say.
+    phrase = summary_phrase(result.report or {})
+    if phrase:
+        print(f"trimitdown: {phrase}", file=sys.stderr)
+
+
+def _write_report(result, path: str) -> None:
+    report = result.report if result.report is not None else {"schema": 1}
+    Path(path).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def _document_text(args, result) -> str:

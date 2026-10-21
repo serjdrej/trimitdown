@@ -157,7 +157,7 @@ def _fake_route(text):
 
 class TestPdfRouting:
     def test_pdf_routes_through_pdf_extract(self, monkeypatch):
-        def boom(path, suffix, head):
+        def boom(*args, **kwargs):
             raise AssertionError("the office/text path must not see a .pdf")
 
         monkeypatch.setattr(pure, "_convert_other", boom)
@@ -175,7 +175,7 @@ class TestPdfRouting:
         # регистре, так что удаление этой нормализации в convert_path останется
         # незамеченным без этого теста: файл "отчёт.PDF" молча уйдёт в
         # office-пути вместо нашего экстрактора.
-        def boom(path, suffix, head):
+        def boom(*args, **kwargs):
             raise AssertionError("the office/text path must not see a .PDF")
 
         monkeypatch.setattr(pure, "_convert_other", boom)
@@ -190,7 +190,10 @@ class TestPdfRouting:
         def boom(path):
             raise AssertionError("the PDF route must not see a .docx")
 
-        monkeypatch.setattr(pure, "_anydoc_to_markdown", lambda path: "# From anydoc\n")
+        monkeypatch.setattr(
+            pure, "_anydoc_to_markdown",
+            lambda *args, **kwargs: ("# From anydoc\n", {"schema": 1, "format": "docx"}),
+        )
         monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"fake docx bytes", ".docx")
@@ -218,7 +221,7 @@ class TestPdfRouting:
         # pdfplumber parses them fine. A byte-0-anchored check would send
         # these to the office path, recreating the exact defects this extractor
         # exists to remove. The signature check must scan a window instead.
-        def boom(path, suffix, head):
+        def boom(*args, **kwargs):
             raise AssertionError("the office/text path must not see a real PDF with an offset marker")
 
         monkeypatch.setattr(pure, "_convert_other", boom)
