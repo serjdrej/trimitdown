@@ -123,6 +123,15 @@ fails without saying so.
 - anydoc (the `office` extra) detects the format from content, and a non-PDF
   misnamed `.pdf` reaches it or the HTML sniffer, not the PDF route. A routing
   check keyed on the suffix alone breaks that file.
+- anydoc drops tracked changes, comments, headers and footers without a word: a
+  DOCX loses the deleted wording and keeps the inserted one, a DOC or RTF prints
+  both as live text, and nothing says a revision or a comment existed. Its
+  document model has no place for them, so it cannot be asked.
+  `office_inspect.py` looks at the file first and `convert.py` refuses, accepts
+  or notes what it found. Do not route around it -- a "faster" path that hands
+  the file straight to anydoc brings back a struck-out clause that reads as in
+  force. Inspection that fails refuses the document; it never means "nothing
+  found".
 - anydoc has an `ocr="hosted"` mode that uploads the **whole document** to
   Firecrawl. `convert.py` passes `ocr="reject"` and no key, and a test asserts
   the exact call; a refactor that drops the argument still works offline and

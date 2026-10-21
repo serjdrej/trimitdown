@@ -12,6 +12,62 @@ release **refuses to build** when this file has no section for the requested
 version: before this file the description of the changes was typed in by hand
 and was lost once, together with a recreated draft.
 
+## 0.3.1
+
+### Что изменилось
+
+- **Исправления в DOCX, DOC и RTF больше не теряются молча.** anydoc не видит исправлений: из
+  DOCX он выбрасывал удалённое и оставлял вставленное, не сказав, что исправления были; из DOC и
+  RTF печатал удалённую формулировку рядом со вставленной, как действующую. Замер на синтетических
+  документах Word 365 (проверка по `Revisions`, `Comments`, `InlineShapes`). Теперь файл
+  проверяется до anydoc, и **документ с неразрешёнными исправлениями отклоняется** с числом вставок
+  и удалений в сообщении.
+- **`--accept-changes`** (`accept_changes=True` в Python) конвертирует **DOCX** с принятием всех
+  исправлений. Для DOC и RTF ключ не помогает — они отклоняются: anydoc не отдаёт у них принятый
+  вариант; сохраните файл как DOCX в Word. Ключ отказывается и от тех конструкций DOCX, где текст
+  anydoc не равен «принять все» в Word (удалённая строка или ячейка таблицы, удалённый пункт
+  списка, удалённый разрыв абзаца).
+- **Пропущенное названо.** Колонтитулы с текстом, примечания и изображения anydoc тоже выбрасывал
+  молча. Теперь вывод начинается строкой
+  `<!-- trimitdown: omitted 2 header/footer parts, 1 comment, 1 image -->` (только ненулевое; с
+  `--accept-changes` в ней ещё сколько вставок и удалений принято), те же числа идут в stderr.
+- **`--report PATH`** пишет JSON-отчёт (схема 1): формат, исправления, пропущенное; для PDF —
+  формат и счётчики страниц по маршрутам. Описание в README.
+- **ODT отклоняется.** На документе, сохранённом из Word как ODT, нумерация второго уровня не
+  начинается заново (`2.1.` → `2.3.`, `a)` → `c)`), а примечание с автором и датой вклеивается в
+  слово. ODS и ODP не затронуты.
+- Не изменилось и закреплено тестами: нумерация DOCX/DOC/RTF печатается ровно так, как её
+  показывает Word (`1.`, `1.1.`, `1.2.1.`, список с `5.`), сноски и объединённые ячейки целы.
+- В опцию `office` добавлен `olefile` (BSD, чистый Python): им читается составной файл DOC.
+
+### What changed
+
+- **Tracked changes in DOCX, DOC and RTF are no longer lost silently.** anydoc cannot see
+  revisions: from a DOCX it dropped the deleted wording and kept the inserted one without saying
+  revisions had existed; from a DOC or RTF it printed the deleted wording next to the inserted one,
+  as if in force. Measured on synthetic Word 365 documents (checked against `Revisions`,
+  `Comments`, `InlineShapes`). The file is now inspected before anydoc, and **a document with
+  unresolved tracked changes is refused**, with the counts of insertions and deletions in the
+  message.
+- **`--accept-changes`** (`accept_changes=True` in Python) converts a **DOCX** with every change
+  accepted. For DOC and RTF the flag does not help -- they are refused: anydoc has no accepted
+  reading of them; save the file as DOCX in Word. The flag also declines the DOCX constructs where
+  anydoc's text differs from Word's "accept all" (a deleted table row or cell, a deleted list
+  item, a deleted paragraph break).
+- **What is left out is named.** anydoc also dropped headers and footers with text, comments and
+  images without a word. The output now starts with a line such as
+  `<!-- trimitdown: omitted 2 header/footer parts, 1 comment, 1 image -->` (non-zero parts only;
+  with `--accept-changes` it also says how many insertions and deletions were accepted), and the
+  same counts go to stderr.
+- **`--report PATH`** writes a JSON report (schema 1): format, tracked changes, what is left out;
+  for a PDF, the format and the page counts per route. Documented in the README.
+- **ODT is refused.** On a document saved from Word as ODT, second-level numbering does not
+  restart (`2.1.` became `2.3.`, `a)` became `c)`) and a comment with its author and date is
+  pasted into a word. ODS and ODP are not affected.
+- Unchanged, and now pinned by tests: DOCX/DOC/RTF numbering is printed exactly as Word shows it
+  (`1.`, `1.1.`, `1.2.1.`, a list starting at `5.`); footnotes and merged cells are intact.
+- `olefile` (BSD, pure Python) joins the `office` extra: it reads the compound file of a DOC.
+
 ## 0.3.0
 
 ### Что изменилось

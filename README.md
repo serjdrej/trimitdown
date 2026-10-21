@@ -75,6 +75,68 @@ through unchanged, as UTF-8. Outlook `.msg`, JSON, XML, ZIP, images and audio ar
 Documents are never sent anywhere: scanned pages in an office file are refused, not OCR-ed in a
 cloud.
 
+## Word and RTF: tracked changes and what the text leaves out
+
+A converter that drops a struck-out wording, or prints it next to the new one, makes a document
+read the wrong way. Before anydoc reads a DOCX, DOC or RTF, trimitdown looks at the file itself
+and counts what Markdown cannot carry.
+
+- **Unresolved tracked changes are refused** (non-zero exit, `ConversionError` in Python), and the
+  message names the counts: `1 insertion, 1 deletion`. Accept or reject the changes in Word and
+  save the file again, or convert with every change accepted:
+
+  ```bash
+  trimitdown convert contract.docx --accept-changes -o contract.md
+  ```
+
+  ```python
+  convert_path("contract.docx", accept_changes=True)
+  ```
+
+  The flag works for **DOCX only**, because only there is anydoc's output the accepted reading
+  (checked on files made in Word). A **DOC or RTF** with tracked changes is refused even with the
+  flag: it would print the deleted wording as if it were in force. Save it as DOCX in Word and
+  convert that. Even for a DOCX the flag declines the few constructs where anydoc's text is not
+  what Word's "accept all" gives (a deleted table row or cell, a deleted list item, a deleted
+  paragraph break that joins two paragraphs); the message names which. Formatting-only changes
+  (bold, alignment) are not tracked changes here: they leave every character as it was.
+- **What the Markdown leaves out is said, not hidden.** When a document has header or footer
+  parts with text, comments or images, the output starts with one line, listing only the non-zero
+  parts, and the same words go to stderr:
+
+  ```
+  <!-- trimitdown: accepted 1 insertion, 1 deletion; omitted 2 header/footer parts, 1 comment, 1 image -->
+  ```
+
+  Nothing is written when there is nothing to say. A header or footer part counts when it holds
+  printable text (a page number is text); the empty first-page and even-page headers Word writes
+  into every file do not. RTF repeats headers for every section, so a many-section RTF counts more
+  parts than the same document as DOCX. Footnotes and endnotes are carried and are not
+  "omitted". Images inside headers, footers and comments go with them.
+- **`--report PATH`** writes a JSON report for a program that wants the same facts (only when the
+  conversion succeeded; a refusal writes nothing):
+
+  ```json
+  {
+    "schema": 1,
+    "format": "docx",
+    "tracked_changes": {"present": true, "insertions": 1, "deletions": 1, "accepted": true},
+    "omitted": {"headers_footers": 2, "comments": 1, "images": 1}
+  }
+  ```
+
+  `format` is the format found in the file's content (`docx`, `doc`, `rtf`, `pdf`, `html`, `txt`,
+  `xlsx`, ...). `tracked_changes` and `omitted` appear for DOCX, DOC and RTF only; `accepted` is
+  true when `--accept-changes` was given and there were changes to accept. For a PDF the report
+  has `format` and `pages`, the per-route counts the command already prints
+  (`{"total": 7, "accept": 5, "substitute": 1, "scan": 1, "corrupt": 0, "blank": 0}`); the
+  Python result carries the same dictionary as `result.report`. Counts of insertions and
+  deletions are runs of changes, as Word counts revisions: text typed together with its paragraph
+  break is one insertion.
+- **ODT is refused** until anydoc reads it correctly: measured on a document saved from Word,
+  second-level numbering does not restart (`2.1.` became `2.3.`) and a comment is pasted into the
+  middle of a word. Save the document as DOCX. ODS and ODP are converted as before.
+
 ## How PDFs are handled
 
 PDFs go through [pdf-inspector](https://pypi.org/project/pdf-inspector/), which gave the best
