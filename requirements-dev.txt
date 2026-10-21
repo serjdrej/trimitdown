@@ -10,3 +10,14 @@ tomli; python_version < "3.11"
 # Регулярками по YAML это делается только на глаз: закомментированный шаг от
 # живого регуляркой неотличим, и проверка молча зеленеет.
 pyyaml
+# The office extra (pyproject.toml), spelled out here because CI installs only
+# this file and the office tests must RUN there: the suite asserts zero skips,
+# so a missing converter would be a red run, not a quiet one. The pin matches the
+# extra's; tests/test_packaging.py fails if the two drift apart. requirements.txt
+# still carries markitdown for the desktop and server code, which are closed.
+firecrawl-anydoc==0.2.4
+markdownify>=1.2
+# Fixture writers: the office tests build their DOCX and XLSX in the test rather
+# than committing binary documents.
+python-docx
+openpyxl

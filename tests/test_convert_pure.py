@@ -41,7 +41,7 @@ def test_convert_bytes_matches_convert_path(tmp_path):
 
 def test_convert_bytes_cleans_up_its_temp_file(monkeypatch):
     # convert_bytes writes the caller's bytes into a NamedTemporaryFile(delete=False)
-    # because both markitdown and our own PDF engine read from a path, not bytes.
+    # because both anydoc and our own PDF engine read from a path, not bytes.
     # Nothing else ever references that path once convert_path returns, so if the
     # cleanup is ever dropped, every conversion silently leaves a copy of the
     # uploaded document behind in the system temp directory -- a privacy leak that
@@ -157,11 +157,10 @@ def _fake_route(text):
 
 class TestPdfRouting:
     def test_pdf_routes_through_pdf_extract(self, monkeypatch):
-        class Boom:
-            def convert(self, path):
-                raise AssertionError("markitdown must not see a .pdf")
+        def boom(path, suffix, head):
+            raise AssertionError("the office/text path must not see a .pdf")
 
-        monkeypatch.setattr(pure, "md", Boom())
+        monkeypatch.setattr(pure, "_convert_other", boom)
         monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
@@ -175,12 +174,11 @@ class TestPdfRouting:
         # Каждый другой тест в этом классе передаёт литерал ".pdf" уже в нижнем
         # регистре, так что удаление этой нормализации в convert_path останется
         # незамеченным без этого теста: файл "отчёт.PDF" молча уйдёт в
-        # markitdown вместо нашего экстрактора.
-        class Boom:
-            def convert(self, path):
-                raise AssertionError("markitdown must not see a .PDF")
+        # office-пути вместо нашего экстрактора.
+        def boom(path, suffix, head):
+            raise AssertionError("the office/text path must not see a .PDF")
 
-        monkeypatch.setattr(pure, "md", Boom())
+        monkeypatch.setattr(pure, "_convert_other", boom)
         monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
@@ -188,49 +186,42 @@ class TestPdfRouting:
 
         assert result.text == "# From the PDF route\n"
 
-    def test_non_pdf_still_routes_through_markitdown(self, monkeypatch):
-        class FakeResult:
-            text_content = "# From markitdown\n"
-
+    def test_non_pdf_still_routes_through_anydoc(self, monkeypatch):
         def boom(path):
-            raise AssertionError("pdf_extract must not see a .docx")
+            raise AssertionError("the PDF route must not see a .docx")
 
-        monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
+        monkeypatch.setattr(pure, "_anydoc_to_markdown", lambda path: "# From anydoc\n")
         monkeypatch.setattr(pure, "route_pdf", boom)
 
         result = convert_bytes(b"fake docx bytes", ".docx")
 
-        assert result.text == "# From markitdown\n"
+        assert result.text == "# From anydoc\n"
 
-    def test_pdf_named_file_without_pdf_signature_routes_to_markitdown(self, monkeypatch):
-        # markitdown dispatches by sniffing content, so an HTML/TXT file
-        # misnamed ".pdf" used to convert fine through markitdown. Routing on
-        # the suffix alone would silently 422 it instead; the %PDF magic-byte
-        # check must fall through to markitdown for this case.
-        class FakeResult:
-            text_content = "# From markitdown\n"
-
+    def test_pdf_named_file_without_pdf_signature_leaves_the_pdf_route(self, monkeypatch):
+        # A page saved with the wrong extension used to convert fine. Routing on
+        # the suffix alone would refuse it instead; the %PDF magic-byte check
+        # must hand it to the non-PDF path, which here sniffs it as HTML. The
+        # real HTML converter runs (no stub), so a route that sent it anywhere
+        # else would not produce the heading.
         def boom(path):
-            raise AssertionError("pdf_extract must not see non-PDF content")
+            raise AssertionError("the PDF route must not see non-PDF content")
 
-        monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
         monkeypatch.setattr(pure, "route_pdf", boom)
 
-        result = convert_bytes(b"<html>not really a pdf</html>", ".pdf")
+        result = convert_bytes(b"<html><body><h1>Not a PDF</h1></body></html>", ".pdf")
 
-        assert result.text == "# From markitdown\n"
+        assert result.text == "# Not a PDF"
 
     def test_pdf_with_offset_marker_still_routes_to_pdf_extract(self, monkeypatch):
         # The %PDF marker is not guaranteed to sit at byte 0 -- real PDFs can
         # have a leading \r\n (or other junk) before the header, and
         # pdfplumber parses them fine. A byte-0-anchored check would send
-        # these to markitdown, recreating the exact defects this extractor
+        # these to the office path, recreating the exact defects this extractor
         # exists to remove. The signature check must scan a window instead.
-        class Boom:
-            def convert(self, path):
-                raise AssertionError("markitdown must not see a real PDF with an offset marker")
+        def boom(path, suffix, head):
+            raise AssertionError("the office/text path must not see a real PDF with an offset marker")
 
-        monkeypatch.setattr(pure, "md", Boom())
+        monkeypatch.setattr(pure, "_convert_other", boom)
         monkeypatch.setattr(pure, "route_pdf", _fake_route("# From the PDF route\n"))
         monkeypatch.setattr(pure, "_count_pdf_pages", lambda path: 1)
 
@@ -280,15 +271,16 @@ class TestEstimateBeforeTokens:
         assert pure._estimate_before_tokens(".pdf", "dummy.pdf") == (None, None, None)
 
 
-def test_converting_a_pdf_loads_no_ml_model(tmp_path):
-    """A PDF must not wake markitdown, magika or onnxruntime.
+def test_converting_a_pdf_imports_neither_anydoc_nor_markdownify(tmp_path):
+    """A PDF must not wake the office converters.
 
-    markitdown loads magika, which loads an ONNX model through onnxruntime. The
-    PDF route needs none of it. When markitdown was built at import, every call
-    paid for the model and, on GitHub's Linux runners, onnxruntime printed a
-    coloured warning into the stderr the CLI summary owns. Building it at import
-    again must fail this test (verified by doing so). Run in a fresh interpreter:
-    another test may already have imported markitdown into this one.
+    anydoc and markdownify (with BeautifulSoup) are the `office` extra; the base
+    install does not have them, so an import at module level would not slow the
+    PDF path down, it would break it. The ML-model argument of the markitdown
+    era (magika, onnxruntime, a coloured stderr warning) is gone with markitdown,
+    but the contract is the same: the PDF route imports none of it. Moving
+    either import to the top of convert.py must fail this test (verified).
+    Run in a fresh interpreter: another test may already have imported them.
     """
     import subprocess
     import sys
@@ -301,7 +293,8 @@ def test_converting_a_pdf_loads_no_ml_model(tmp_path):
         "import sys\n"
         "from trimitdown.convert import convert_path\n"
         f"convert_path({str(pdf)!r})\n"
-        "print(sorted(m for m in ('markitdown', 'magika', 'onnxruntime') if m in sys.modules))\n"
+        "print(sorted(m for m in ('anydoc', 'markdownify', 'bs4', 'markitdown', 'magika', 'onnxruntime')"
+        " if m in sys.modules))\n"
     )
     run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=300)
 
@@ -310,18 +303,33 @@ def test_converting_a_pdf_loads_no_ml_model(tmp_path):
 
 
 def test_an_office_format_without_the_extra_says_what_to_install(tmp_path, monkeypatch):
-    """Without markitdown the error names the extra, not an import failure.
+    """Without anydoc the error names the extra, not an import failure.
 
-    markitdown is the `office` extra since 0.2.0; on Python 3.15 it cannot be
-    installed at all yet. A bare ImportError would leave an agent guessing.
-    Removing the ImportError handling must fail this test (verified).
+    The converters are the `office` extra; a bare ImportError would leave an
+    agent guessing. Removing the ImportError handling around `import anydoc`
+    must fail this test (verified).
     """
     import pytest
 
-    monkeypatch.setitem(sys.modules, "markitdown", None)
-    monkeypatch.setattr(pure, "md", pure._LazyMarkItDown())
-    doc = tmp_path / "note.txt"
-    doc.write_text("hello", encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "anydoc", None)
+    doc = tmp_path / "report.docx"
+    doc.write_bytes(b"PK\x03\x04 not read, the import fails first")
 
     with pytest.raises(pure.ConversionError, match=r"trimitdown\[office\]"):
         pure.convert_path(doc)
+
+
+def test_html_without_the_extra_says_what_to_install(tmp_path, monkeypatch):
+    """The HTML path has its own lazy import and needs the same message.
+
+    Removing the ImportError handling around `import markdownify` must fail
+    this test (verified).
+    """
+    import pytest
+
+    monkeypatch.setitem(sys.modules, "markdownify", None)
+    page = tmp_path / "page.html"
+    page.write_text("<h1>x</h1>", encoding="utf-8")
+
+    with pytest.raises(pure.ConversionError, match=r"trimitdown\[office\]"):
+        pure.convert_path(page)

@@ -8,10 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from fastapi.testclient import TestClient
 
-# Конверсию подменяем на её собственном модуле: core.converter теперь только
-# зовёт ядро и объектом markitdown не владеет. Сам server_app.py при
-# расщеплении не менялся -- он берёт те же имена из core.converter.
-from trimitdown import convert as pure
+# The conversion core is not stubbed here: these tests upload plain text, which
+# it passes through, so the routes are exercised end to end.
 
 
 @pytest.fixture
@@ -26,11 +24,7 @@ def test_convert_endpoint_converts_and_saves_a_single_file(client, monkeypatch):
     # module ever calls TestClient against plain /api/convert -- every other
     # test here goes through /api/convert-batch, so a deleted or broken
     # single-file route would not fail a single test in this suite.
-    class FakeResult:
-        text_content = "converted"
-
-    monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-
+    # a.txt is plain text, which the core passes through; no converter is stubbed.
     response = client.post(
         "/api/convert",
         files={"file": ("a.txt", io.BytesIO(b"hello"), "text/plain")},
@@ -38,16 +32,11 @@ def test_convert_endpoint_converts_and_saves_a_single_file(client, monkeypatch):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["content"] == "converted"
+    assert body["content"] == "hello"
     assert body["filename"] == "a.md"
 
 
 def test_convert_batch_streams_one_event_per_file(client, monkeypatch):
-    class FakeResult:
-        text_content = "converted"
-
-    monkeypatch.setattr(pure.md, "convert", lambda path: FakeResult())
-
     files = [
         ("files", ("a.txt", io.BytesIO(b"one"), "text/plain")),
         ("files", ("b.txt", io.BytesIO(b"two"), "text/plain")),

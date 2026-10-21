@@ -64,6 +64,9 @@ same line for the review path.
   on its reason identifiers, which upstream does not document. Raising the pin
   is its own commit, after the corpus measurements in `RELEASING.md`; the weekly
   `pdf-inspector-latest.yml` only says that a new version exists.
+  `firecrawl-anydoc` in the `office` extra is pinned exactly for the same
+  reason: its output is what was measured (`CHANGELOG.md`, 0.3.0). Raise it in
+  its own commit after re-measuring.
 - **`packages/trimitdown-pdf/` is frozen.** It is published to PyPI and pinned
   exactly; the package no longer depends on it, the desktop and server code
   still do. Bug fixes are allowed; new algorithmic work is not, without the
@@ -117,8 +120,13 @@ fails without saying so.
 - `tiktoken` does not fail on a missing cache. It downloads over the network,
   so the defect is invisible to anyone with connectivity — including every CI
   runner.
-- `markitdown` dispatches on file content, not extension. A file misnamed
-  `.pdf` still converts; a routing check that assumes otherwise breaks it.
+- anydoc (the `office` extra) detects the format from content, and a non-PDF
+  misnamed `.pdf` reaches it or the HTML sniffer, not the PDF route. A routing
+  check keyed on the suffix alone breaks that file.
+- anydoc has an `ocr="hosted"` mode that uploads the **whole document** to
+  Firecrawl. `convert.py` passes `ocr="reject"` and no key, and a test asserts
+  the exact call; a refactor that drops the argument still works offline and
+  would upload the first scanned DOCX someone hands it.
 - The PDF signature check has been written wrong twice: once as a 5-byte slice
   against a 4-byte literal, once anchored at byte 0 when real files carry the
   marker at an offset. It scans a window for a reason.

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "trimitdown"
 # Единственный источник -- __version__ в модуле, читается статически через AST,
-# без импорта: иначе в build-окружение потянулся бы markitdown.
+# без импорта: иначе в build-окружение потянулись бы зависимости пакета.
 dynamic = ["version"]
 description = "Convert documents to LLM-ready markdown. Per-page checked PDF extraction with a review hand-off for scans, offline, no cloud."
 readme = "README.md"
@@ -60,14 +60,25 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Word, PowerPoint, Excel and Outlook. Not in the base install: markitdown loads
-# magika, magika loads onnxruntime, and onnxruntime has no wheels for Python
-# 3.15 yet -- unbounded, a resolver there silently fell back to markitdown
-# 0.0.2, which lacks these extras, and every office format broke without a
-# word. The lower bound makes that a loud install failure instead. PDFs need
-# none of it. Narrow extras for the reason recorded in requirements.txt: the
-# audio-transcription and Azure extras are heavy and useless offline.
-office = ["markitdown[docx,pdf,pptx,xlsx,xls,outlook]>=0.1"]
+# Word (DOCX and DOC), RTF, ODF, EPUB, Excel (XLSX and XLS), PowerPoint, CSV and
+# HTML. Not in the base install: PDFs need none of it.
+#
+# Until 0.3 this extra was markitdown. It could not be installed on Python 3.15
+# (markitdown -> magika -> onnxruntime, which has no cp315 wheels, and markitdown
+# 0.1.8 itself declares requires-python <3.15), it emitted raw RTF markup for
+# .rtf and did not read .doc at all. A measurement of five converters on twenty
+# files (the same Russian document as DOC, DOCX and RTF, spreadsheets, slides)
+# chose firecrawl-anydoc: all three Word forms give the same Markdown table, the
+# only merged cell placed correctly, Cyrillic intact, one abi3 wheel, no
+# dependencies.
+#
+# firecrawl-anydoc is pinned exactly, like pdf-inspector, and for the same
+# reason: it is a young project and the output is behaviour that was measured.
+# A range would let a rebuild change what every office document turns into,
+# silently. Raising the pin is its own commit, after the measurement is rerun.
+# markdownify (a range: it only renders HTML we have already cleaned) reads
+# .html/.htm; anydoc does not.
+office = ["firecrawl-anydoc==0.2.4", "markdownify>=1.2"]
 # Нужен только тому, кто поднимает HTTP-слой (Docker-образ, десктопная сборка).
 server = ["fastapi", "uvicorn", "python-multipart"]
 

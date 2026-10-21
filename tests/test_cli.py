@@ -39,8 +39,8 @@ def test_output_flag_writes_a_file(tmp_path):
 
 
 def test_stdin_requires_an_explicit_type(tmp_path):
-    # Из потока расширение неоткуда взять, и угадывать нельзя: markitdown
-    # диспетчеризует по содержимому, а наш PDF-путь -- по расширению.
+    # Из потока расширение неоткуда взять, и угадывать нельзя: PDF-путь решает
+    # по расширению, а текст и HTML читаются по нему же.
     result = run(["convert", "-"], input="whatever")
 
     assert result.returncode != 0
