@@ -27,23 +27,18 @@ def test_tiktoken_cache_ships_with_the_package():
     assert "tiktoken_cache/*" in package_data["trimitdown"]
 
 
-def test_package_does_not_pull_audio_dependencies():
-    # Расширения markitdown узкие намеренно: pip/uvx -- канал документов. Из-за
-    # этого pydub в пакет не приезжает, и предупреждение об отсутствующем ffmpeg
-    # пользователю CLI не показывается вовсе -- проверено установкой в чистый
-    # venv. Docker ставит markitdown[all], и там аудио заявлено; расширять
-    # extras пакета до [all] означало бы затащить ML-хвост в тот канал, который
-    # ценен лёгкостью, и вернуть шум в терминал.
-    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    markitdown = next(
-        requirement
-        for requirement in project["project"]["optional-dependencies"]["office"]
-        if _distribution_key(requirement) == "markitdown"
-    )
-    extras = markitdown[markitdown.index("[") + 1 : markitdown.index("]")].split(",")
+def test_office_extra_carries_no_audio_or_model_stack():
+    # pip/uvx is the channel for documents and is valued for being light. The
+    # extra is anydoc and markdownify; nothing in it may bring a model runtime
+    # or an audio stack with it, which was the cost of the markitdown era
+    # (magika, onnxruntime, pydub). Naming markitdown, or any of those, in the
+    # extra again must fail this test.
+    from packaging.requirements import Requirement
 
-    assert "all" not in extras
-    assert "audio-transcription" not in extras
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    names = {Requirement(r).name for r in project["project"]["optional-dependencies"]["office"]}
+
+    assert names == {"firecrawl-anydoc", "markdownify"}
 
 
 def test_library_dependencies_are_not_exact_pins():
@@ -375,22 +370,61 @@ def test_the_servers_secret_cannot_be_committed():
     assert template.returncode == 1, "the template must stay in the repository"
 
 
-def test_office_formats_are_an_extra_with_a_floor():
-    """markitdown must stay out of the base install, and the extra must refuse 0.0.2.
+def test_office_formats_are_an_extra_pinned_exactly():
+    """anydoc is pinned exactly, markdownify has a floor, and neither is in the base install.
 
-    On Python 3.15 markitdown >= 0.1 cannot be installed (onnxruntime has no
-    wheels there yet), and an unbounded requirement let the resolver fall back
-    to markitdown 0.0.2, which lacks the docx/pptx/xlsx extras: every office
-    format broke silently while the install looked fine. Moving markitdown back
-    into the base dependencies, or dropping the floor, must fail this test.
+    The pin is a decision about output, like pdf-inspector's: anydoc is a young
+    project and what every office document turns into is behaviour that was
+    measured against 0.2.4. A range would let a rebuild change it silently.
+    Relaxing the pin to a range, dropping markdownify's floor, or moving either
+    package into the base dependencies must fail this test.
     """
     from packaging.requirements import Requirement
 
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     base = {_distribution_key(r) for r in project["project"]["dependencies"]}
-    assert "markitdown" not in base
+    assert not base & {"firecrawl-anydoc", "markdownify", "markitdown"}
 
-    office = [Requirement(r) for r in project["project"]["optional-dependencies"]["office"]]
-    markitdown = next(r for r in office if r.name == "markitdown")
-    assert not markitdown.specifier.contains("0.0.2")
-    assert markitdown.specifier.contains("0.1.7")
+    office = {
+        Requirement(r).name: Requirement(r)
+        for r in project["project"]["optional-dependencies"]["office"]
+    }
+    anydoc = list(office["firecrawl-anydoc"].specifier)
+    assert len(anydoc) == 1 and anydoc[0].operator == "==", (
+        f"firecrawl-anydoc must be pinned exactly, found {office['firecrawl-anydoc']}"
+    )
+    markdownify = office["markdownify"].specifier
+    assert markdownify, "markdownify needs a lower bound"
+    assert not markdownify.contains("1.1.0")  # the render API changed at 1.2
+    assert markdownify.contains("1.2.3")
+
+
+def test_ci_installs_what_the_office_tests_need():
+    """requirements-dev.txt must carry the office extra at the same pins.
+
+    CI installs only that file, and the suite asserts zero skips: if anydoc or
+    markdownify were missing there the office tests would fail, but if the
+    pins drifted they would pass against a version the package does not ship.
+    Removing a line from requirements-dev.txt, or changing a pin on one side
+    only, must fail this test. python-docx and openpyxl write the fixtures.
+    """
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extra = {
+        Requirement(r).name: Requirement(r)
+        for r in project["project"]["optional-dependencies"]["office"]
+    }
+    dev = {}
+    for line in (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip()
+        if line and not line.startswith("-"):
+            requirement = Requirement(line)
+            dev[requirement.name] = requirement
+
+    for name, requirement in extra.items():
+        assert name in dev, f"requirements-dev.txt does not install {name}"
+        assert str(dev[name].specifier) == str(requirement.specifier), (
+            f"{name}: dev pins {dev[name].specifier}, the extra declares {requirement.specifier}"
+        )
+    assert {"python-docx", "openpyxl"} <= set(dev)

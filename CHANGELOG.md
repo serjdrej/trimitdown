@@ -12,6 +12,64 @@ release **refuses to build** when this file has no section for the requested
 version: before this file the description of the changes was typed in by hand
 and was lost once, together with a recreated draft.
 
+## 0.3.0
+
+### Что изменилось
+
+- **Опция `office` больше не использует MarkItDown.** Теперь это `firecrawl-anydoc` (версия
+  зафиксирована точно, `==0.2.4`) и `markdownify`. Опция ставится на Python 3.15: MarkItDown не
+  ставился там из-за цепочки markitdown → magika → onnxruntime (колёс под 3.15 нет), а сам
+  markitdown 0.1.8 объявляет `requires-python <3.15`.
+- **`.doc` и `.rtf` теперь читаются.** MarkItDown не открывал `.doc` вовсе, а `.rtf` отдавал
+  сырой RTF-разметкой (около 125 тысяч токенов, ни одной русской буквы). Замер на двадцати
+  файлах: один и тот же русский документ в DOC, DOCX и RTF даёт одну и ту же верную
+  таблицу Markdown; объединённая ячейка встаёт на место; кириллица цела.
+- **HTML и простой текст по-прежнему работают.** `.html`/`.htm` и файлы, содержимое которых —
+  HTML (например, страница, сохранённая как `.pdf`), идут через markdownify без `<script>` и
+  `<style>`; `.txt` и `.md` проходят без изменений. Кодировка: BOM, затем `<meta charset>`,
+  затем UTF-8; страница без объявления и не в UTF-8 читается как windows-1252 (правило HTML5), а
+  простой текст не в UTF-8 отклоняется с понятным сообщением — кодировку мы не угадываем.
+- **Документ никогда не уходит в облако.** anydoc умеет отправлять документ на распознавание в
+  Firecrawl; мы всегда вызываем его с `ocr="reject"` и без ключей, тест это проверяет.
+  Сканированные страницы в офисном файле отклоняются.
+- Ошибки anydoc (зашифровано, повреждено, не хватает части, нужен OCR, неизвестный формат)
+  приходят как короткое сообщение `ConversionError`, а не трассировка.
+
+### Что убрано (несовместимое изменение)
+
+- **Больше не конвертируются:** письма Outlook (`.msg`), JSON, XML, ZIP, изображения и звук,
+  которые принимал MarkItDown. Такие файлы получают отказ с перечнем поддерживаемых форматов.
+- **Сервер (`docker-server/`, опция `server`) и десктопное приложение не обновлялись** и не
+  выпускаются: их офисный путь с этой версии не работает. Их тесты проходят.
+
+### What changed
+
+- **The `office` extra no longer uses MarkItDown.** It is now `firecrawl-anydoc` (pinned
+  exactly, `==0.2.4`) plus `markdownify`. The extra installs on Python 3.15: MarkItDown could
+  not be installed there because of the chain markitdown -> magika -> onnxruntime (no cp315
+  wheels), and markitdown 0.1.8 itself declares `requires-python <3.15`.
+- **`.doc` and `.rtf` are now read.** MarkItDown did not open `.doc` at all and returned raw RTF
+  markup for `.rtf` (about 125 thousand tokens, not one Russian letter). A measurement on
+  twenty files: the same Russian document as DOC, DOCX and RTF gives the same correct Markdown
+  table, a merged cell lands in the right place, Cyrillic is intact.
+- **HTML and plain text keep working.** `.html`/`.htm` and files whose content is HTML (a page
+  saved as `.pdf`, say) go through markdownify without `<script>` and `<style>`; `.txt` and `.md`
+  pass through unchanged. Encoding: BOM, then `<meta charset>`, then UTF-8; an undeclared page
+  that is not UTF-8 is read as windows-1252 (the HTML5 rule), while plain text that is not UTF-8
+  is refused with a clear message -- no encoding is guessed.
+- **A document never leaves the machine.** anydoc can send a document to Firecrawl for
+  recognition; we always call it with `ocr="reject"` and no keys, and a test checks that.
+  Scanned pages in an office file are refused.
+- anydoc's errors (encrypted, damaged, missing part, needs OCR, unknown format) arrive as a
+  short `ConversionError` message, not a traceback.
+
+### What was dropped (breaking)
+
+- **No longer converted:** Outlook messages (`.msg`), JSON, XML, ZIP, images and audio, which
+  MarkItDown accepted. Such files are refused, with the list of supported formats.
+- **The server (`docker-server/`, the `server` extra) and the desktop app were not updated** and
+  are not released: their office path does not work from this version on. Their tests pass.
+
 ## 0.2.1
 
 ### Что изменилось

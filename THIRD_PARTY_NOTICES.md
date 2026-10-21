@@ -13,9 +13,14 @@ separate distributions, each under its own license, which each distribution carr
 | [pypdfium2](https://pypi.org/project/pypdfium2/) | Apache-2.0 or BSD-3-Clause; its wheels carry PDFium and PDFium's third-party libraries, with their notices | layer detection, page images for review, page count |
 | [Pillow](https://pypi.org/project/pillow/) | MIT-CMU | writing page images |
 | [cryptography](https://pypi.org/project/cryptography/) (via `pypdf[crypto]`) | Apache-2.0 or BSD-3-Clause | encrypted PDFs |
-| [MarkItDown](https://github.com/microsoft/markitdown) | MIT | every format other than PDF |
+| [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/) (the `office` extra, pinned exactly) | MIT | Word (docx, doc, rtf), OpenDocument, EPUB, Excel, PowerPoint and CSV to Markdown |
+| [markdownify](https://pypi.org/project/markdownify/) (the `office` extra) | MIT | HTML to Markdown |
 | [tiktoken](https://github.com/openai/tiktoken) | MIT | token counts |
 | [python-pptx](https://pypi.org/project/python-pptx/) | MIT | slide counts |
+
+MarkItDown (MIT) was the `office` extra until 0.3.0 and is no longer a dependency of the
+package. Its notice stays below, because the earlier desktop releases that bundled it are still
+distributed and the unreleased desktop and server code in this tree still depends on it.
 
 Only permissive licenses, by design: the package is meant to be usable inside other people's
 tools. PyMuPDF (AGPL) is deliberately not used.

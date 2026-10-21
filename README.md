@@ -14,8 +14,8 @@
 
 </div>
 
-`trimitdown` turns PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) and Outlook (.msg)
-files into Markdown meant to be pasted into an LLM or read by an agent. The objective is the
+`trimitdown` turns PDF, Word (docx, doc, rtf), PowerPoint (pptx), Excel (xlsx/xls), HTML and
+plain text into Markdown meant to be pasted into an LLM or read by an agent. The objective is the
 fewest tokens with the information preserved: a real table becomes a Markdown table, a page
 whose text cannot be trusted says so instead of passing as text.
 
@@ -36,15 +36,17 @@ A plain `pip install` into the system Python is refused on many distributions an
 (PEP 668); the commands above put the package in an isolated environment. Inside your own
 virtual environment, `pip install trimitdown` is fine.
 
-PDF needs nothing more. Word, PowerPoint, Excel and Outlook need the `office` extra:
+PDF needs nothing more. Word (docx, doc, rtf), PowerPoint, Excel, OpenDocument, EPUB, CSV and
+HTML need the `office` extra:
 
 ```bash
 uv tool install "trimitdown[office]"     # or: pip install "trimitdown[office]"
 ```
 
-The extra does not install on Python 3.15 yet: it needs onnxruntime, which has no 3.15 wheels
-so far. PDF conversion works there. Without the extra, converting an office file fails with a
-message naming the extra.
+The extra installs on Python 3.15 as well: it is [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/)
+(one wheel, no dependencies of its own) and [markdownify](https://pypi.org/project/markdownify/).
+Without the extra, converting an office file fails with a message naming the extra. Plain text
+(`.txt`, `.md`) needs no extra.
 
 ## Convert
 
@@ -65,7 +67,13 @@ result.pages           # PDFs: how each page was routed, and why
 result.tokens_after    # cl100k tokens of the Markdown
 ```
 
-Non-PDF formats go through Microsoft's [MarkItDown](https://github.com/microsoft/markitdown).
+Non-PDF formats: `.docx`, `.doc`, `.rtf`, `.odt`, `.epub`, `.xlsx`, `.xls`, `.ods`, `.csv`,
+`.pptx`, `.ppt`, `.odp` go through firecrawl-anydoc; `.html`/`.htm` (and files whose content is
+HTML whatever the name) through markdownify, without scripts and styles; `.txt` and `.md` pass
+through unchanged, as UTF-8. Outlook `.msg`, JSON, XML, ZIP, images and audio are not converted
+(0.3.0 dropped them); the converter refuses them with a message instead of returning nothing.
+Documents are never sent anywhere: scanned pages in an office file are refused, not OCR-ed in a
+cloud.
 
 ## How PDFs are handled
 
@@ -193,5 +201,6 @@ Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
 Code is [MIT](LICENSE). PDFs are read with [pdf-inspector](https://pypi.org/project/pdf-inspector/)
 (MIT), [pypdf](https://pypi.org/project/pypdf/) (BSD) and
 [pypdfium2](https://pypi.org/project/pypdfium2/) (Apache-2.0 / BSD, with PDFium); other formats
-with [MarkItDown](https://github.com/microsoft/markitdown) (Microsoft, MIT). See
+with [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/) (MIT) and
+[markdownify](https://pypi.org/project/markdownify/) (MIT). See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

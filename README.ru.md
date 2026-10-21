@@ -14,8 +14,8 @@
 
 </div>
 
-`trimitdown` превращает PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xls) и письма Outlook
-(.msg) в Markdown, который вставляют в LLM или читает агент. Цель — меньше токенов при
+`trimitdown` превращает PDF, Word (docx, doc, rtf), PowerPoint (pptx), Excel (xlsx/xls), HTML и
+простой текст в Markdown, который вставляют в LLM или читает агент. Цель — меньше токенов при
 сохранённой информации: настоящая таблица становится таблицей Markdown, а страница, тексту
 которой нельзя верить, так и помечается, а не выдаётся за текст.
 
@@ -35,15 +35,17 @@ uvx trimitdown convert report.pdf   # один раз, без установки
 (PEP 668); команды выше ставят пакет в изолированное окружение. В своём виртуальном окружении
 `pip install trimitdown` работает.
 
-Для PDF больше ничего не нужно. Word, PowerPoint, Excel и Outlook требуют опцию `office`:
+Для PDF больше ничего не нужно. Word (docx, doc, rtf), PowerPoint, Excel, OpenDocument, EPUB,
+CSV и HTML требуют опцию `office`:
 
 ```bash
 uv tool install "trimitdown[office]"     # или: pip install "trimitdown[office]"
 ```
 
-На Python 3.15 опция пока не ставится: ей нужен onnxruntime, у которого колёс под 3.15 ещё нет.
-PDF там работает. Без опции конвертация офисного файла завершается сообщением, которое называет
-опцию.
+Опция ставится и на Python 3.15: это [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/)
+(одно колесо, собственных зависимостей нет) и [markdownify](https://pypi.org/project/markdownify/).
+Без опции конвертация офисного файла завершается сообщением, которое называет опцию. Простой
+текст (`.txt`, `.md`) опции не требует.
 
 ## Конвертация
 
@@ -64,7 +66,13 @@ result.pages           # для PDF: каким путём прошла кажд
 result.tokens_after    # токены cl100k
 ```
 
-Форматы, кроме PDF, идут через [MarkItDown](https://github.com/microsoft/markitdown) от Microsoft.
+Форматы, кроме PDF: `.docx`, `.doc`, `.rtf`, `.odt`, `.epub`, `.xlsx`, `.xls`, `.ods`, `.csv`,
+`.pptx`, `.ppt`, `.odp` читает firecrawl-anydoc; `.html`/`.htm` (и файлы, содержимое которых —
+HTML, как бы они ни назывались) — markdownify, без скриптов и стилей; `.txt` и `.md`
+проходят без изменений, как UTF-8. Письма Outlook `.msg`, JSON, XML, ZIP, изображения и звук не
+конвертируются (в 0.3.0 они убраны); вместо молчаливого пустого результата конвертер отказывает
+с сообщением. Документы никуда не отправляются: сканированные страницы в офисном файле
+отклоняются, а не распознаются в облаке.
 
 ## Как обрабатывается PDF
 
@@ -194,5 +202,6 @@ PWA для iPhone и манифест Scoop. Они больше не выпус
 Код — [MIT](LICENSE). PDF читают [pdf-inspector](https://pypi.org/project/pdf-inspector/) (MIT),
 [pypdf](https://pypi.org/project/pypdf/) (BSD) и
 [pypdfium2](https://pypi.org/project/pypdfium2/) (Apache-2.0 / BSD, с PDFium); остальные
-форматы — [MarkItDown](https://github.com/microsoft/markitdown) (Microsoft, MIT). См.
+форматы — [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/) (MIT) и
+[markdownify](https://pypi.org/project/markdownify/) (MIT). См.
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
