@@ -78,7 +78,13 @@ dependencies = [
 # silently. Raising the pin is its own commit, after the measurement is rerun.
 # markdownify (a range: it only renders HTML we have already cleaned) reads
 # .html/.htm; anydoc does not.
-office = ["firecrawl-anydoc==0.2.4", "markdownify>=1.2"]
+#
+# olefile (BSD-2-Clause, pure Python) is for trimitdown.office_inspect: anydoc
+# drops tracked changes, comments and headers without a word and cannot be
+# asked about them, so for a DOC the compound file is read here to count them.
+# A range: it only locates streams; the counts are checked by tests on files
+# made in Word.
+office = ["firecrawl-anydoc==0.2.4", "markdownify>=1.2", "olefile>=0.46"]
 # Нужен только тому, кто поднимает HTTP-слой (Docker-образ, десктопная сборка).
 server = ["fastapi", "uvicorn", "python-multipart"]
 

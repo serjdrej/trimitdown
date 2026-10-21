@@ -18,7 +18,8 @@ import tiktoken
 
 from pptx import Presentation
 
-from trimitdown.pdf_route import PageRoute, render_markdown, route_pdf
+from trimitdown import office_inspect
+from trimitdown.pdf_route import PageRoute, path_counts, render_markdown, route_pdf
 
 # Кэш едет внутри пакета как package data. Path(__file__) сработал бы для обычной
 # установки, но не переживает упаковку; resources.files находит его и там, и в
@@ -56,6 +57,10 @@ class ConversionResult:
     # / blank) and why. Last and defaulted, so the web layer, which builds
     # nothing from it, keeps working unchanged.
     pages: tuple[PageRoute, ...] | None = None
+    # What the conversion found out about the file, for machines (schema 1, see
+    # README "--report"). Always set by convert_path; None only for a result
+    # built by hand. Last and defaulted for the same reason as `pages`.
+    report: dict | None = None
 
 
 def _get_encoding():
@@ -125,8 +130,11 @@ _TEXT_SUFFIXES = frozenset({".txt", ".md"})
 _HTML_SUFFIXES = frozenset({".html", ".htm"})
 
 
-def _convert_other(path: Path, suffix: str, head: bytes) -> str:
+def _convert_other(
+    path: Path, suffix: str, head: bytes, accept_changes: bool = False
+) -> tuple[str, dict]:
     """Everything that is not a PDF: plain text, HTML, or the office formats.
+    Returns the Markdown and the report that goes with it.
 
     Plain text and HTML are handled here because anydoc reads neither, and
     markitdown, which did, passed `.txt` and `.md` through unchanged; dropping
@@ -139,10 +147,10 @@ def _convert_other(path: Path, suffix: str, head: bytes) -> str:
     markdown file that quotes an <html> tag is still markdown.
     """
     if suffix in _TEXT_SUFFIXES:
-        return _decode_text(path.read_bytes(), path.name)
+        return _decode_text(path.read_bytes(), path.name), _report(suffix.lstrip("."))
     if suffix in _HTML_SUFFIXES or _sniffs_as_html(head):
-        return _html_to_markdown(_decode_html(path.read_bytes()))
-    return _anydoc_to_markdown(path)
+        return _html_to_markdown(_decode_html(path.read_bytes())), _report("html")
+    return _anydoc_to_markdown(path, suffix, accept_changes)
 
 
 def _sniffs_as_html(head: bytes) -> bool:
@@ -278,25 +286,150 @@ def _describe_anydoc_error(error: Exception) -> str:
     return f"the document could not be converted ({detail})"
 
 
-def _anydoc_to_markdown(path: Path) -> str:
+def _report(fmt: str, **parts) -> dict:
+    """The machine-readable report, schema 1. See README, "--report"."""
+    return {"schema": 1, "format": fmt, **parts}
+
+
+def _count_phrase(inspection: "office_inspect.Inspection") -> str:
+    said = []
+    if inspection.insertions:
+        said.append(f"{inspection.insertions} insertion{'s' * (inspection.insertions != 1)}")
+    if inspection.deletions:
+        said.append(f"{inspection.deletions} deletion{'s' * (inspection.deletions != 1)}")
+    return ", ".join(said)
+
+
+# ODT is refused until anydoc reads it correctly. Measured on a document saved
+# from Word as ODT: a list restarted at the second level keeps counting
+# ("2.1." became "2.3.", "a)" became "c)"), and a comment is pasted into the
+# middle of a word with its author and date. Both are the kind of damage a
+# reader cannot see. ODS and ODP are not affected by either and are not refused.
+_ODT_REFUSAL = (
+    "ODT is not converted: the numbering of nested lists and the comments are "
+    "not read correctly (a nested list continues the previous count instead of "
+    "restarting, and a comment is pasted into the text with its author and date). "
+    "Save the document as DOCX and convert that"
+)
+
+
+def _refuse_tracked_changes(inspection: "office_inspect.Inspection", accept_changes: bool) -> None:
+    """Raise unless the document may be printed. No-op when it has no changes."""
+    if not inspection.has_changes:
+        return
+    counts = _count_phrase(inspection)
+    shout = inspection.format.upper()
+    if inspection.format != "docx":
+        # anydoc prints a DOC or RTF with the deleted wording in place and no
+        # marks, so there is no accepted reading to hand over. Measured, not
+        # assumed: the deleted word sits next to the inserted one in the output.
+        raise ConversionError(
+            f"the {shout} document has unresolved tracked changes ({counts}); the {shout} "
+            "reader prints the deleted wording in place with no marks, and "
+            "--accept-changes cannot repair that for this format. Save the file "
+            "as DOCX in Word and convert that with --accept-changes, or accept or "
+            "reject the changes in Word and save it again"
+        )
+    if not accept_changes:
+        raise ConversionError(
+            f"the document has unresolved tracked changes ({counts}); printing it "
+            "as it is would drop the struck-out wording without a trace. Accept or "
+            "reject the changes in Word and save it again, or convert it with every "
+            "change accepted: --accept-changes (accept_changes=True in Python)"
+        )
+    if inspection.accept_blockers:
+        raise ConversionError(
+            f"the document has tracked changes ({counts}) that --accept-changes cannot "
+            f"apply faithfully: {'; '.join(inspection.accept_blockers)}. Accept or "
+            "reject the changes in Word and save it again"
+        )
+
+
+def _anydoc_to_markdown(
+    path: Path, suffix: str = "", accept_changes: bool = False
+) -> tuple[str, dict]:
     # Imported here, never at module level: a PDF must not pay for it, and the
     # base install does not have it.
     try:
         import anydoc
     except ImportError:
         raise ConversionError(_NEEDS_OFFICE_EXTRA) from None
+
+    data = path.read_bytes()
+    # The format is anydoc's own reading of the content, so the inspection below
+    # looks at exactly what anydoc will convert; the extension is its fallback too.
+    fmt = anydoc.format_from_bytes(data) or anydoc.format_from_extension(suffix)
+
+    inspection = None
+    inspection_failure = None
+    if fmt == "odt":
+        raise ConversionError(_ODT_REFUSAL)
+    if fmt in office_inspect.INSPECTED_FORMATS:
+        # anydoc drops tracked changes, comments and headers without a word and
+        # cannot be asked about them, so this module looks at the file first
+        # (see office_inspect). Do not route around it.
+        try:
+            inspection = office_inspect.inspect(data, fmt)
+        except office_inspect.InspectionFailed as e:
+            inspection_failure = e
+        else:
+            _refuse_tracked_changes(inspection, accept_changes)
+
     try:
         # ocr="reject" is the privacy guarantee, not a default to be tidied up.
         # anydoc's other mode, "hosted", uploads the whole document to
         # Firecrawl; with an api_key or api_url it would do so quietly. Nothing
         # here passes either, and tests/test_convert_pure.py fails if anyone does.
-        return anydoc.to_markdown(str(path), ocr="reject")
+        text = anydoc.to_markdown(str(path), ocr="reject")
+    except anydoc.ConvertError as e:
+        # A file anydoc cannot read is reported as anydoc says, whatever the
+        # inspection made of it.
+        raise ConversionError(_describe_anydoc_error(e)) from e
+
+    if fmt not in office_inspect.INSPECTED_FORMATS:
+        return text, _report(fmt or suffix.lstrip(".").lower() or "unknown")
+    if inspection is None:
+        # anydoc read a file that could not be examined. Printing it would be
+        # printing it unchecked: refuse, and say why.
+        raise ConversionError(
+            f"the {fmt.upper()} document could not be checked for tracked changes, "
+            f"comments and headers ({inspection_failure}); it is not printed unchecked"
+        )
+
+    try:
+        images = office_inspect.count_images(anydoc.to_document(data))
     except anydoc.ConvertError as e:
         raise ConversionError(_describe_anydoc_error(e)) from e
 
+    report = _report(
+        fmt,
+        tracked_changes={
+            "present": inspection.has_changes,
+            "insertions": inspection.insertions,
+            "deletions": inspection.deletions,
+            "accepted": inspection.has_changes and accept_changes,
+        },
+        omitted={
+            "headers_footers": inspection.headers_footers,
+            "comments": inspection.comments,
+            "images": images,
+        },
+    )
+    phrase = office_inspect.summary_phrase(report)
+    if phrase:
+        # The line is an HTML comment: Markdown renderers hide it and a reader
+        # of the raw text (an LLM) sees what was left out.
+        text = f"<!-- trimitdown: {phrase} -->\n\n{text}"
+    return text, report
 
-def convert_path(path: Path | str) -> ConversionResult:
-    """Сконвертировать файл на диске. Синхронно: асинхронность -- забота веб-слоя."""
+
+def convert_path(path: Path | str, *, accept_changes: bool = False) -> ConversionResult:
+    """Сконвертировать файл на диске. Синхронно: асинхронность -- забота веб-слоя.
+
+    A DOCX, DOC or RTF with unresolved tracked changes is refused (ConversionError);
+    `accept_changes=True` converts a DOCX anyway and prints the accepted text. DOC
+    and RTF are refused either way. The flag means nothing to any other format.
+    """
     path = Path(path)
     suffix = path.suffix.lower()
 
@@ -327,8 +460,9 @@ def convert_path(path: Path | str) -> ConversionResult:
         if suffix == ".pdf" and head.find(b"%PDF") != -1:
             pages = tuple(route_pdf(path))
             text = render_markdown(list(pages))
+            report = _report("pdf", pages={"total": len(pages), **path_counts(list(pages))})
         else:
-            text = _convert_other(path, suffix, head)
+            text, report = _convert_other(path, suffix, head, accept_changes)
     except Exception as e:
         raise ConversionError(str(e)) from e
 
@@ -345,11 +479,11 @@ def convert_path(path: Path | str) -> ConversionResult:
 
     return ConversionResult(
         text=text, tokens_after=after, tokens_before=before, unit=unit, units=units,
-        pages=pages,
+        pages=pages, report=report,
     )
 
 
-def convert_bytes(data: bytes, suffix: str) -> ConversionResult:
+def convert_bytes(data: bytes, suffix: str, *, accept_changes: bool = False) -> ConversionResult:
     """Сконвертировать содержимое в памяти.
 
     Существует ради веб-слоя, где вход -- UploadFile, а не путь. Временный файл
@@ -359,6 +493,6 @@ def convert_bytes(data: bytes, suffix: str) -> ConversionResult:
         tmp.write(data)
         tmp_path = tmp.name
     try:
-        return convert_path(tmp_path)
+        return convert_path(tmp_path, accept_changes=accept_changes)
     finally:
         Path(tmp_path).unlink(missing_ok=True)

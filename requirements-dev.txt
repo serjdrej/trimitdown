@@ -17,6 +17,7 @@ pyyaml
 # still carries markitdown for the desktop and server code, which are closed.
 firecrawl-anydoc==0.2.4
 markdownify>=1.2
+olefile>=0.46
 # Fixture writers: the office tests build their DOCX and XLSX in the test rather
 # than committing binary documents.
 python-docx

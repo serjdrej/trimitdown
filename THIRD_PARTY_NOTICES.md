@@ -15,6 +15,7 @@ separate distributions, each under its own license, which each distribution carr
 | [cryptography](https://pypi.org/project/cryptography/) (via `pypdf[crypto]`) | Apache-2.0 or BSD-3-Clause | encrypted PDFs |
 | [firecrawl-anydoc](https://pypi.org/project/firecrawl-anydoc/) (the `office` extra, pinned exactly) | MIT | Word (docx, doc, rtf), OpenDocument, EPUB, Excel, PowerPoint and CSV to Markdown |
 | [markdownify](https://pypi.org/project/markdownify/) (the `office` extra) | MIT | HTML to Markdown |
+| [olefile](https://pypi.org/project/olefile/) (the `office` extra) | BSD-2-Clause | reading the compound file of a DOC to count tracked changes, comments and headers |
 | [tiktoken](https://github.com/openai/tiktoken) | MIT | token counts |
 | [python-pptx](https://pypi.org/project/python-pptx/) | MIT | slide counts |
 
